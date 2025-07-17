@@ -1,0 +1,986 @@
+use crate::{
+    modules::{
+        account::{entity::Account, since::DateSince, status::AccountRunningState},
+        bounce::parser::{extract_bounce_report, BounceReport},
+        cache::imap::{
+            diff,
+            envelope::EmailEnvelope,
+            find_deleted_mailboxes, find_flag_updates, find_intersecting_mailboxes,
+            find_missing_mailboxes, find_missing_remote_uids,
+            mailbox::{EnvelopeFlag, MailBox},
+            manager::EnvelopeFlagsManager,
+            minimal::MinimalEnvelope,
+            sync::{
+                rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
+                sync_type::SyncType,
+            },
+        },
+        common::AddrVec,
+        context::executors::RUST_MAIL_CONTEXT,
+        envelope::{
+            detect::should_extract_bounce_report,
+            extractor::{
+                extract_envelope, extract_minimal_envelopes, extract_rich_envelopes,
+                parse_fetch_metadata,
+            },
+        },
+        error::{code::ErrorCode, RustMailerError, RustMailerResult},
+        hook::{
+            channel::{Event, EVENT_CHANNEL},
+            events::{
+                payload::{
+                    Attachment, EmailAddedToFolder, EmailBounce, EmailFeedBackReport, MailboxChange,
+                },
+                EventPayload, EventType, RustMailerEvent,
+            },
+            task::EventHookTask,
+        },
+        message::content::{retrieve_email_content, MessageContent, MessageContentRequest},
+        metrics::RUSTMAILER_NEW_EMAIL_ARRIVAL_TOTAL,
+        settings::cli::SETTINGS,
+    },
+    raise_error,
+};
+use ahash::{AHashMap, AHashSet};
+use async_imap::types::Fetch;
+use mail_parser::{Message, MessageParser};
+use std::{collections::HashSet, sync::Arc, time::Instant};
+use tokio::sync::Semaphore;
+use tracing::{debug, error, info};
+
+const ENVELOPE_BATCH_SIZE: u32 = 1000;
+const UID_FLAGS_BATCH_SIZE: u32 = 10000;
+
+pub async fn fetch_and_save_since_date(
+    account_id: u64,
+    date: &str,
+    mailbox: &MailBox,
+    initial: bool,
+    minimal_sync: bool,
+) -> RustMailerResult<usize> {
+    let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
+    let uid_list = executor
+        .uid_search(&mailbox.encoded_name(), format!("SINCE {date}").as_str())
+        .await?;
+
+    let len = uid_list.len();
+    if len == 0 {
+        return Ok(0);
+    }
+
+    let semaphore = Arc::new(Semaphore::new(5));
+    let mut handles = Vec::new();
+
+    let uid_batches = generate_uid_sequence_hashset(uid_list, ENVELOPE_BATCH_SIZE as usize, false);
+
+    if initial {
+        AccountRunningState::set_initial_current_syncing_folder(
+            account_id,
+            mailbox.name.clone(),
+            uid_batches.len() as u32,
+        )
+        .await?;
+    }
+
+    for (index, batch) in uid_batches.into_iter().enumerate() {
+        let encoded_name = mailbox.encoded_name();
+        let mailbox_hash = mailbox.id;
+        let mailbox_name = mailbox.name.clone();
+        match semaphore.clone().acquire_owned().await {
+            Ok(permit) => {
+                if initial {
+                    AccountRunningState::set_current_sync_batch_number(
+                        account_id,
+                        (index + 1) as u32,
+                    )
+                    .await?;
+                }
+                let handle: tokio::task::JoinHandle<Result<(), RustMailerError>> =
+                    tokio::spawn(async move {
+                        let _permit = permit; // Ensure permit is released when task finishes
+                        let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
+                        // Fetch metadata for the current batch of UIDs
+                        let fetches = executor
+                            .uid_fetch_meta(&batch, &encoded_name, minimal_sync)
+                            .await?;
+
+                        if minimal_sync {
+                            let envelopes =
+                                extract_minimal_envelopes(fetches, account_id, mailbox_hash)?;
+                            MinimalEnvelope::batch_insert(&envelopes).await?;
+                        } else {
+                            let envelopes =
+                                extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
+                            EmailEnvelope::batch_insert(&envelopes).await?;
+                            let envelopes: Vec<MinimalEnvelope> =
+                                envelopes.into_iter().map(|e| e.into()).collect();
+                            MinimalEnvelope::batch_insert(&envelopes).await?;
+                        };
+                        Ok(())
+                    });
+                handles.push(handle);
+            }
+            Err(err) => {
+                error!("Failed to acquire semaphore permit, error: {:#?}", err);
+            }
+        }
+    }
+    for task in handles {
+        match task.await {
+            Ok(Ok(_)) => {}
+            Ok(Err(err)) => return Err(err),
+            Err(e) => return Err(raise_error!(format!("{:#?}", e), ErrorCode::InternalError)),
+        }
+    }
+
+    Ok(len)
+}
+
+pub async fn fetch_and_save_full_mailbox(
+    account: &Account,
+    mailbox: &MailBox,
+    total: u32,
+    initial: bool,
+) -> RustMailerResult<usize> {
+    let page_size = ENVELOPE_BATCH_SIZE;
+    let total_batches = total.div_ceil(page_size);
+    let mut inserted_count = 0;
+
+    let account_id = account.id;
+    let minimal_sync = account.minimal_sync;
+
+    if initial {
+        AccountRunningState::set_initial_current_syncing_folder(
+            account_id,
+            mailbox.name.clone(),
+            total_batches,
+        )
+        .await?;
+    }
+
+    let semaphore = Arc::new(Semaphore::new(5));
+    let mut handles = Vec::new();
+
+    for page in 1..=total_batches {
+        let mailbox_id = mailbox.id;
+        let mailbox_name = mailbox.name.clone();
+        let encoded_name = mailbox.encoded_name();
+        match semaphore.clone().acquire_owned().await {
+            Ok(permit) => {
+                if initial {
+                    AccountRunningState::set_current_sync_batch_number(account_id, page).await?;
+                }
+                // Spawn a task with the acquired permit
+                // let account = account.clone();
+                let handle: tokio::task::JoinHandle<Result<usize, RustMailerError>> = tokio::spawn(
+                    async move {
+                        let _permit = permit; // Ensure permit is released when task finishes
+                        let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
+                        let (fetches, _) = executor
+                            .retrieve_metadata_paginated(
+                                page as u64,
+                                page_size as u64,
+                                &encoded_name,
+                                false,
+                                minimal_sync,
+                            )
+                            .await?;
+                        let count = fetches.len();
+                        if minimal_sync {
+                            let documents =
+                                extract_minimal_envelopes(fetches, account_id, mailbox_id)?;
+                            MinimalEnvelope::batch_insert(&documents).await?;
+                        } else {
+                            let documents =
+                                extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
+                            EmailEnvelope::batch_insert(&documents).await?;
+                            let documents: Vec<MinimalEnvelope> =
+                                documents.into_iter().map(|e| e.into()).collect();
+                            MinimalEnvelope::batch_insert(&documents).await?;
+                        };
+                        info!("Batch insertion completed for mailbox: {}, current page: {}, inserted count: {}", &mailbox_name, page, count);
+                        Ok(count)
+                    },
+                );
+                handles.push(handle);
+            }
+            Err(err) => {
+                error!("Failed to acquire semaphore permit, error: {:#?}", err);
+            }
+        }
+    }
+
+    for task in handles {
+        match task.await {
+            Ok(Ok(count)) => {
+                inserted_count += count;
+            }
+            Ok(Err(err)) => return Err(err),
+            Err(e) => return Err(raise_error!(format!("{:#?}", e), ErrorCode::InternalError)),
+        }
+    }
+
+    Ok(inserted_count)
+}
+
+pub fn generate_uid_sequence_hashset(
+    unique_nums: HashSet<u32>,
+    chunk_size: usize,
+    desc: bool,
+) -> Vec<String> {
+    assert!(!unique_nums.is_empty());
+    let mut nums: Vec<u32> = unique_nums.into_iter().collect();
+    nums.sort();
+
+    if desc {
+        nums.reverse();
+    }
+
+    let mut result = Vec::new();
+
+    for chunk in nums.chunks(chunk_size) {
+        let compressed = compress_uid_list(chunk.to_vec());
+        result.push(compressed);
+    }
+
+    result
+}
+
+pub fn compress_uid_list(nums: Vec<u32>) -> String {
+    if nums.is_empty() {
+        return String::new();
+    }
+
+    let mut sorted_nums = nums;
+    sorted_nums.sort();
+
+    let mut result = Vec::new();
+    let mut current_range_start = sorted_nums[0];
+    let mut current_range_end = sorted_nums[0];
+
+    for &n in sorted_nums.iter().skip(1) {
+        if n == current_range_end + 1 {
+            current_range_end = n;
+        } else {
+            if current_range_start == current_range_end {
+                result.push(current_range_start.to_string());
+            } else {
+                result.push(format!("{}:{}", current_range_start, current_range_end));
+            }
+            current_range_start = n;
+            current_range_end = n;
+        }
+    }
+
+    if current_range_start == current_range_end {
+        result.push(current_range_start.to_string());
+    } else {
+        result.push(format!("{}:{}", current_range_start, current_range_end));
+    }
+
+    result.join(",")
+}
+
+pub async fn compare_and_sync_mailbox(
+    account: &Account,
+    remote_mailboxes: &[MailBox],
+    local_mailboxes: &[MailBox],
+    sync_type: &SyncType,
+    count: usize,
+) -> RustMailerResult<()> {
+    let start_time = Instant::now();
+    let existing_mailboxes = find_intersecting_mailboxes(local_mailboxes, remote_mailboxes);
+    let account_id = account.id;
+    if !existing_mailboxes.is_empty() {
+        let mut mailboxes_to_update = Vec::with_capacity(existing_mailboxes.len());
+        for (local_mailbox, remote_mailbox) in &existing_mailboxes {
+            if local_mailbox.uid_validity != remote_mailbox.uid_validity {
+                info!(
+                    "Account {}: Mailbox '{}' detected with changed uid_validity (local: {:#?}, remote: {:#?}). \
+                    The mailbox data may be invalid, resetting its envelopes and rebuilding the cache.",
+                    account_id, local_mailbox.name, &local_mailbox.uid_validity, &remote_mailbox.uid_validity
+                );
+                if EventHookTask::event_watched(account_id, EventType::UIDValidityChange).await? {
+                    EVENT_CHANNEL
+                        .queue(Event::new(
+                            account_id,
+                            &account.email,
+                            RustMailerEvent::new(
+                                EventType::UIDValidityChange,
+                                EventPayload::UIDValidityChange(MailboxChange {
+                                    account_id,
+                                    account_email: account.email.clone(),
+                                    mailbox_name: local_mailbox.name.clone(),
+                                }),
+                            ),
+                        ))
+                        .await;
+                }
+                match &account.date_since {
+                    Some(date_since) => {
+                        rebuild_mailbox_cache_since_date(
+                            account,
+                            local_mailbox.id,
+                            date_since,
+                            remote_mailbox,
+                        )
+                        .await?;
+                    }
+                    None => {
+                        rebuild_mailbox_cache(account, local_mailbox, remote_mailbox).await?;
+                    }
+                }
+            } else {
+                match sync_type {
+                    SyncType::FullSync => {
+                        perform_full_sync(account, local_mailbox, remote_mailbox).await?;
+                    }
+                    SyncType::IncrementalSync => {
+                        perform_incremental_sync(account, local_mailbox, remote_mailbox, count)
+                            .await?;
+                    }
+                    SyncType::SkipSync => unreachable!(),
+                }
+            }
+            mailboxes_to_update.push(remote_mailbox.clone());
+        }
+        // commit(account).await?;
+        MailBox::batch_upsert(&mailboxes_to_update).await?;
+    }
+    debug!(
+        "Checked mailbox folders for account ID: {}. Compared local and server folders to identify changes. Elapsed time: {} seconds",
+        account.id,
+        start_time.elapsed().as_secs()
+    );
+    let deleted_mailboxes = find_deleted_mailboxes(local_mailboxes, remote_mailboxes);
+    let missing_mailboxes = find_missing_mailboxes(local_mailboxes, remote_mailboxes);
+
+    // handle_renamed_mailboxes(account, &mut deleted_mailboxes, &mut missing_mailboxes).await?;
+    //delete local
+    if !deleted_mailboxes.is_empty() {
+        info!(
+            "Account {}: Detected {} mailboxes missing from the IMAP server (not found in the LSUB response). \
+            Now cleaning up these mailboxes and their associated metadata locally.",
+            account_id, deleted_mailboxes.len()
+        );
+        cleanup_deleted_mailboxes(account, &deleted_mailboxes).await?;
+    }
+
+    if !missing_mailboxes.is_empty() {
+        for mailbox in &missing_mailboxes {
+            if mailbox.exists > 0 {
+                fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, false).await?;
+            }
+        }
+        // commit(account).await?;
+        MailBox::batch_insert(&missing_mailboxes).await?;
+    }
+    Ok(())
+}
+
+async fn cleanup_deleted_mailboxes(
+    account: &Account,
+    deleted_mailboxes: &[MailBox],
+) -> RustMailerResult<()> {
+    let start_time = Instant::now();
+    for mailbox in deleted_mailboxes {
+        EnvelopeFlagsManager::clean_mailbox(account.id, mailbox.id).await?;
+    }
+    MailBox::batch_delete(deleted_mailboxes.to_vec()).await?;
+    let elapsed_time = start_time.elapsed().as_secs();
+    info!(
+        "Cleanup deleted mailboxes completed: {} seconds elapsed.",
+        elapsed_time
+    );
+    Ok(())
+}
+/// Sync recent 200 envelopes's flags
+async fn sync_recent_envelope_flags(
+    account: &Account,
+    local_mailbox: &MailBox,
+    remote_mailbox: &MailBox,
+    uid_next: u32,
+) -> RustMailerResult<()> {
+    let min_uid = (uid_next.saturating_sub(200)).max(1);
+
+    let local_uid_flags = EnvelopeFlagsManager::get_uid_map(account.id, local_mailbox.id, min_uid);
+
+    let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
+    let uid_set = format!("{}:*", min_uid);
+    let fetches = executor
+        .uid_fetch_uid_and_flags(uid_set.as_str(), &remote_mailbox.encoded_name())
+        .await?;
+    let remote_uid_flags = parse_fetch_metadata(fetches, false)?;
+    let update_flags = find_flag_updates(&local_uid_flags, remote_uid_flags);
+    if !update_flags.is_empty() {
+        info!(
+            "Account {}: Mailbox '{}' incremental sync - {} message flags changed (UID range {}..*)",
+            &account.id,
+            &local_mailbox.name,
+            update_flags.len(),
+            min_uid
+        );
+
+        EnvelopeFlagsManager::update_envelope_flags(account, local_mailbox.id, update_flags)
+            .await?;
+    }
+    Ok(())
+}
+
+//only check new emails and sync
+async fn perform_incremental_sync(
+    account: &Account,
+    local_mailbox: &MailBox,
+    remote_mailbox: &MailBox,
+    sync_count: usize,
+) -> RustMailerResult<()> {
+    if let (Some(local_uid_next), Some(remote_uid_next)) =
+        (local_mailbox.uid_next, remote_mailbox.uid_next)
+    {
+        if local_uid_next == remote_uid_next && local_mailbox.exists == remote_mailbox.exists {
+            if sync_count % 10 == 0 {
+                debug!(
+                    "Account {}: Mailbox '{}' has the same uid_next and exists.",
+                    account.id, &local_mailbox.name
+                );
+            }
+            return sync_recent_envelope_flags(
+                account,
+                local_mailbox,
+                remote_mailbox,
+                local_uid_next,
+            )
+            .await;
+        }
+    }
+
+    if remote_mailbox.exists > 0 {
+        //let local_max_uid = INDEX_MANAGER.get_max_uid(account, local_mailbox.id).await?;
+        let local_max_uid = EnvelopeFlagsManager::get_max_uid(account.id, local_mailbox.id);
+        match local_max_uid {
+            Some(max_uid) => {
+                let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
+                let fetches = executor
+                    .fetch_uid_list(
+                        max_uid + 1,
+                        &remote_mailbox.encoded_name(),
+                        account.minimal_sync,
+                    )
+                    .await?;
+                let uid_list = parse_fetch_metadata(fetches, !account.minimal_sync)?;
+
+                // This is just a precaution in case the server's behavior deviates from expectations.
+                let uid_list = uid_list
+                    .into_iter()
+                    .filter(|i| i.0 > (max_uid as u32))
+                    .map(|e| (e.0, e.1 .0))
+                    .collect();
+                fetch_and_store_new_envelopes_by_uid_list(
+                    account,
+                    local_mailbox.id,
+                    remote_mailbox,
+                    uid_list,
+                )
+                .await?;
+            }
+            None => {
+                info!(
+                    "No maximum UID found in index for mailbox, assuming local cache is missing."
+                );
+
+                match &account.date_since {
+                    Some(date_since) => {
+                        fetch_and_save_since_date(
+                            account.id,
+                            date_since.since_date()?.as_str(),
+                            remote_mailbox,
+                            false,
+                            account.minimal_sync,
+                        )
+                        .await?;
+                    }
+                    None => {
+                        fetch_and_save_full_mailbox(
+                            account,
+                            remote_mailbox,
+                            remote_mailbox.exists,
+                            false,
+                        )
+                        .await?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+//
+async fn perform_full_sync(
+    account: &Account,
+    local_mailbox: &MailBox,
+    remote_mailbox: &MailBox,
+) -> RustMailerResult<()> {
+    if remote_mailbox.exists == 0 {
+        info!("Account {}: Mailbox '{}' has been cleared on the remote server (no emails). Clearing local mailbox metadata.", &account.id, &local_mailbox.name);
+        EnvelopeFlagsManager::clean_mailbox(account.id, local_mailbox.id).await?;
+        return Ok(());
+    }
+   
+
+    let local_uid_flags_index = EnvelopeFlagsManager::get_uid_map(account.id, local_mailbox.id, 0);
+
+    let (remote_uids_set, uids_with_updated_flags, new_uids_to_add) = diff_uids_and_flags(
+        account.id,
+        &remote_mailbox.encoded_name(),
+        &local_uid_flags_index,
+        remote_mailbox.exists,
+        &account.date_since,
+    )
+    .await?;
+
+    if !new_uids_to_add.is_empty() {
+        fetch_and_store_new_envelopes_by_uid_list(
+            account,
+            local_mailbox.id,
+            remote_mailbox,
+            new_uids_to_add,
+        )
+        .await?;
+    }
+
+    cleanup_missing_remote_emails(
+        account,
+        local_mailbox.id,
+        &local_mailbox.name,
+        &local_uid_flags_index,
+        &remote_uids_set,
+    )
+    .await?;
+
+    if !uids_with_updated_flags.is_empty() {
+        info!("Account {}: Mailbox '{}' has {} envelopes with updated flags. Applying the changes locally.", &account.id, &local_mailbox.name, uids_with_updated_flags.len());
+        EnvelopeFlagsManager::update_envelope_flags(
+            account,
+            local_mailbox.id,
+            uids_with_updated_flags,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+async fn diff_uids_and_flags(
+    account_id: u64,
+    remote_mailbox_encoded_name: &str,
+    local_uid_flags_index: &AHashMap<u32, u64>,
+    total: u32,
+    date_since: &Option<DateSince>,
+) -> RustMailerResult<(
+    AHashSet<u32>,
+    Vec<(u32, Vec<EnvelopeFlag>)>,
+    Vec<(u32, u64)>,
+)> {
+    let mut remote_uids_set = AHashSet::new();
+    let mut uids_with_updated_flags = Vec::new();
+    let mut new_uids_to_add = Vec::new();
+
+    match date_since {
+        Some(date_since) => {
+            let date = date_since.since_date()?;
+            let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
+            let uid_list = executor
+                .uid_search(
+                    remote_mailbox_encoded_name,
+                    format!("SINCE {}", date).as_str(),
+                )
+                .await?;
+
+            let len = uid_list.len();
+
+            if len > 0 {
+                let uid_batches =
+                    generate_uid_sequence_hashset(uid_list, UID_FLAGS_BATCH_SIZE as usize, false);
+                for batch in uid_batches {
+                    let fetches = executor
+                        .uid_fetch_uid_and_flags(&batch, remote_mailbox_encoded_name)
+                        .await?;
+                    let uid_flags_batch = parse_fetch_metadata(fetches, false)?;
+                    let (update_flags, add, uids) = diff(local_uid_flags_index, uid_flags_batch);
+                    uids_with_updated_flags.extend(update_flags);
+                    new_uids_to_add.extend(add);
+                    remote_uids_set.extend(uids);
+                }
+            }
+        }
+        None => {
+            if total > 0 {
+                let page_size = UID_FLAGS_BATCH_SIZE; // Adjust page size after further testing with large mailboxes.
+                let num_pages = total.div_ceil(page_size);
+
+                for page in 1..=num_pages {
+                    let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
+                    let fetches = executor
+                        .retrieve_paginated_uid_and_flags(
+                            page,
+                            page_size,
+                            remote_mailbox_encoded_name,
+                        )
+                        .await?;
+                    let uid_flags_batch = parse_fetch_metadata(fetches, false)?;
+                    let (update_flags, add, uids) = diff(local_uid_flags_index, uid_flags_batch);
+                    uids_with_updated_flags.extend(update_flags);
+                    new_uids_to_add.extend(add);
+                    remote_uids_set.extend(uids);
+                }
+            }
+        }
+    }
+    Ok((remote_uids_set, uids_with_updated_flags, new_uids_to_add))
+}
+
+async fn cleanup_missing_remote_emails(
+    account: &Account,
+    mailbox_id: u64,
+    mailbox_name: &str,
+    local_uid_flags_index: &AHashMap<u32, u64>,
+    remote_uid_set: &AHashSet<u32>,
+) -> RustMailerResult<()> {
+    let uids_to_remove = find_missing_remote_uids(local_uid_flags_index, remote_uid_set);
+    if !uids_to_remove.is_empty() {
+        info!(
+            "Account {}: Mailbox '{}' has {} local envelopes that are missing on the server, possibly due to deletions or sync window changes. Removing them locally.",
+            account.id,
+            mailbox_name,
+            uids_to_remove.len()
+        );
+        
+        EnvelopeFlagsManager::clean_envelopes(account.id, mailbox_id, &uids_to_remove).await?;
+    }
+    Ok(())
+}
+
+pub async fn fetch_and_store_new_envelopes_by_uid_list(
+    account: &Account,
+    local_mailbox_id: u64,
+    remote: &MailBox,
+    uid_list: Vec<(u32, u64)>,
+) -> RustMailerResult<()> {
+    if uid_list.is_empty() {
+        return Ok(());
+    }
+
+    let len = uid_list.len();
+    RUSTMAILER_NEW_EMAIL_ARRIVAL_TOTAL.inc_by(len as u64);
+
+    let is_email_added_watched =
+        EventHookTask::event_watched(account.id, EventType::EmailAddedToFolder).await?;
+    let is_bounce_watched = EventHookTask::bounce_watched(account.id).await?;
+
+    // Early return if no relevant events are being watched
+    if !is_email_added_watched && !is_bounce_watched {
+        return handle_minimal_sync_or_metadata_fetch(
+            account,
+            local_mailbox_id,
+            remote,
+            uid_list.clone(),
+            len,
+        )
+        .await;
+    }
+
+    info!("Account {}: Mailbox '{}' has {} new message UID(s) to fetch metadata. Starting download...", account.id, &remote.name, len);
+
+    // Process minimal sync case first
+    if account.minimal_sync {
+        let envelopes: Vec<MinimalEnvelope> = uid_list
+            .clone()
+            .into_iter()
+            .map(|(uid, flags_hash)| MinimalEnvelope {
+                account_id: account.id,
+                mailbox_id: local_mailbox_id,
+                uid,
+                flags_hash,
+            })
+            .collect();
+        MinimalEnvelope::batch_insert(&envelopes).await?;
+    }
+
+    // Process batches of UIDs
+    let uid_batches = generate_uid_sequence(
+        uid_list.into_iter().map(|e| e.0).collect(),
+        ENVELOPE_BATCH_SIZE as usize,
+    );
+
+    for batch in uid_batches {
+        let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
+        let fetches = executor
+            .uid_fetch_meta(&batch, &remote.encoded_name(), false)
+            .await?;
+
+        // Store rich documents if not in minimal sync mode
+        let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
+        EmailEnvelope::batch_insert(&envelopes).await?;
+        let documents: Vec<MinimalEnvelope> = envelopes.into_iter().map(|e| e.into()).collect();
+        MinimalEnvelope::batch_insert(&documents).await?;
+
+        // Process bounce reports if needed
+        if is_bounce_watched {
+            process_bounce_reports(&account, remote, &fetches).await?;
+        }
+
+        // Process email added events if needed
+        if is_email_added_watched {
+            process_email_added_events(&account, remote, &fetches).await?;
+        }
+    }
+
+    info!(
+        "Account {}: Finished fetching and processing metadata for {} new UIDs in mailbox '{}'.",
+        account.id, len, &remote.name
+    );
+
+    Ok(())
+}
+
+async fn process_email_added_events(
+    account: &Account,
+    remote: &MailBox,
+    fetches: &[Fetch],
+) -> RustMailerResult<()> {
+    for fetch in fetches {
+        let envelope = extract_envelope(fetch, account.id, &remote.name)?;
+        let message_content = match envelope.body_meta {
+            Some(sections) => {
+                let request = MessageContentRequest {
+                    mailbox: remote.name.clone(),
+                    uid: envelope.uid,
+                    max_length: Some(SETTINGS.rustmailer_max_email_content_length as usize),
+                    sections,
+                    inline: envelope
+                        .attachments
+                        .as_ref()
+                        .map(|att| att.iter().filter(|a| a.inline).cloned().collect()),
+                };
+                retrieve_email_content(account.id, request, true).await?
+            }
+            None => MessageContent {
+                plain: None,
+                html: None,
+            },
+        };
+        EVENT_CHANNEL
+            .queue(Event::new(
+                account.id,
+                &account.email,
+                RustMailerEvent::new(
+                    EventType::EmailAddedToFolder,
+                    EventPayload::EmailAddedToFolder(EmailAddedToFolder {
+                        account_id: account.id,
+                        account_email: account.email.clone(),
+                        mailbox_name: remote.name.clone(),
+                        uid: envelope.uid,
+                        internal_date: envelope.internal_date,
+                        date: envelope.date,
+                        from: envelope.from,
+                        subject: envelope.subject,
+                        to: envelope.to,
+                        size: envelope.size,
+                        flags: envelope.flags.into_iter().map(|f| f.to_string()).collect(),
+                        cc: envelope.cc,
+                        bcc: envelope.bcc,
+                        in_reply_to: envelope.in_reply_to,
+                        sender: envelope.sender,
+                        message_id: envelope.message_id,
+                        message: message_content,
+                        thread_name: envelope.thread_name,
+                        reply_to: envelope.reply_to,
+                        attachments: envelope
+                            .attachments
+                            .as_ref()
+                            .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
+                    }),
+                ),
+            ))
+            .await;
+    }
+    Ok(())
+}
+
+async fn handle_minimal_sync_or_metadata_fetch(
+    account: &Account,
+    local_mailbox_id: u64,
+    remote: &MailBox,
+    uid_list: Vec<(u32, u64)>,
+    len: usize,
+) -> RustMailerResult<()> {
+    if account.minimal_sync {
+        let envelopes: Vec<MinimalEnvelope> = uid_list
+            .into_iter()
+            .map(|(uid, flags_hash)| MinimalEnvelope {
+                account_id: account.id,
+                mailbox_id: local_mailbox_id,
+                uid,
+                flags_hash,
+            })
+            .collect();
+        MinimalEnvelope::batch_insert(&envelopes).await?;
+    } else {
+        info!("Account {}: Mailbox '{}' has {} new message UID(s) to fetch metadata. Starting download...", account.id, &remote.name, len);
+
+        let uid_batches = generate_uid_sequence(
+            uid_list.into_iter().map(|e| e.0).collect(),
+            ENVELOPE_BATCH_SIZE as usize,
+        );
+
+        for batch in uid_batches {
+            let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
+            let fetches = executor
+                .uid_fetch_meta(&batch, &remote.encoded_name(), false)
+                .await?;
+            let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
+            EmailEnvelope::batch_insert(&envelopes).await?;
+            let documents: Vec<MinimalEnvelope> = envelopes.into_iter().map(|e| e.into()).collect();
+            MinimalEnvelope::batch_insert(&documents).await?;
+        }
+
+        info!(
+            "Account {}: Finished fetching metadata for {} new UIDs in mailbox '{}'.",
+            account.id, len, &remote.name
+        );
+    }
+    Ok(())
+}
+
+async fn process_bounce_reports(
+    account: &Account,
+    remote: &MailBox,
+    fetches: &[Fetch],
+) -> RustMailerResult<()> {
+    for fetch in fetches {
+        if !should_extract_bounce_report(fetch)? {
+            continue;
+        }
+
+        let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
+        let uid = fetch
+            .uid
+            .ok_or_else(|| raise_error!("Missing UID".into(), ErrorCode::InternalError))?;
+
+        let fetch = executor
+            .uid_fetch_full_message(&uid.to_string(), &remote.encoded_name())
+            .await?
+            .ok_or_else(|| raise_error!("Message not found".into(), ErrorCode::InternalError))?;
+
+        let body = fetch
+            .body()
+            .ok_or_else(|| raise_error!("Missing message body".into(), ErrorCode::InternalError))?;
+        let message = MessageParser::new().parse(body).ok_or_else(|| {
+            raise_error!("Failed to parse message".into(), ErrorCode::InternalError)
+        })?;
+
+        let report = extract_bounce_report(&message);
+
+        // Process bounce event
+        if EventHookTask::event_watched(account.id, EventType::EmailBounce).await?
+            && report.delivery_status.is_some()
+            && report.original_headers.is_some()
+        {
+            submit_bounce_event(account, remote, uid, &fetch, &message, &report).await?;
+        }
+
+        // Process feedback report event
+        if EventHookTask::event_watched(account.id, EventType::EmailFeedBackReport).await?
+            && report.feedback_report.is_some()
+            && report.original_headers.is_some()
+        {
+            submit_feedback_report_event(account, remote, uid, &fetch, &message, report).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn submit_bounce_event(
+    account: &Account,
+    remote: &MailBox,
+    uid: u32,
+    fetch: &Fetch,
+    message: &Message<'_>,
+    report: &BounceReport,
+) -> RustMailerResult<()> {
+    EVENT_CHANNEL
+        .queue(Event::new(
+            account.id,
+            &account.email,
+            RustMailerEvent::new(
+                EventType::EmailBounce,
+                EventPayload::EmailBounce(EmailBounce {
+                    account_id: account.id,
+                    account_email: account.email.clone(),
+                    mailbox_name: remote.name.clone(),
+                    uid,
+                    internal_date: fetch.internal_date().map(|d| d.timestamp_millis()),
+                    date: message.date().map(|d| d.to_timestamp() * 1000),
+                    from: message
+                        .from()
+                        .and_then(|addr| AddrVec::from(addr).0.first().cloned()),
+                    subject: message.subject().map(String::from),
+                    to: message.to().map(|addr| AddrVec::from(addr).0),
+                    original_headers: report.original_headers.clone(),
+                    delivery_status: report.delivery_status.clone(),
+                }),
+            ),
+        ))
+        .await;
+    Ok(())
+}
+
+async fn submit_feedback_report_event(
+    account: &Account,
+    remote: &MailBox,
+    uid: u32,
+    fetch: &Fetch,
+    message: &Message<'_>,
+    report: BounceReport,
+) -> RustMailerResult<()> {
+    EVENT_CHANNEL
+        .queue(Event::new(
+            account.id,
+            &account.email,
+            RustMailerEvent::new(
+                EventType::EmailFeedBackReport,
+                EventPayload::EmailFeedBackReport(EmailFeedBackReport {
+                    account_id: account.id,
+                    account_email: account.email.clone(),
+                    mailbox_name: remote.name.clone(),
+                    uid,
+                    internal_date: fetch.internal_date().map(|d| d.timestamp_millis()),
+                    date: message.date().map(|d| d.to_timestamp() * 1000),
+                    from: message
+                        .from()
+                        .and_then(|addr| AddrVec::from(addr).0.first().cloned()),
+                    subject: message.subject().map(String::from),
+                    to: message.to().map(|addr| AddrVec::from(addr).0),
+                    original_headers: report.original_headers,
+                    feedback_report: report.feedback_report,
+                }),
+            ),
+        ))
+        .await;
+    Ok(())
+}
+
+fn generate_uid_sequence(nums: Vec<u32>, chunk_size: usize) -> Vec<String> {
+    assert!(!nums.is_empty());
+    let unique_nums: AHashSet<u32> = nums.into_iter().collect();
+    let mut nums: Vec<u32> = unique_nums.into_iter().collect();
+    nums.sort();
+
+    let mut result = Vec::new();
+    for chunk in nums.chunks(chunk_size) {
+        let compressed = compress_uid_list(chunk.to_vec());
+        result.push(compressed);
+    }
+
+    result
+}

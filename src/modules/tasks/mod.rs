@@ -1,0 +1,26 @@
+use crate::modules::context::RustMailTask;
+use crate::modules::database::snapshot::task::DatabaseSnapshotTask;
+use crate::modules::overview::clean::MetricsCleanTask;
+use crate::modules::overview::saver::MetricsSaveTask;
+use crate::{
+    modules::cache::disk::task::DiskCacheCleanTask,
+    modules::oauth2::{refresh::OAuth2RefreshTask, task::OAuth2CleanTask},
+};
+
+use crate::modules::database::backup::task::MetaBackupTask;
+
+pub mod queue;
+
+pub struct PeriodicTasks;
+
+impl PeriodicTasks {
+    pub fn start_background_tasks() {
+        DiskCacheCleanTask::start();
+        OAuth2CleanTask::start();
+        OAuth2RefreshTask::start();
+        MetaBackupTask::start();
+        DatabaseSnapshotTask::start();
+        MetricsSaveTask::start();
+        MetricsCleanTask::start();
+    }
+}

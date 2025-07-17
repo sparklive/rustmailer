@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+      --background: 0 0% 100%;
+      --foreground: 222.2 84% 4.9%;
+      --muted: 210 40% 96.1%;
+      --muted-foreground: 215.4 16.3% 46.9%;
+      --popover: 0 0% 100%;
+      --popover-foreground: 222.2 84% 4.9%;
+      --card: 0 0% 100%;
+      --card-foreground: 222.2 84% 4.9%;
+      --border: 214.3 31.8% 91.4%;
+      --input: 214.3 31.8% 91.4%;
+      --primary: 220.47 98.26% 36.08%;
+      --primary-foreground: 210 40% 98%;
+      --secondary: 210 40% 96.1%;
+      --secondary-foreground: 222.2 47.4% 11.2%;
+      --accent: 210 40% 96.1%;
+      --accent-foreground: 222.2 47.4% 11.2%;
+      --destructive: 0 92.99% 56.11%;
+      --destructive-foreground: 210 40% 98%;
+      --ring: 220.67 97.83% 36.08%;
+      --chart-1: oklch(0.8 0.18 120);
+      --chart-2: oklch(0.961 0.01 0);
+      --chart-3: oklch(0.961 0.01 0);
+      --chart-4: oklch(0.991 0.005 0);
+      --chart-5: oklch(0.09 0.03 0);
+      --radius: 0.5rem;
+
+      /* Sidebar */
+      --sidebar-background: 0 0% 3.9%; 
+      --sidebar-foreground: 0 0% 98%; 
+      --sidebar-primary: 0 0% 98%; 
+      --sidebar-primary-foreground: 0 0% 9%;
+      --sidebar-accent: 0 0% 14.9%;
+      --sidebar-accent-foreground: 0 0% 98%;
+      --sidebar-border: 0 0% 14.9%;
+      --sidebar-ring: 0 0% 83.1%;
+  }
+
+  .dark {
+      --background: 240 13.73% 10%;
+      --foreground: 229.76 31.78% 74.71%;
+      --muted: 232.5 15.44% 18.32%;
+      --muted-foreground: 233.79 11.37% 50%;
+      --popover: 234.55 17.46% 12.35%;
+      --popover-foreground: 234 12.4% 52.55%;
+      --card: 234.55 17.46% 12.35%;
+      --card-foreground: 229.76 31.78% 74.71%;
+      --border: 232.5 15.38% 30.59%;
+      --input: 232 20% 14.71%;
+      --primary: 0 0% 82.75%;
+      --primary-foreground: 0 0% 20%;
+      --secondary: 225.45 71.22% 72.75%;
+      --secondary-foreground: 234.55 17.46% 12.35%;
+      --accent: 234.55 17.83% 9.47%;
+      --accent-foreground: 0 0% 82.75%;
+      --destructive: 1.58 47.5% 52.94%;
+      --destructive-foreground: 210 40% 98.04%;
+      --ring: 225.45 71.22% 72.75%;
+      --chart-1: oklch(0.7 0.18 140);
+      --chart-2: oklch(0.961 0.01 0);
+      --chart-3: oklch(0.961 0.01 0);
+      --chart-4: oklch(0.991 0.005 0);
+      --chart-5: oklch(0.09 0.03 0);
+
+      /* Sidebar */
+      --sidebar-background: 0 0% 3.9%; 
+      --sidebar-foreground: 0 0% 98%; 
+      --sidebar-primary: 0 0% 98%; 
+      --sidebar-primary-foreground: 0 0% 9%;
+      --sidebar-accent: 0 0% 14.9%;
+      --sidebar-accent-foreground: 0 0% 98%;
+      --sidebar-border: 0 0% 14.9%;
+      --sidebar-ring: 0 0% 83.1%;
+  }
+  
+
+  /* styles.css */
+  .CollapsibleContent {
+    overflow: hidden;
+  }
+  .CollapsibleContent[data-state='open'] {
+    animation: slideDown 300ms ease-out;
+  }
+  .CollapsibleContent[data-state='closed'] {
+    animation: slideUp 300ms ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      height: var(--radix-collapsible-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+
+  /* Prevent focus zoom on mobile devices */
+  @media screen and (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .faded-bottom {
+    @apply after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:hidden after:h-32 after:w-full after:bg-[linear-gradient(180deg,_transparent_10%,_hsl(var(--background))_70%)] after:md:block;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply overflow-x-hidden;
+  }
+  body {
+    @apply min-h-svh w-full bg-background text-foreground;
+  }
+}

@@ -1,0 +1,244 @@
+use std::sync::Arc;
+
+use crate::modules::common::auth::ClientContext;
+use crate::modules::error::code::ErrorCode;
+use crate::modules::grpc::service::rustmailer_grpc::{
+    ByteResponse, MessageContentResponse, PagedMessages,
+};
+use crate::modules::grpc::service::rustmailer_grpc::{
+    Empty, FetchFullMessageRequest, FetchMessageAttachmentRequest, FetchMessageContentRequest,
+    FlagMessageRequest, ListMessagesRequest, MailboxTransferRequest, MessageDeleteRequest,
+    MessageSearchRequest, MessageService,
+};
+use crate::modules::message::attachment::retrieve_email_attachment;
+use crate::modules::message::content::retrieve_email_content;
+use crate::modules::message::copy::copy_mailbox_messages;
+use crate::modules::message::delete::move_to_trash_or_delete_messages_directly;
+use crate::modules::message::flag::modify_flags;
+use crate::modules::message::flag::FlagMessageRequest as RustMailerFlagMessageRequest;
+use crate::modules::message::full::retrieve_full_email;
+use crate::modules::message::list::list_messages_in_mailbox;
+use crate::modules::message::mv::move_mailbox_messages;
+use crate::modules::message::search::payload::MessageSearchRequest as RustMailerMessageSearchRequest;
+use crate::raise_error;
+use poem_grpc::{Request, Response, Status};
+use tokio::io::AsyncReadExt;
+
+pub mod from;
+
+#[derive(Default)]
+pub struct RustMailerMessageService;
+
+impl MessageService for RustMailerMessageService {
+    async fn move_messages(
+        &self,
+        request: Request<MailboxTransferRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+        // Check account access
+        context.require_account_access(req.account_id)?;
+
+        move_mailbox_messages(req.account_id, &req.into()).await?;
+        Ok(Response::new(Empty::default()))
+    }
+
+    async fn copy_messages(
+        &self,
+        request: Request<MailboxTransferRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+        copy_mailbox_messages(req.account_id, &req.into()).await?;
+        Ok(Response::new(Empty::default()))
+    }
+
+    async fn delete_messages(
+        &self,
+        request: Request<MessageDeleteRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+        // Check account access
+        context.require_account_access(req.account_id)?;
+        move_to_trash_or_delete_messages_directly(req.account_id, &req.into()).await?;
+        Ok(Response::new(Empty::default()))
+    }
+
+    async fn update_message_flags(
+        &self,
+        request: Request<FlagMessageRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+        modify_flags(
+            req.account_id,
+            RustMailerFlagMessageRequest::try_from(req).map_err(|e: &'static str| {
+                raise_error!(e.to_string(), ErrorCode::InvalidParameter)
+            })?,
+        )
+        .await?;
+        Ok(Response::new(Empty::default()))
+    }
+
+    async fn list_messages(
+        &self,
+        request: Request<ListMessagesRequest>,
+    ) -> Result<Response<PagedMessages>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+
+        let result = list_messages_in_mailbox(
+            req.account_id,
+            &req.mailbox_name,
+            req.page,
+            req.page_size,
+            req.remote,
+            req.desc,
+        )
+        .await?;
+
+        Ok(Response::new(result.into()))
+    }
+
+    async fn fetch_message_content(
+        &self,
+        request: Request<FetchMessageContentRequest>,
+    ) -> Result<Response<MessageContentResponse>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+        let result = retrieve_email_content(
+            req.account_id,
+            req.try_into().map_err(|e: &'static str| {
+                raise_error!(e.to_string(), ErrorCode::InvalidParameter)
+            })?,
+            false,
+        )
+        .await?;
+        Ok(Response::new(result.into()))
+    }
+
+    async fn fetch_message_attachment(
+        &self,
+        request: Request<FetchMessageAttachmentRequest>,
+    ) -> Result<Response<ByteResponse>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+        let mut reader = retrieve_email_attachment(
+            req.account_id,
+            req.try_into().map_err(|e: &'static str| {
+                raise_error!(e.to_string(), ErrorCode::InvalidParameter)
+            })?,
+        )
+        .await?;
+        let mut buffer = Vec::new();
+        reader
+            .read_to_end(&mut buffer)
+            .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
+        Ok(Response::new(ByteResponse { data: buffer }))
+    }
+
+    async fn fetch_full_message(
+        &self,
+        request: Request<FetchFullMessageRequest>,
+    ) -> Result<Response<ByteResponse>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+        let mut reader = retrieve_full_email(req.account_id, req.mailbox_name, req.uid).await?;
+
+        let mut buffer = Vec::new();
+        reader
+            .read_to_end(&mut buffer)
+            .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
+        Ok(Response::new(ByteResponse { data: buffer }))
+    }
+
+    async fn message_search(
+        &self,
+        request: Request<MessageSearchRequest>,
+    ) -> Result<Response<PagedMessages>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        let account_id = req.account_id;
+
+        // Check account access
+        context.require_account_access(account_id)?;
+        let page = req.page;
+        let page_size = req.page_size;
+        let desc = req.desc;
+        let request: RustMailerMessageSearchRequest = req
+            .try_into()
+            .map_err(|e: &'static str| raise_error!(e.to_string(), ErrorCode::InvalidParameter))?;
+
+        let result = request.search(account_id, page, page_size, desc).await?;
+        Ok(Response::new(result.into()))
+    }
+}

@@ -1,0 +1,1285 @@
+syntax = "proto3";
+
+package rustmailer.grpc;
+
+// Empty request message
+message Empty {}
+
+// AccountInfo message
+message AccountInfo {
+  uint64 id = 1;
+  string email = 2;
+}
+
+enum Encryption {
+    SSL = 0;        
+    START_TLS = 1;
+    NONE = 2;
+}
+
+enum AuthType {
+    PASSWORD = 0;     
+    OAUTH2 = 1;
+}
+
+enum Unit {
+    DAYS = 0;         // Default value should be 0
+    MONTHS = 1;
+    YEARS = 2;
+}
+
+// Messages
+message AuthConfig {
+    AuthType auth_type = 1;
+    optional string password = 2;
+}
+
+message ImapConfig {
+    string host = 1;
+    uint32 port = 2;
+    Encryption encryption = 3;
+    AuthConfig auth = 4;
+    optional uint64 use_proxy = 5;
+}
+
+message SmtpConfig {
+    string host = 1;
+    uint32 port = 2;
+    Encryption encryption = 3;
+    AuthConfig auth = 4;
+    optional uint64 use_proxy = 5;
+}
+
+message RelativeDate {
+    Unit unit = 1;
+    uint32 value = 2;
+}
+
+message DateSince {
+    optional string fixed = 1;          // "YYYY-MM-DD" format
+    optional RelativeDate relative = 2;
+}
+
+message Account {
+    uint64 id = 1;
+    ImapConfig imap = 2;
+    SmtpConfig smtp = 3;
+    bool enabled = 4;
+    string email = 5;
+    optional string name = 6;
+    bool minimal_sync = 7;
+    repeated string capabilities = 8;
+    optional bool dsn_capable = 9;
+    optional DateSince date_since = 10;
+    repeated string sync_folders = 11;
+    repeated string known_folders = 12;
+    int64 full_sync_interval_min = 13;
+    int64 incremental_sync_interval_sec = 14;
+    int64 created_at = 15;
+    int64 updated_at = 16;
+}
+
+message PagedAccount {
+    optional uint64 current_page = 1;
+    optional uint64 page_size = 2;
+    uint64 total_items = 3;
+    repeated Account items = 4;
+    optional uint64 total_pages = 5;
+}
+
+
+message AccountCreateRequest {
+    string email = 1;
+    optional string name = 2;
+    ImapConfig imap = 3;
+    SmtpConfig smtp = 4;
+    bool enabled = 5;
+    optional DateSince date_since = 6;
+    bool minimal_sync = 7;
+    optional int64 full_sync_interval_min = 8;    
+    optional int64 incremental_sync_interval_sec = 9;
+}
+
+message AccountUpdateRequest {
+    uint64 account_id = 1;
+    optional bool enabled = 2;
+    optional ImapConfig imap = 3;
+    optional SmtpConfig smtp = 4;
+    optional string name = 5;
+    optional DateSince date_since = 6;
+    repeated string sync_folders = 7;
+    optional int64 full_sync_interval_min = 8;    
+    optional int64 incremental_sync_interval_sec = 9;
+}
+
+message AccountError {
+    string error = 1;
+    int64 at = 2;
+}
+
+message AccountRunningState {
+    uint64 account_id = 1;
+    int64 last_full_sync_start = 2;
+    optional int64 last_full_sync_end = 3;
+    int64 last_incremental_sync_start = 4;
+    optional int64 last_incremental_sync_end = 5;
+    repeated AccountError errors = 6;
+    bool is_initial_sync_completed = 7;
+    repeated string initial_sync_folders = 8;
+    optional string current_syncing_folder = 9;
+    optional uint32 current_batch_number = 10;  
+    optional uint32 current_total_batches = 11;
+    optional int64 initial_sync_start_time = 12;
+    optional int64 initial_sync_end_time = 13;
+}
+
+message PaginateRequest {
+    optional uint64 page = 1;
+    optional uint64 page_size = 2;
+    optional bool desc = 3;
+}
+
+message AccountId {
+    uint64 account_id = 1;
+}
+
+
+message MinimalAccount {
+  uint64 id = 1;
+  string email = 2;
+}
+
+message ListMinimalAccountsResponse {
+  repeated MinimalAccount accounts = 1;
+}
+
+service AccountService {
+  rpc GetAccount(AccountId) returns (Account);
+  rpc RemoveAccount(AccountId) returns (Empty);
+  rpc CreateAccount(AccountCreateRequest) returns (Account);
+  rpc UpdateAccount(AccountUpdateRequest) returns (Empty);
+  rpc ListAccounts(PaginateRequest) returns (PagedAccount);
+  rpc GetAccountState(AccountId) returns (AccountRunningState);
+  rpc ListMinimalAccounts (Empty) returns (ListMinimalAccountsResponse);
+}
+
+
+message MailServerConfig {
+    ServerConfig imap = 1;
+    ServerConfig smtp = 2;
+    optional OAuth2Config oauth2 = 3;
+}
+
+message ServerConfig {
+    string host = 1;
+    uint32 port = 2;
+    Encryption encryption = 3;
+}
+
+message OAuth2Config {
+    string issuer = 1;
+    repeated string scope = 2;
+    string auth_url = 3;
+    string token_url = 4;
+}
+
+message AutoconfigRequest {
+    string email_address = 1;
+}
+
+service AutoConfigService {
+    rpc GetAutoconfig (AutoconfigRequest) returns (MailServerConfig);
+}
+
+
+message MailBox {
+  uint64 mailbox_hash = 1;      // primary_key
+  uint64 account_hash = 2;      // secondary_key
+  string name = 3;           // The unique name of the mailbox
+  optional string delimiter = 4;    // Optional delimiter
+  repeated Attribute attributes = 5; // List of attributes
+  repeated EnvelopeFlag flags = 6;   // List of flags
+  uint32 exists = 7;         // Number of messages
+  optional uint32 unseen = 8;       // Optional number of unseen messages
+  repeated EnvelopeFlag permanent_flags = 9; // List of permanent flags
+  optional uint32 uid_next = 10;    // Next unique identifier
+  optional uint32 uid_validity = 11; // UID validity
+  optional uint64 highest_modseq = 12; // Highest modification sequence
+}
+
+message EnvelopeFlag {
+  EmailFlag flag = 1;
+  optional string custom = 2;
+}
+
+enum EmailFlag {
+  SEEN = 0;
+  ANSWERED = 1;
+  EMAIL_FLAGGED = 2;
+  DELETED = 3;
+  DRAFT = 4;
+  RECENT = 5;
+  MAY_CREATE = 6;
+  CUSTOM = 7;
+}
+
+message Attribute {
+  AttributeEnum attr = 1;
+  optional string extension = 2;
+}
+
+enum AttributeEnum {
+  NO_INFERIORS = 0;
+  NO_SELECT = 1;
+  MARKED = 2;
+  UNMARKED = 3;
+  ALL = 4;
+  ARCHIVE = 5;
+  DRAFTS = 6;
+  FLAGGED = 7;
+  JUNK = 8;
+  SENT = 9;
+  TRASH = 10;
+  EXTENSION = 11;
+  UNKNOWN = 12;
+}
+
+message ListMailboxesRequest {
+  uint64 account_id = 1;
+  bool remote = 2;
+}
+
+
+message ListSubscribedRequest {
+  uint64 account_id = 1;
+}
+
+message ListMailboxesResponse {
+  repeated MailBox mailboxes = 1;
+}
+
+message SubscribeRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+}
+
+message UnsubscribeRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+}
+
+message CreateMailboxRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+}
+
+message DeleteMailboxRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+}
+
+message RenameMailboxRequest {
+  uint64 account_id = 1;
+  string current_name = 2;
+  string new_name = 3;
+}
+
+
+service MailboxService {
+  rpc ListMailboxes(ListMailboxesRequest) returns (ListMailboxesResponse);
+  rpc ListSubscribedMailboxes(ListSubscribedRequest) returns (ListMailboxesResponse);
+  rpc SubscribeMailbox(SubscribeRequest) returns (Empty);
+  rpc UnsubscribeMailbox(UnsubscribeRequest) returns (Empty);
+  rpc CreateMailbox(CreateMailboxRequest) returns (Empty);
+  rpc RemoveMailbox(DeleteMailboxRequest) returns (Empty);
+  rpc RenameMailbox(RenameMailboxRequest) returns (Empty);
+}
+
+
+message MailboxTransferRequest {
+  uint64 account_id = 1;
+  repeated uint32 uids = 2;
+  string current_mailbox = 3;
+  string target_mailbox = 4;
+}
+
+message MessageDeleteRequest {
+  uint64 account_id = 1;
+  repeated uint32 uids = 2;
+  string mailbox_name = 3;
+}
+
+message FlagMessageRequest {
+  uint64 account_id = 1;
+  repeated uint32 uids = 2;
+  string mailbox_name = 3;
+  FlagAction action = 4;
+}
+
+message FlagAction {
+  repeated EnvelopeFlag add = 1;
+  repeated EnvelopeFlag remove = 2;
+  repeated EnvelopeFlag overwrite = 3;
+}
+
+
+message Addr {
+  optional string name = 1;
+  optional string address = 2;
+}
+
+
+message Received {
+  optional string from = 1;
+  optional string by = 2;
+  optional string with = 3;
+  optional int64 date = 4;
+}
+
+message EmailBodyPart {
+  string id = 1;
+  PartType part_type = 2;
+  SegmentPath path = 3;
+  repeated Param params = 4;
+  uint64 size = 5;
+  Encoding transfer_encoding = 6;
+}
+
+
+enum PartType {
+  PLAIN = 0;
+  HTML = 1;
+}
+
+
+message SegmentPath {
+  repeated uint64 segments = 1;
+}
+
+message Param {
+  string key = 1;
+  string value = 2;
+}
+
+enum Encoding {
+  NONE_CODING = 0;
+  QUOTED_PRINTABLE = 1;
+  BASE64 = 2;
+}
+
+
+message ImapAttachment {
+  string id = 1;
+  SegmentPath path = 2;
+  optional string filename = 3;
+  bool inline = 4;
+  optional string content_id = 5;
+  uint64 size = 6;
+  string file_type = 7;
+  Encoding transfer_encoding = 8;
+}
+
+message EmailEnvelope {
+  uint64 account_id = 1;
+  uint64 mailbox_id = 2;
+  string mailbox_name = 3;
+  uint32 uid = 4;
+  optional int64 internal_date = 5;
+  uint32 size = 6;
+  repeated EnvelopeFlag flags = 7;
+  uint64 flags_hash = 8;
+  repeated Addr bcc = 9;
+  repeated Addr cc = 10;
+  optional int64 date = 11;
+  Addr from = 12;
+  optional string in_reply_to = 13;
+  Addr sender = 14;
+  optional string return_address = 15;
+  optional string message_id = 16;
+  optional string subject = 17;
+  optional string thread_name = 18;
+  optional string mime_version = 19;
+  repeated string references = 20;
+  repeated Addr reply_to = 21;
+  repeated Addr to = 22;
+  repeated ImapAttachment attachments = 23;
+  repeated EmailBodyPart body_meta = 24;
+  Received received = 25;
+}
+
+
+message FetchMessageContentRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+  uint32 uid = 3;
+  optional uint64 max_length = 4;
+  repeated EmailBodyPart sections = 5;
+  repeated ImapAttachment inline = 6;
+}
+
+message FetchMessageAttachmentRequest {
+  uint64 account_id = 1;
+  uint32 uid = 2;
+  string mailbox_name = 3;
+  ImapAttachment attachment = 4;
+}
+
+message FetchFullMessageRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+  uint32 uid = 3;
+}
+
+
+message MessageSearch {
+  oneof search_type {
+    Condition condition = 1;
+    Logic logic = 2;
+  }
+}
+
+message Condition {
+  Conditions condition = 1;
+  optional string value = 2;
+}
+
+enum Conditions {
+  ALL_C = 0;
+  ANSWERED_C = 1;
+  BCC = 2;
+  BEFORE = 3;
+  BODY = 4;
+  CC = 5;
+  DELETED_C = 6;
+  DRAFT_C = 7;
+  FLAGGED_C = 8;
+  FROM = 9;
+  HEADER = 10;
+  KEYWORD = 11;
+  LARGER = 12;
+  NEW = 13;
+  OLD = 14;
+  ON = 15;
+  RECENT_C = 16;
+  SEEN_C = 17;
+  SENT_BEFORE = 18;
+  SENT_ON = 19;
+  SENT_SINCE = 20;
+  SINCE = 21;
+  SMALLER = 22;
+  SUBJECT = 23;
+  TEXT = 24;
+  TO = 25;
+  UID = 26;
+  UNANSWERED = 27;
+  UNDELETED = 28;
+  UNDRAFT = 29;
+  UNFLAGGED = 30;
+  UNKEYWORD = 31;
+  UNSEEN = 32;
+}
+
+
+message Logic {
+  Operator operator = 1;
+  repeated MessageSearch children = 2;
+}
+
+enum Operator {
+  AND = 0;
+  OR = 1;
+  NOT = 2;
+}
+
+message MessageSearchRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+  MessageSearch search = 3;
+  uint64 page = 4;
+  uint64 page_size = 5;
+  bool desc = 6;
+}
+
+
+message ListMessagesRequest {
+  uint64 account_id = 1;
+  string mailbox_name = 2;
+  uint64 page = 3;
+  uint64 page_size = 4;
+  bool remote = 5;
+  bool desc = 6;
+}
+
+message PagedMessages {
+    optional uint64 current_page = 1;
+    optional uint64 page_size = 2;
+    uint64 total_items = 3;
+    repeated EmailEnvelope items = 4;
+    optional uint64 total_pages = 5;
+}
+
+message PlainText {
+  string content = 1;
+  bool truncated = 2;
+}
+
+message MessageContentResponse {
+  PlainText plain = 1;
+  optional string html = 2;
+}
+
+message ByteResponse {
+  bytes data = 1;
+}
+
+service MessageService {
+  rpc MoveMessages(MailboxTransferRequest) returns (Empty);
+  rpc CopyMessages(MailboxTransferRequest) returns (Empty);
+  rpc DeleteMessages(MessageDeleteRequest) returns (Empty);
+  rpc UpdateMessageFlags(FlagMessageRequest) returns (Empty);
+  rpc ListMessages(ListMessagesRequest) returns (PagedMessages);
+  rpc FetchMessageContent(FetchMessageContentRequest) returns (MessageContentResponse);
+  rpc FetchMessageAttachment(FetchMessageAttachmentRequest) returns (ByteResponse);
+  rpc FetchFullMessage(FetchFullMessageRequest) returns (ByteResponse);
+  rpc MessageSearch(MessageSearchRequest) returns (PagedMessages);
+}
+
+message Mta {
+  uint64 id = 1;                 
+  optional string description = 2;  
+  MTACredentials credentials = 3;  
+  SmtpServerConfig server = 4;      
+  int64 created_at = 5;             
+  bool dsn_capable = 6;            
+  int64 updated_at = 7;           
+  int64 last_access_at = 8;
+  optional uint64 use_proxy = 9;
+}
+
+message MTACredentials {
+  string username = 1;
+  optional string password = 2;
+}
+
+message SmtpServerConfig {
+  string host = 1;
+  uint32 port = 2;
+  Encryption encryption = 3;
+}
+
+message GetMtaRequest {
+  uint64 id = 1;
+}
+
+message DeleteMtaRequest {
+  uint64 id = 1;
+}
+
+message MTACreateRequest {
+  optional string description = 1;
+  MTACredentials credentials = 2;
+  SmtpServerConfig server = 3;
+  bool dsn_capable = 4;
+  optional uint64 use_proxy = 5;
+}
+
+message MTAUpdateRequest {
+  uint64 id = 1;
+  optional string description = 2;
+  optional MTACredentials credentials = 3;
+  optional SmtpServerConfig server = 4;
+  optional bool dsn_capable = 5;
+  optional uint64 use_proxy = 6;
+}
+
+
+message ListMtaRequest {
+  optional uint64 page = 1;
+  optional uint64 page_size = 2;
+  optional bool desc = 3;
+}
+
+
+message PagedMta {
+    optional uint64 current_page = 1;
+    optional uint64 page_size = 2;
+    uint64 total_items = 3;
+    repeated Mta items = 4;
+    optional uint64 total_pages = 5;
+}
+
+
+// Message representing a request to send a test email.
+message SendTestEmailRequest {
+  // The email address of the sender (e.g., "no-reply@yourdomain.com").
+  string from = 1;
+
+  // The email address of a single recipient (e.g., "user@example.com").
+  string to = 2;
+
+  // The subject line of the email.
+  // Must be between 1 and 256 characters.
+  string subject = 3;
+
+  // The plain text body content of the email, sent as the text/plain part.
+  // Must be between 1 and 1024 characters.
+  string message = 4;
+
+  // The name of the MTA (Mail Transfer Agent) to use for sending the email.
+  uint64 mta_id = 5;
+}
+
+
+service MtaService {
+  rpc GetMta(GetMtaRequest) returns (Mta);
+  rpc RemoveMta(DeleteMtaRequest) returns (Empty);
+  rpc CreateMta(MTACreateRequest) returns (Empty);
+  rpc UpdateMta(MTAUpdateRequest) returns (Empty);
+  rpc ListMta(ListMtaRequest) returns (PagedMta);
+  rpc SendTestEmail(SendTestEmailRequest) returns (Empty);
+}
+
+
+message OAuth2 {
+  uint64 id = 1;
+  optional string description = 2;
+  string client_id = 3;
+  string client_secret = 4;
+  string auth_url = 5;
+  string token_url = 6;
+  string redirect_uri = 7;
+  repeated string scopes = 8;
+  map<string, string> extra_params = 9;
+  bool enabled = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+  optional uint64 use_proxy = 13;
+}
+
+message GetOAuth2Request {
+  uint64 id = 1;
+}
+
+message DeleteOAuth2Request {
+  uint64 id = 1;
+}
+
+message OAuth2CreateRequest {
+  optional string description = 2;
+  string client_id = 3;
+  string client_secret = 4;
+  string auth_url = 5;
+  string token_url = 6;
+  string redirect_uri = 7;
+  repeated string scopes = 8;
+  map<string, string> extra_params = 9;
+  bool enabled = 10;
+  optional uint64 use_proxy = 11;
+}
+
+message UpdateOAuth2Request {
+  uint64 id = 1;
+  optional string description = 2;
+  optional string client_id = 3;
+  optional string client_secret = 4;
+  optional string auth_url = 5;
+  optional string token_url = 6;
+  optional string redirect_uri = 7;
+  repeated string scopes = 8;
+  map<string, string> extra_params = 9;
+  optional bool enabled = 10;
+  optional uint64 use_proxy = 11;
+}
+
+message ListOAuth2Request {
+  optional uint64 page = 1;
+  optional uint64 page_size = 2;
+  optional bool desc = 3;
+}
+
+message PagedOAuth2 {
+  optional uint64 current_page = 1;
+  optional uint64 page_size = 2;
+  uint64 total_items = 3;
+  repeated OAuth2 items = 4;
+  optional uint64 total_pages = 5;
+}
+
+message AuthorizeUrlRequest {
+  uint64 account_id = 1;
+  uint64 oauth2_id = 2;
+}
+
+message AuthorizeUrlResponse {
+  string url = 1;
+}
+
+message OAuth2AccessToken {
+  uint64 account_id = 1;
+  uint64 oauth2_id = 2;
+  optional string access_token = 3;
+  optional string refresh_token = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message GetOAuth2TokensRequest {
+  uint64 account_id = 1;
+}
+
+service OAuth2Service {
+  rpc GetOAuth2Config(GetOAuth2Request) returns (OAuth2);
+  rpc RemoveOAuth2Config(DeleteOAuth2Request) returns (Empty);
+  rpc CreateOAuth2Config(OAuth2CreateRequest) returns (Empty);
+  rpc UpdateOAuth2Config(UpdateOAuth2Request) returns (Empty);
+  rpc ListOAuth2Config(ListOAuth2Request) returns (PagedOAuth2);
+  rpc CreateAuthorizeUrl(AuthorizeUrlRequest) returns (AuthorizeUrlResponse);
+  rpc GetOAuth2Tokens(GetOAuth2TokensRequest) returns (OAuth2AccessToken);
+}
+
+enum MessageFormat {
+  HTML_FORMAT = 0;
+  MARKDOWN = 1;
+}
+
+message EmailTemplate {
+  uint64 id = 1;
+  optional string description = 2;
+  AccountInfo account = 3;
+  string subject = 4; 
+  optional string preview = 5; 
+  optional MessageFormat format = 6;
+  optional string text = 7;
+  optional string html = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+  int64 last_access_at = 11;
+}
+
+message EmailTemplateCreateRequest {
+  optional string description = 1;
+  optional uint64 account_id = 2;
+  string subject = 3;
+  optional string preview = 4;
+  optional string text = 5;
+  optional string html = 6;
+  optional MessageFormat format = 7;
+}
+
+message UpdateTemplateRequest {
+  uint64 id = 1;
+  optional string description = 2;
+  optional string subject = 3;
+  optional string preview = 4;
+  optional string text = 5;
+  optional string html = 6;
+  optional MessageFormat format = 7;
+}
+
+message PagedEmailTemplate {
+  optional uint64 current_page = 1;
+  optional uint64 page_size = 2;
+  uint64 total_items = 3;
+  repeated EmailTemplate items = 4;
+  optional uint64 total_pages = 5;
+}
+
+
+message TemplateSentTestRequest {
+  // Template ID to identify which template to use
+  uint64 template_id = 1;
+  // Account ID associated with the template and sending request
+  uint64 account_id = 2;
+  
+  // Email address of the recipient who will receive the test email
+  // Must be a valid email address format (e.g., user@example.com)
+  string recipient = 3;
+  
+  // Optional parameters to be used for template variable substitution
+  // When provided, should be a valid JSON object that matches the template's expected variables.
+  // Example: {"name": "John Doe", "order_id": 12345}
+  optional google.protobuf.Value template_params = 4;
+}
+
+
+message GetTemplateRequest {
+  uint64 id = 1;
+}
+
+message DeleteTemplateRequest {
+  uint64 id = 1;
+}
+
+message ListTemplatesRequest {
+  optional uint64 page = 1;
+  optional uint64 page_size = 2;
+  optional bool desc = 3;
+}
+
+message ListAccountTemplatesRequest {
+  uint64 account_id = 1;
+  optional uint64 page = 2;
+  optional uint64 page_size = 3;
+  optional bool desc = 4;
+}
+
+message DeleteAccountTemplatesRequest {
+  uint64 account_id = 1;
+}
+
+service TemplatesService {
+  rpc GetTemplate(GetTemplateRequest) returns (EmailTemplate);
+  rpc RemoveTemplate(DeleteTemplateRequest) returns (Empty);
+  rpc CreateTemplate(EmailTemplateCreateRequest) returns (Empty);
+  rpc UpdateTemplate(UpdateTemplateRequest) returns (Empty);
+  rpc ListTemplates(ListTemplatesRequest) returns (PagedEmailTemplate);
+  rpc ListAccountTemplates(ListAccountTemplatesRequest) returns (PagedEmailTemplate);
+  rpc RemoveAccountTemplates(DeleteAccountTemplatesRequest) returns (Empty);
+  rpc SendTestEmail(TemplateSentTestRequest) returns (Empty);
+}
+
+
+message ServerStatus {
+  int64 uptime_ms = 1;
+  string timeago = 2;
+  string timezone = 3;
+  string version = 4;
+}
+
+
+message Release {
+  string tag_name = 1;
+  string published_at = 2;
+  string body = 3;
+  string html_url = 4;
+}
+
+message ReleaseNotification {
+  optional Release latest = 1;
+  bool is_newer = 2;
+  optional string error_message = 3;
+}
+
+message LicenseCheckResult {
+  bool expired = 1;
+  uint32 days = 2;
+}
+
+message Notifications {
+  ReleaseNotification release = 1;
+  LicenseCheckResult license = 2;
+}
+
+service StatusService {
+  rpc GetStatus (Empty) returns (ServerStatus);
+  rpc GetNotifications (Empty) returns (Notifications);
+}
+
+import "google/protobuf/struct.proto";
+
+message EmailAddress {
+  optional string name = 1;
+  string address = 2;
+}
+
+message Recipient {
+  repeated EmailAddress to = 1;
+  repeated EmailAddress cc = 2;
+  repeated EmailAddress bcc = 3;
+  repeated EmailAddress reply_to = 4;
+  optional google.protobuf.Value template_params = 5;
+  optional int64 send_at = 6;
+}
+
+message AttachmentRef {
+  string mailbox_name = 1;
+  uint32 uid = 2;
+  ImapAttachment attachment_data = 3;
+}
+
+message AttachmentPayload {
+  oneof payload_type {
+    string base64_content = 1;
+    AttachmentRef attachment_ref = 2;
+  }
+}
+
+message MailAttachment {
+  optional string file_name = 1;
+  AttachmentPayload payload = 2;
+  string mime_type = 3;
+  bool inline = 4;
+  optional string content_id = 5;
+}
+
+
+message SendEmailRequest {
+  optional EmailAddress from = 1;
+  repeated Recipient recipients = 2;
+  optional string subject = 3;
+  optional string text = 4;
+  optional string html = 5;
+  optional string preview = 6;
+  optional string eml = 7;
+  optional uint64 template_id = 8;
+  repeated MailAttachment attachments = 9;
+  map<string, HeaderValue> headers = 10;
+  SendControl send_control = 11;
+}
+
+
+message ReplyEmailRequest {
+  string mailbox_name = 1;
+  uint32 uid = 2;
+  optional string text = 3;
+  optional string html = 4;
+  optional string preview = 5;
+  map<string, HeaderValue> headers = 6;
+  bool reply_all = 7;
+  repeated MailAttachment attachments = 8;
+  repeated EmailAddress cc = 9;
+  repeated EmailAddress bcc = 10;
+  optional string timezone = 11;
+  bool include_original = 12;
+  bool include_all_attachments = 13;
+  SendControl send_control = 14;
+}
+
+
+message ForwardEmailRequest {
+  string mailbox_name = 1;
+  uint32 uid = 2;
+  repeated EmailAddress to = 3;
+  repeated EmailAddress cc = 4;
+  repeated EmailAddress bcc = 5;
+  optional string text = 6;
+  optional string html = 7;
+  optional string preview = 8;
+  map<string, HeaderValue> headers = 9;
+  optional string timezone = 10;
+  repeated MailAttachment attachments = 11;
+  bool include_original = 12;
+  bool include_all_attachments = 13;
+  SendControl send_control = 14;
+}
+
+message EmailTask {
+  uint64 id = 1;
+  int64 created_at = 2;
+  TaskStatus status = 3;
+  optional string stopped_reason = 4;
+  optional string error = 5;
+  optional uint64 last_duration_ms = 6;
+  optional uint32 retry_count = 7;
+  int64 scheduled_at = 8;
+  uint64 account_id = 9;
+  string account_email = 10;
+  optional string subject = 11;
+  string message_id = 12;
+  string from = 13;
+  repeated string to = 14;
+  repeated string cc = 15;
+  repeated string bcc = 16;
+  uint32 attachment_count = 17;
+  string cache_key = 18;
+  optional MailEnvelope envelope = 19;
+  bool save_to_sent = 20;
+  optional string sent_folder = 21;
+  optional int64 send_at = 22;
+  optional uint64 mta = 23;
+  optional DSNConfig dsn = 24;
+  optional bool reply = 25;
+  optional string mailbox = 26;
+  optional uint32 uid = 27;
+}
+
+enum TaskStatus {
+  SCHEDULED = 0;
+  RUNNING = 1;
+  SUCCESS = 2;
+  FAILED = 3;
+  REMOVED = 4;
+  STOPPED = 5;
+}
+
+message HeaderValue {
+  oneof value {
+    Raw raw = 1;
+    Text text = 2;
+    Url url = 3;
+  }
+}
+
+message Raw {
+  string raw = 1;
+}
+
+message Text {
+  string text = 1;
+}
+
+message Url {
+  repeated string url = 1;
+}
+
+
+message SendControl {
+  optional MailEnvelope envelope = 1;
+  bool save_to_sent = 2;
+  optional string sent_folder = 3;
+  bool dry_run = 4;
+  optional int64 send_at = 5;
+  optional Retry retry_policy = 6;
+  optional uint64 mta = 7;
+  optional DSNConfig dsn = 8;
+  optional string campaign_id = 9;
+  bool enable_tracking = 10;
+}
+
+message MailEnvelope {
+  string from = 1;
+  repeated string recipients = 2;
+}
+
+message Retry {
+  Strategy strategy = 1;
+  uint32 seconds = 2;
+  uint32 max_retries = 3;
+}
+
+enum Strategy {
+  LINEAR = 0;
+  EXPONENTIAL = 1;
+}
+
+
+message DSNConfig {
+  ReturnContent ret = 1;
+  optional string envid = 2;
+  repeated NotifyOption notify = 3;
+  optional string orcpt = 4;
+}
+
+enum NotifyOption {
+  SUCCESS_N = 0;
+  FAILURE = 1;
+  DELAY = 2;
+  NEVER = 3;
+}
+
+enum ReturnContent {
+  FULL = 0;
+  HDRS = 1;
+}
+
+
+message PagedEmailTask {
+    optional uint64 current_page = 1;
+    optional uint64 page_size = 2;
+    uint64 total_items = 3;
+    repeated EmailTask items = 4;
+    optional uint64 total_pages = 5;
+}
+
+
+message SendNewMailRequest {
+  uint64 account_id = 1;
+  SendEmailRequest request = 2;
+}
+
+message ReplyMailRequest {
+  uint64 account_id = 1;
+  ReplyEmailRequest request = 2;
+}
+
+message ForwardMailRequest {
+  uint64 account_id = 1;
+  ForwardEmailRequest request = 2;
+}
+
+message ListTasksRequest {
+  optional uint64 page = 1;
+  optional uint64 page_size = 2;
+  optional bool desc = 3;
+  optional TaskStatus status = 4;
+}
+
+
+message GetTaskRequest {
+  uint64 id = 1;
+}
+
+message RemoveTaskRequest {
+  uint64 id = 1;
+}
+
+
+service SendMailService {
+  rpc SendNewMail (SendNewMailRequest) returns (Empty);
+  rpc ReplyMail (ReplyMailRequest) returns (Empty);
+  rpc ForwardMail (ForwardMailRequest) returns (Empty);
+  rpc ListEmailTasks (ListTasksRequest) returns (PagedEmailTask);
+  rpc GetEmailTask (GetTaskRequest) returns (EmailTask);
+  rpc RemoveEmailTask (RemoveTaskRequest) returns (Empty);
+}
+
+
+enum EventType {
+  EMAIL_ADDED_TO_FOLDER = 0;
+  EMAIL_FLAGS_CHANGED = 1;
+  EMAIL_SENT_SUCCESS = 2;
+  EMAIL_SENDING_ERROR = 3;
+  UID_VALIDITY_CHANGE = 4;
+  MAILBOX_DELETION = 5;
+  MAILBOX_CREATION = 6;
+  ACCOUNT_FIRST_SYNC_COMPLETED = 7;
+  EMAIL_BOUNCE = 8;
+  EMAIL_FEEDBACK_REPORT = 9;
+  EmailOpened = 10;
+  EmailLinkClicked = 11;
+}
+
+enum HookType {
+    Http = 0;
+    Nats = 1;
+}
+
+enum HttpMethod {
+  POST = 0;
+  PUT = 1;
+}
+
+message HttpConfig {
+  string target_url = 1; // Target URL where the webhook payload is sent
+  HttpMethod http_method = 2; // HTTP method used to send the webhook payload
+  map<string, string> custom_headers = 3; // Custom headers for the webhook request
+}
+
+enum NatsAuthType {
+    None = 0;
+    Password = 1;
+    Token = 2;
+}
+
+message NatsConfig {
+  string host = 1;
+  uint32 port = 2;
+  NatsAuthType auth_type = 3;
+  optional string token = 4;         // Optional: used when auth_type is TOKEN
+  optional string username = 5;      // Optional: used when auth_type is USER_PASS
+  optional string password = 6;      // Optional: used when auth_type is USER_PASS
+  string stream_name = 7;
+  string namespace = 8;
+}
+
+
+message EventHooks {
+  uint64 id = 1;
+  optional uint64 account_id = 2;  // Unique ID of the account associated with the webhook
+  optional string email = 3;       // Email of the account associated with the webhook
+  optional string description = 4;  // Optional description of the webhook
+  int64 created_at = 5;  // When the webhook was created
+  int64 updated_at = 6;  // When the webhook was last updated
+  uint32 global = 7;  // Indicates whether the hook is global and applies to all accounts. 1: true, 0: false
+  bool enabled = 8;       // Whether the webhook is currently active
+  HookType hook_type = 9;
+  optional HttpConfig http = 10;     // HTTP configuration
+  optional NatsConfig nats = 11;     // NATS configuration
+  optional string vrl_script = 12;  // Optional template for customizing the payload
+  uint64 call_count = 13;           // Total number of times triggered
+  uint64 success_count = 14;        // Number of successful executions
+  uint64 failure_count = 15;        // Number of failed executions
+  optional string last_error = 16;  // Details of the last error
+  repeated EventType watched_events = 17;  // List of event types to monitor
+}
+
+
+message GetEventHookRequest {
+  uint64 id = 1;
+}
+
+
+message RemoveEventHookRequest {
+  uint64 id = 1;
+}
+
+message CreateEventHookRequest {
+  optional uint64 account_id = 1;          // The account associated with the webhook
+  optional string description = 2; // Optional description of the webhook
+  bool enabled = 3;               // Status indicating whether the webhook is active
+  HookType hook_type = 4;
+  optional HttpConfig http = 5;       // HTTP configuration
+  optional NatsConfig nats = 6;       // NATS configuration
+  optional string vrl_script = 7;     // Template for the payload that will be sent
+  repeated EventType watched_events = 8; // List of event types the webhook is watching
+}
+
+message UpdateEventhookRequest {
+  uint64 id = 1;
+  optional string description = 2;      // Optional description update
+  optional bool enabled = 3;            // Status update
+  optional HttpConfig http = 4;         // HTTP configuration update
+  optional NatsConfig nats = 5;         // NATS configuration update
+  optional string vrl_script = 6;       // Payload template update
+  repeated EventType watched_events = 7; // Watched events update
+}
+
+message ListEventHookRequest {
+  optional uint64 page = 1;
+  optional uint64 page_size = 2;
+  optional bool desc = 3;
+}
+
+message PagedEventHooks {
+  optional uint64 current_page = 1;
+  optional uint64 page_size = 2;
+  uint64 total_items = 3;
+  repeated EventHooks items = 4;
+  optional uint64 total_pages = 5;
+}
+
+
+message VrlScriptTestRequest {
+  string program = 1;
+  optional string event = 2;
+}
+
+message ResolveResult {
+  optional google.protobuf.Value result = 1;
+  optional string error = 2;
+}
+
+message EventHookTask {
+  uint64 id = 1;
+  int64 created_at = 2;
+  TaskStatus status = 3;
+  optional string stopped_reason = 4;
+  optional string error = 5;
+  optional uint32 last_duration_ms = 6;
+  optional uint32 retry_count = 7;
+  int64 scheduled_at = 8;
+  uint64 account_id = 9;
+  google.protobuf.Value event = 10;
+  EventType event_type = 11;
+}
+
+message PagedEventHookTask {
+    optional uint64 current_page = 1;
+    optional uint64 page_size = 2;
+    uint64 total_items = 3;
+    repeated EventHookTask items = 4;
+    optional uint64 total_pages = 5;
+}
+
+service EventHooksService {
+  rpc GetEventHook (GetEventHookRequest) returns (EventHooks);
+  rpc RemoveEventHook (RemoveEventHookRequest) returns (Empty);
+  rpc CreateEventHook (CreateEventHookRequest) returns (EventHooks);
+  rpc UpdateEventHook (UpdateEventhookRequest) returns (Empty);
+  rpc ListEventHook (ListEventHookRequest) returns (PagedEventHooks);
+  rpc EventExamples (Empty) returns (google.protobuf.Value);
+  rpc VrlScriptResolve(VrlScriptTestRequest) returns (ResolveResult);
+  rpc ListEventHookTasks (ListTasksRequest) returns (PagedEventHookTask);
+  rpc GetEventHookTask (GetTaskRequest) returns (EventHookTask);
+  rpc RemoveEventHookTask (RemoveTaskRequest) returns (Empty);
+}

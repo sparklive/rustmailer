@@ -1,0 +1,108 @@
+use std::{collections::BTreeMap, path::PathBuf};
+
+use crate::{
+    id,
+    modules::{
+        account::entity::{Account, AccountKey},
+        cache::imap::mailbox::MailBox,
+        database::META_MODELS,
+        hook::{
+            entity::{EventHooks, HookType, HttpConfig, HttpMethod},
+            events::EventType,
+            payload::EventhookCreateRequest,
+        },
+    },
+};
+use itertools::Itertools;
+use native_db::Builder;
+use serde::{Deserialize, Serialize};
+
+#[tokio::test]
+async fn test2() {
+    let all = MailBox::list_all(0u64).await.unwrap();
+    for mailbox in all {
+        println!("mailbox: {}", mailbox.id)
+    }
+
+    let all = Account::minimal_list().await.unwrap();
+    for mailbox in all {
+        println!("account:{}", mailbox.id)
+    }
+}
+
+#[test]
+fn test3() {
+    let database = Builder::new()
+        .create(&META_MODELS, PathBuf::from("D://rustmailer_data//meta.db"))
+        .unwrap();
+    //database.compact().unwrap();
+    let r_transaction = database.r_transaction().unwrap();
+    let entities: Vec<Account> = r_transaction
+        .scan()
+        .secondary(AccountKey::id)
+        .unwrap()
+        .all()
+        .unwrap()
+        .try_collect()
+        .unwrap();
+    println!("{:#?}", entities);
+
+    let entities: Vec<Account> = r_transaction
+        .scan()
+        .primary()
+        .unwrap()
+        .all()
+        .unwrap()
+        .try_collect()
+        .unwrap();
+
+    println!("{:#?}", entities);
+}
+
+#[tokio::test]
+async fn test4() {
+    let id = id!(64);
+    let request = EventhookCreateRequest {
+        account_id: Some(id),
+        description: None,
+        enabled: true,
+        hook_type: HookType::Http,
+        http: Some(HttpConfig {
+            target_url: "http://localhost:15630".into(),
+            http_method: HttpMethod::Post,
+            custom_headers: BTreeMap::new(),
+        }),
+        nats: None,
+        vrl_script: None,
+        watched_events: vec![EventType::EmailSendingError],
+    };
+    let hook = EventHooks::new(request).await.unwrap();
+    hook.save().await.unwrap();
+    let hooks = EventHooks::get_by_account_id(id).await.unwrap();
+    println!("{:#?}", hooks);
+}
+
+#[tokio::test]
+async fn test5() {
+    let mut account = Account::default();
+    let id = id!(64);
+    account.id = id;
+
+    account.save().await.unwrap();
+    let account = Account::get(id).await.unwrap();
+    println!("{:#?}", account);
+}
+
+#[test]
+fn test6() {
+    #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
+    struct Test1 {
+        f: u64,
+    }
+
+    let test = Test1 {
+        f: 11259064003778907886,
+    };
+
+    println!("{}", serde_json::to_string_pretty(&test).unwrap());
+}
