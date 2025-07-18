@@ -55,7 +55,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build Rust backend
-        run: cargo build --release --target=${{ matrix.target }}
+        run: cargo build --release --features vendored-openssl --target=${{ matrix.target }}
 
       - name: Prepare dist directory
         run: mkdir -p dist
