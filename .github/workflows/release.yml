@@ -43,15 +43,16 @@ jobs:
             curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip
             unzip protoc-${PROTOC_VERSION}-linux-x86_64.zip -d protoc
             sudo mv protoc/bin/protoc /usr/local/bin/
+            sudo cp -r protoc/include/* /usr/local/include/
             protoc --version
 
       - name: Install protoc on macOS
         if: runner.os == 'macOS'
         run: |
-            PROTOC_VERSION=31.1
-            curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-osx-x86_64.zip
-            unzip protoc-${PROTOC_VERSION}-osx-x86_64.zip -d protoc
+            curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-osx-x86_64.zip
+            unzip protoc-31.1-osx-x86_64.zip -d protoc
             sudo mv protoc/bin/protoc /usr/local/bin/
+            sudo cp -r protoc/include/* /usr/local/include/
             protoc --version
 
       - name: Install protoc on Windows
