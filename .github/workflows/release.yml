@@ -36,6 +36,23 @@ jobs:
           target: ${{ matrix.target }}
           override: true
 
+      - name: Install protoc on Linux/macOS
+        if: runner.os != 'Windows'
+        run: |
+            PROTOC_VERSION=21.12
+            OS=$(echo $RUNNER_OS | tr '[:upper:]' '[:lower:]')
+            curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${OS}-x86_64.zip
+            unzip protoc-${PROTOC_VERSION}-${OS}-x86_64.zip -d protoc
+            sudo mv protoc/bin/protoc /usr/local/bin/
+            protoc --version
+      - name: Install protoc on Windows
+        if: runner.os == 'Windows'
+        run: |
+          Invoke-WebRequest -Uri https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-win64.zip -OutFile protoc.zip
+          Expand-Archive protoc.zip -DestinationPath protoc
+          $Env:PATH += ";${PWD}/protoc/bin"
+          protoc --version
+                
       - name: Setup Node.js & pnpm
         uses: actions/setup-node@v4
         with:
