@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 ARG CRATE_VERSION
 
 # Set maintainer metadata
-LABEL maintainer="BillyDong <rustmailer.git@gmail.com>"
+LABEL maintainer="rustmailer <rustmailer.git@gmail.com>"
 LABEL version="${CRATE_VERSION}"
 LABEL description="Dockerized RustMailer service"
 
