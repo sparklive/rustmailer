@@ -240,6 +240,17 @@ For more details, please visit [https://rustmailer.com/pricing](https://rustmail
 Thank you for your understanding and support!
 
 
+## 📬 Stay Connected
+
+We’d love to hear from you! Join our community or follow us for updates:
+
+- 🐦 Twitter: [@rustmailer](https://x.com/rustmailer)
+- 💬 Discord: [Join our community](https://discord.gg/3R4scWCsxK)
+- 📧 Email: [rustmailer.git@gmail.com](mailto:rustmailer.git@gmail.com)
+- 🌐 Website: [https://rustmailer.com](https://rustmailer.com)
+
+> 🚀 Get support, share feedback, and stay informed on the latest RustMailer updates!
+
 
 ---
 
