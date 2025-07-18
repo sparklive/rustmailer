@@ -138,22 +138,11 @@ jobs:
           find artifacts -type f -name "*.zip" -exec mv {} artifacts/ \;
           find artifacts -type f -name "*.tar.gz" -exec mv {} artifacts/ \;
 
-      - name: Generate a changelog
-        id: changelog
-        uses: orhun/git-cliff-action@v3
-        with:
-            config: cliff.toml
-            args: --tag ${{ github.ref_name }}
-        env:
-            GITHUB_REPO: ${{ github.repository }}
-
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-            tag_name: ${{ github.ref_name }}
-            name: "rustmailer ${{ github.ref_name }}"
-            body: ${{ steps.changelog.outputs.content }}
-            files: |
-                artifacts/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
+          name: "Release ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: |
+            artifacts/*
+        
