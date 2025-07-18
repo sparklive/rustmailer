@@ -44,7 +44,6 @@ jobs:
             unzip protoc-${PROTOC_VERSION}-linux-x86_64.zip -d protoc
             echo "${PWD}/protoc/bin" >> $GITHUB_PATH
             echo "PROTOC_INCLUDE=$PWD/protoc/include" >> $GITHUB_ENV
-            protoc --version
 
       - name: Install protoc on macOS
         if: runner.os == 'macOS'
@@ -53,7 +52,6 @@ jobs:
             unzip protoc-31.1-osx-x86_64.zip -d protoc
             echo "${PWD}/protoc/bin" >> $GITHUB_PATH
             echo "PROTOC_INCLUDE=$PWD/protoc/include" >> $GITHUB_ENV
-            protoc --version
 
       - name: Install protoc on Windows
         if: runner.os == 'Windows'
@@ -66,8 +64,6 @@ jobs:
 
             Add-Content $env:GITHUB_PATH $protocPath
             Add-Content $env:GITHUB_ENV "PROTOC_INCLUDE=$includePath"
-            & "$protocPath\\protoc.exe" --version
-
 
       - name: Setup Node.js & pnpm
         uses: actions/setup-node@v4
