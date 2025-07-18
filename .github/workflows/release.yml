@@ -28,11 +28,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          rust-version: stable
-          targets: ${{ matrix.target }}
+          profile: minimal
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
 
       - name: Setup Node.js & pnpm
         uses: actions/setup-node@v4
