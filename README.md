@@ -9,6 +9,7 @@
 A self-hosted Email API, built in Rust.
 </h3>
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rustmailer/rustmailer)
 
 ## 🎯 Use Cases
 
