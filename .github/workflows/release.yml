@@ -39,11 +39,10 @@ jobs:
       - name: Install protoc on Linux
         if: runner.os == 'Linux'
         run: |
-            PROTOC_VERSION=31.1
-            curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip
-            unzip protoc-${PROTOC_VERSION}-linux-x86_64.zip -d protoc
+            curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip
+            unzip protoc-31.1-linux-x86_64.zip -d protoc
             echo "${PWD}/protoc/bin" >> $GITHUB_PATH
-            echo "PROTOC_INCLUDE=$PWD/protoc/include" >> $GITHUB_ENV
+            cp -r protoc/include/* protos/
 
       - name: Install protoc on macOS
         if: runner.os == 'macOS'
@@ -51,7 +50,7 @@ jobs:
             curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-osx-x86_64.zip
             unzip protoc-31.1-osx-x86_64.zip -d protoc
             echo "${PWD}/protoc/bin" >> $GITHUB_PATH
-            echo "PROTOC_INCLUDE=$PWD/protoc/include" >> $GITHUB_ENV
+            cp -r protoc/include/* protos/
 
       - name: Install protoc on Windows
         if: runner.os == 'Windows'
@@ -59,11 +58,8 @@ jobs:
         run: |
             Invoke-WebRequest -Uri https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-win64.zip -OutFile protoc.zip
             Expand-Archive protoc.zip -DestinationPath protoc
-            $protocPath = Join-Path $PWD "protoc\\bin"
-            $includePath = Join-Path $PWD "protoc\\include"
-
-            Add-Content $env:GITHUB_PATH $protocPath
-            Add-Content $env:GITHUB_ENV "PROTOC_INCLUDE=$includePath"
+            Add-Content $env:GITHUB_PATH "$PWD\protoc\bin"
+            Copy-Item -Recurse protoc\include\* protos\
 
       - name: Setup Node.js & pnpm
         uses: actions/setup-node@v4
