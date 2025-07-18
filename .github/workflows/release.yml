@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+env:
+  BINARY_NAME: rustmailer
 
 permissions:
   contents: write
@@ -82,26 +84,40 @@ jobs:
       - name: Build Rust backend
         run: cargo build --release --features vendored-openssl --target=${{ matrix.target }}
 
-      - name: Prepare dist directory
-        run: mkdir -p dist
-
-      - name: Copy binary to dist
+      - name: Strip binary (Linux and macOS)
+        if: matrix.os != 'windows-latest'
         run: |
-          BIN=rustmailer
-          EXT=""
-          if [[ "${{ matrix.target }}" == *windows* ]]; then EXT=".exe"; fi
-          cp target/${{ matrix.target }}/release/${BIN}${EXT} dist/
+          strip target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}
 
-      - name: Pack artifact
+      - name: Pack artifact (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
-          cd dist
-          tar -czvf rustmailer-${{ github.ref_name }}-${{ matrix.target }}.tar.gz rustmailer*
+          mkdir -p release
+          BINARY="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
+          tar -czvf "release/rustmailer-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" "$BINARY"
 
       - name: Upload build artifact
+        if: matrix.os != 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: dist/rustmailer-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+          path: release/rustmailer-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+      
+      - name: Create zip archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          mkdir -p release
+          $BINARY = "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe"
+          Compress-Archive -Path $BINARY -DestinationPath "release/rustmailer-${{ github.ref_name }}-${{ matrix.target }}.zip" -Force
+
+      - name: Upload build artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: release/rustmailer-${{ github.ref_name }}-${{ matrix.target }}.zip
 
   release:
     name: Create GitHub Release
@@ -112,7 +128,15 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          path: artifacts
+          pattern: rustmailer-*
+          merge-multiple: true
+      
+      - name: Flatten artifacts
+        run: |
+          mkdir -p artifacts
+          find artifacts -type f -name "*.zip" -exec mv {} artifacts/ \;
+          find artifacts -type f -name "*.tar.gz" -exec mv {} artifacts/ \;
 
       - name: Generate changelog with git-cliff
         id: changelog
@@ -123,11 +147,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          body: ${{ steps.changelog.outputs.content }}
-          draft: false
-          prerelease: false
-          files: ./artifacts/**/*.tar.gz
+            tag_name: ${{ github.ref_name }}
+            name: "rustmailer ${{ github.ref_name }}"
+            body: ${{ steps.changelog.outputs.content }}
+            files: |
+                artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
