@@ -138,13 +138,14 @@ jobs:
           find artifacts -type f -name "*.zip" -exec mv {} artifacts/ \;
           find artifacts -type f -name "*.tar.gz" -exec mv {} artifacts/ \;
 
-      - name: Generate changelog with git-cliff
+      - name: Generate a changelog
         id: changelog
-        uses: orhun/git-cliff-action@v2
+        uses: orhun/git-cliff-action@v3
         with:
-          args: --tag ${{ github.ref_name }}
+            config: cliff.toml
+            args: --tag ${{ github.ref_name }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_REPO: ${{ github.repository }}
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
