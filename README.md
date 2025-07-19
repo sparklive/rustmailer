@@ -44,7 +44,26 @@ RustMailer enables developers to focus on core application logic without buildin
 - 🎟️ **License Required for Deployment** – Source-available on GitHub; requires a license key for production use.
 
 ## 📸 Snapshot
-![RustMailer Snapshot](./assets/dashboard.png)
+
+<div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 16px;">
+  <div style="border: 1px solid #ccc; padding: 4px; width: 48%; box-sizing: border-box;">
+    <img src="./assets/dashboard.png" alt="RustMailer Dashboard" style="width: 100%; height: auto; display: block;" />
+  </div>
+  <div style="border: 1px solid #ccc; padding: 4px; width: 48%; box-sizing: border-box;">
+    <img src="./assets/scalar.png" alt="RustMailer Scalar Metrics" style="width: 100%; height: auto; display: block;" />
+  </div>
+</div>
+
+<div style="display: flex; gap: 16px; justify-content: center;">
+  <div style="border: 1px solid #ccc; padding: 4px; width: 48%; box-sizing: border-box;">
+    <img src="./assets/accounts.png" alt="RustMailer Accounts" style="width: 100%; height: auto; display: block;" />
+  </div>
+  <div style="border: 1px solid #ccc; padding: 4px; width: 48%; box-sizing: border-box;">
+    <img src="./assets/tasks-queue.png" alt="RustMailer Task Queue" style="width: 100%; height: auto; display: block;" />
+  </div>
+</div>
+
+
 
 ## 📦 Installation
 
