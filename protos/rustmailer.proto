@@ -2,1284 +2,2129 @@ syntax = "proto3";
 
 package rustmailer.grpc;
 
-// Empty request message
+import "google/protobuf/struct.proto";
+
+// An empty message used for requests or responses that do not require a payload.
 message Empty {}
 
-// AccountInfo message
+// AccountInfo represents a basic overview of an account.
 message AccountInfo {
+  // The unique identifier of the account.
   uint64 id = 1;
+  // The primary email address associated with the account.
   string email = 2;
 }
 
+// Encryption defines the supported encryption protocols for server connections.
 enum Encryption {
-    SSL = 0;        
-    START_TLS = 1;
-    NONE = 2;
+  // Secure Sockets Layer/Transport Layer Security.
+  SSL = 0;
+  // Opportunistic TLS, typically used after an unencrypted connection is established.
+  START_TLS = 1;
+  // No encryption.
+  NONE = 2;
 }
 
+// AuthType specifies the authentication mechanisms available for email servers.
 enum AuthType {
-    PASSWORD = 0;     
-    OAUTH2 = 1;
+  // Password-based authentication.
+  PASSWORD = 0;
+  // OAuth2 authentication.
+  OAUTH2 = 1;
 }
 
+// Unit specifies the time unit for relative date calculations.
 enum Unit {
-    DAYS = 0;         // Default value should be 0
-    MONTHS = 1;
-    YEARS = 2;
+  // Represents a period in days.
+  DAYS = 0;
+  // Represents a period in months.
+  MONTHS = 1;
+  // Represents a period in years.
+  YEARS = 2;
 }
 
-// Messages
+// AuthConfig defines the authentication settings for an email server.
 message AuthConfig {
-    AuthType auth_type = 1;
-    optional string password = 2;
+  // The type of authentication to use (e.g., PASSWORD, OAUTH2).
+  AuthType auth_type = 1;
+  // Optional: The password for password-based authentication. This field should be omitted if auth_type is OAUTH2.
+  optional string password = 2;
 }
 
+// ImapConfig defines the configuration for an IMAP server connection.
 message ImapConfig {
-    string host = 1;
-    uint32 port = 2;
-    Encryption encryption = 3;
-    AuthConfig auth = 4;
-    optional uint64 use_proxy = 5;
+  // The hostname or IP address of the IMAP server.
+  string host = 1;
+  // The port number for the IMAP server.
+  uint32 port = 2;
+  // The encryption method to use for the IMAP connection.
+  Encryption encryption = 3;
+  // The authentication configuration for the IMAP server.
+  AuthConfig auth = 4;
+  // Optional: The ID of a proxy to use for the IMAP connection.
+  optional uint64 use_proxy = 5;
 }
 
+// SmtpConfig defines the configuration for an SMTP server connection.
 message SmtpConfig {
-    string host = 1;
-    uint32 port = 2;
-    Encryption encryption = 3;
-    AuthConfig auth = 4;
-    optional uint64 use_proxy = 5;
+  // The hostname or IP address of the SMTP server.
+  string host = 1;
+  // The port number for the SMTP server.
+  uint32 port = 2;
+  // The encryption method to use for the SMTP connection.
+  Encryption encryption = 3;
+  // The authentication configuration for the SMTP server.
+  AuthConfig auth = 4;
+  // Optional: The ID of a proxy to use for the SMTP connection.
+  optional uint64 use_proxy = 5;
 }
 
+// RelativeDate specifies a date relative to the current time.
 message RelativeDate {
-    Unit unit = 1;
-    uint32 value = 2;
+  // The unit of time (e.g., DAYS, MONTHS, YEARS).
+  Unit unit = 1;
+  // The numeric value for the specified unit.
+  uint32 value = 2;
 }
 
+// DateSince defines a point in time from which to start synchronization.
 message DateSince {
-    optional string fixed = 1;          // "YYYY-MM-DD" format
-    optional RelativeDate relative = 2;
+  // Optional: A fixed date in "YYYY-MM-DD" format.
+  optional string fixed = 1;
+  // Optional: A date relative to the current time.
+  optional RelativeDate relative = 2;
 }
 
+// Account represents a full email account configuration.
 message Account {
-    uint64 id = 1;
-    ImapConfig imap = 2;
-    SmtpConfig smtp = 3;
-    bool enabled = 4;
-    string email = 5;
-    optional string name = 6;
-    bool minimal_sync = 7;
-    repeated string capabilities = 8;
-    optional bool dsn_capable = 9;
-    optional DateSince date_since = 10;
-    repeated string sync_folders = 11;
-    repeated string known_folders = 12;
-    int64 full_sync_interval_min = 13;
-    int64 incremental_sync_interval_sec = 14;
-    int64 created_at = 15;
-    int64 updated_at = 16;
-}
-
-message PagedAccount {
-    optional uint64 current_page = 1;
-    optional uint64 page_size = 2;
-    uint64 total_items = 3;
-    repeated Account items = 4;
-    optional uint64 total_pages = 5;
-}
-
-
-message AccountCreateRequest {
-    string email = 1;
-    optional string name = 2;
-    ImapConfig imap = 3;
-    SmtpConfig smtp = 4;
-    bool enabled = 5;
-    optional DateSince date_since = 6;
-    bool minimal_sync = 7;
-    optional int64 full_sync_interval_min = 8;    
-    optional int64 incremental_sync_interval_sec = 9;
-}
-
-message AccountUpdateRequest {
-    uint64 account_id = 1;
-    optional bool enabled = 2;
-    optional ImapConfig imap = 3;
-    optional SmtpConfig smtp = 4;
-    optional string name = 5;
-    optional DateSince date_since = 6;
-    repeated string sync_folders = 7;
-    optional int64 full_sync_interval_min = 8;    
-    optional int64 incremental_sync_interval_sec = 9;
-}
-
-message AccountError {
-    string error = 1;
-    int64 at = 2;
-}
-
-message AccountRunningState {
-    uint64 account_id = 1;
-    int64 last_full_sync_start = 2;
-    optional int64 last_full_sync_end = 3;
-    int64 last_incremental_sync_start = 4;
-    optional int64 last_incremental_sync_end = 5;
-    repeated AccountError errors = 6;
-    bool is_initial_sync_completed = 7;
-    repeated string initial_sync_folders = 8;
-    optional string current_syncing_folder = 9;
-    optional uint32 current_batch_number = 10;  
-    optional uint32 current_total_batches = 11;
-    optional int64 initial_sync_start_time = 12;
-    optional int64 initial_sync_end_time = 13;
-}
-
-message PaginateRequest {
-    optional uint64 page = 1;
-    optional uint64 page_size = 2;
-    optional bool desc = 3;
-}
-
-message AccountId {
-    uint64 account_id = 1;
-}
-
-
-message MinimalAccount {
+  // The unique identifier of the account.
   uint64 id = 1;
+  // The IMAP server configuration for the account.
+  ImapConfig imap = 2;
+  // The SMTP server configuration for the account.
+  SmtpConfig smtp = 3;
+  // Indicates whether the account is enabled for synchronization.
+  bool enabled = 4;
+  // The email address of the account.
+  string email = 5;
+  // Optional: A display name for the account.
+  optional string name = 6;
+  // If true, only minimal metadata will be synced initially (e.g., no full message bodies).
+  bool minimal_sync = 7;
+  // A list of capabilities supported by the account (e.g., "IMAP4REV1", "AUTH=PLAIN").
+  repeated string capabilities = 8;
+  // Optional: Indicates if the account is capable of Delivery Status Notifications (DSN).
+  optional bool dsn_capable = 9;
+  // Optional: The date from which to start syncing emails for this account.
+  optional DateSince date_since = 10;
+  // A list of folders to synchronize. If empty, all folders might be synced based on `minimal_sync`.
+  repeated string sync_folders = 11;
+  // A list of known folders (e.g., "INBOX", "Sent Items").
+  repeated string known_folders = 12;
+  // The interval (in minutes) for a full synchronization pass.
+  int64 full_sync_interval_min = 13;
+  // The interval (in seconds) for incremental synchronization updates.
+  int64 incremental_sync_interval_sec = 14;
+  // The timestamp when the account was created.
+  int64 created_at = 15;
+  // The timestamp when the account was last updated.
+  int64 updated_at = 16;
+}
+
+// PagedAccount represents a paginated list of Account messages.
+message PagedAccount {
+  // Optional: The current page number being returned.
+  optional uint64 current_page = 1;
+  // Optional: The number of items per page.
+  optional uint64 page_size = 2;
+  // The total number of items available across all pages.
+  uint64 total_items = 3;
+  // The list of Account items for the current page.
+  repeated Account items = 4;
+  // Optional: The total number of pages available.
+  optional uint64 total_pages = 5;
+}
+
+// AccountCreateRequest defines the parameters for creating a new email account.
+message AccountCreateRequest {
+  // The email address for the new account.
+  string email = 1;
+  // Optional: A display name for the new account.
+  optional string name = 2;
+  // The IMAP configuration for the new account.
+  ImapConfig imap = 3;
+  // The SMTP configuration for the new account.
+  SmtpConfig smtp = 4;
+  // Indicates whether the new account should be enabled immediately.
+  bool enabled = 5;
+  // Optional: The date from which to start syncing emails for this account.
+  optional DateSince date_since = 6;
+  // If true, only minimal metadata will be synced initially for the new account.
+  bool minimal_sync = 7;
+  // Optional: The interval (in minutes) for a full synchronization pass.
+  optional int64 full_sync_interval_min = 8;
+  // Optional: The interval (in seconds) for incremental synchronization updates.
+  optional int64 incremental_sync_interval_sec = 9;
+}
+
+// AccountUpdateRequest defines the parameters for updating an existing email account.
+message AccountUpdateRequest {
+  // The ID of the account to update.
+  uint64 account_id = 1;
+  // Optional: Update the enabled status of the account.
+  optional bool enabled = 2;
+  // Optional: Update the IMAP server configuration.
+  optional ImapConfig imap = 3;
+  // Optional: Update the SMTP server configuration.
+  optional SmtpConfig smtp = 4;
+  // Optional: Update the display name of the account.
+  optional string name = 5;
+  // Optional: Update the date from which to start syncing emails.
+  optional DateSince date_since = 6;
+  // A list of folders to synchronize. This will overwrite existing sync folders.
+  repeated string sync_folders = 7;
+  // Optional: Update the interval (in minutes) for a full synchronization pass.
+  optional int64 full_sync_interval_min = 8;
+  // Optional: Update the interval (in seconds) for incremental synchronization updates.
+  optional int64 incremental_sync_interval_sec = 9;
+}
+
+// AccountError represents an error encountered during account processing.
+message AccountError {
+  // The error message.
+  string error = 1;
+  // The timestamp when the error occurred.
+  int64 at = 2;
+}
+
+// AccountRunningState provides real-time information about an account's synchronization status.
+message AccountRunningState {
+  // The ID of the account.
+  uint64 account_id = 1;
+  // The timestamp when the last full synchronization started.
+  int64 last_full_sync_start = 2;
+  // Optional: The timestamp when the last full synchronization ended.
+  optional int64 last_full_sync_end = 3;
+  // The timestamp when the last incremental synchronization started.
+  int64 last_incremental_sync_start = 4;
+  // Optional: The timestamp when the last incremental synchronization ended.
+  optional int64 last_incremental_sync_end = 5;
+  // A list of errors encountered during synchronization.
+  repeated AccountError errors = 6;
+  // Indicates if the initial synchronization for the account is completed.
+  bool is_initial_sync_completed = 7;
+  // A list of folders that were part of the initial synchronization.
+  repeated string initial_sync_folders = 8;
+  // Optional: The name of the folder currently being synchronized.
+  optional string current_syncing_folder = 9;
+  // Optional: The current batch number within the current folder sync.
+  optional uint32 current_batch_number = 10;
+  // Optional: The total number of batches for the current folder sync.
+  optional uint32 current_total_batches = 11;
+  // Optional: The timestamp when the initial synchronization started.
+  optional int64 initial_sync_start_time = 12;
+  // Optional: The timestamp when the initial synchronization ended.
+  optional int64 initial_sync_end_time = 13;
+}
+
+// PaginateRequest defines parameters for paginating lists of items.
+message PaginateRequest {
+  // Optional: The requested page number (1-based).
+  optional uint64 page = 1;
+  // Optional: The number of items to return per page.
+  optional uint64 page_size = 2;
+  // Optional: If true, results will be returned in descending order.
+  optional bool desc = 3;
+}
+
+// AccountId is a simple message to specify an account by its ID.
+message AccountId {
+  // The unique identifier of the account.
+  uint64 account_id = 1;
+}
+
+// MinimalAccount provides a reduced set of account information.
+message MinimalAccount {
+  // The unique identifier of the account.
+  uint64 id = 1;
+  // The email address associated with the account.
   string email = 2;
 }
 
+// ListMinimalAccountsResponse contains a list of minimal account information.
 message ListMinimalAccountsResponse {
+  // A list of minimal account details.
   repeated MinimalAccount accounts = 1;
 }
 
+// AccountService provides APIs for managing email accounts.
 service AccountService {
+  // Retrieves a specific email account by its ID.
   rpc GetAccount(AccountId) returns (Account);
+  // Removes an email account.
   rpc RemoveAccount(AccountId) returns (Empty);
+  // Creates a new email account.
   rpc CreateAccount(AccountCreateRequest) returns (Account);
+  // Updates an existing email account.
   rpc UpdateAccount(AccountUpdateRequest) returns (Empty);
+  // Lists email accounts with pagination.
   rpc ListAccounts(PaginateRequest) returns (PagedAccount);
+  // Retrieves the current running state and synchronization status of an account.
   rpc GetAccountState(AccountId) returns (AccountRunningState);
+  // Lists minimal details for all accounts.
   rpc ListMinimalAccounts (Empty) returns (ListMinimalAccountsResponse);
 }
 
-
+// MailServerConfig aggregates IMAP, SMTP, and optional OAuth2 configurations for a mail server.
 message MailServerConfig {
-    ServerConfig imap = 1;
-    ServerConfig smtp = 2;
-    optional OAuth2Config oauth2 = 3;
+  // The IMAP server configuration.
+  ServerConfig imap = 1;
+  // The SMTP server configuration.
+  ServerConfig smtp = 2;
+  // Optional: OAuth2 configuration if supported by the mail server.
+  optional OAuth2Config oauth2 = 3;
 }
 
+// ServerConfig defines the basic connection details for a mail server.
 message ServerConfig {
-    string host = 1;
-    uint32 port = 2;
-    Encryption encryption = 3;
+  // The hostname or IP address of the server.
+  string host = 1;
+  // The port number for the server.
+  uint32 port = 2;
+  // The encryption method to use for the connection.
+  Encryption encryption = 3;
 }
 
+// OAuth2Config defines the necessary parameters for OAuth2 authentication.
 message OAuth2Config {
-    string issuer = 1;
-    repeated string scope = 2;
-    string auth_url = 3;
-    string token_url = 4;
+  // The OAuth2 issuer URL.
+  string issuer = 1;
+  // A list of OAuth2 scopes required.
+  repeated string scope = 2;
+  // The OAuth2 authorization endpoint URL.
+  string auth_url = 3;
+  // The OAuth2 token endpoint URL.
+  string token_url = 4;
 }
 
+// AutoconfigRequest is used to request mail server configurations based on an email address.
 message AutoconfigRequest {
-    string email_address = 1;
+  // The email address for which to retrieve autoconfiguration.
+  string email_address = 1;
 }
 
+// AutoConfigService provides a mechanism to automatically discover mail server configurations.
 service AutoConfigService {
-    rpc GetAutoconfig (AutoconfigRequest) returns (MailServerConfig);
+  // Retrieves mail server configurations (IMAP, SMTP, OAuth2) for a given email address.
+  rpc GetAutoconfig (AutoconfigRequest) returns (MailServerConfig);
 }
 
-
+// MailBox represents a mail folder on an IMAP server.
 message MailBox {
-  uint64 mailbox_hash = 1;      // primary_key
-  uint64 account_hash = 2;      // secondary_key
-  string name = 3;           // The unique name of the mailbox
-  optional string delimiter = 4;    // Optional delimiter
-  repeated Attribute attributes = 5; // List of attributes
-  repeated EnvelopeFlag flags = 6;   // List of flags
-  uint32 exists = 7;         // Number of messages
-  optional uint32 unseen = 8;       // Optional number of unseen messages
-  repeated EnvelopeFlag permanent_flags = 9; // List of permanent flags
-  optional uint32 uid_next = 10;    // Next unique identifier
-  optional uint32 uid_validity = 11; // UID validity
-  optional uint64 highest_modseq = 12; // Highest modification sequence
+  // The unique hash of the mailbox, serving as a primary key.
+  uint64 mailbox_hash = 1;
+  // The hash of the account to which this mailbox belongs, serving as a secondary key.
+  uint64 account_hash = 2;
+  // The unique name of the mailbox (e.g., "INBOX", "Sent Items").
+  string name = 3;
+  // Optional: The delimiter used for hierarchy within the mailbox name (e.g., "/").
+  optional string delimiter = 4;
+  // A list of attributes (e.g., "\Noinferiors", "\Noselect") for the mailbox.
+  repeated Attribute attributes = 5;
+  // A list of flags currently applicable to messages in this mailbox.
+  repeated EnvelopeFlag flags = 6;
+  // The number of messages currently in the mailbox.
+  uint32 exists = 7;
+  // Optional: The number of unseen messages in the mailbox.
+  optional uint32 unseen = 8;
+  // A list of permanent flags that can be set on messages in this mailbox.
+  repeated EnvelopeFlag permanent_flags = 9;
+  // Optional: The next unique identifier (UID) that will be assigned to a new message in this mailbox.
+  optional uint32 uid_next = 10;
+  // Optional: The UID validity value for this mailbox. Changes indicate old UIDs are invalid.
+  optional uint32 uid_validity = 11;
+  // Optional: The highest modification sequence value for messages in this mailbox (for CONDSTORE).
+  optional uint64 highest_modseq = 12;
 }
 
+// EnvelopeFlag represents a single IMAP message flag, which can be standard or custom.
 message EnvelopeFlag {
+  // The standard email flag type.
   EmailFlag flag = 1;
+  // Optional: Custom flag string if `flag` is CUSTOM.
   optional string custom = 2;
 }
 
+// EmailFlag enumerates standard IMAP message flags.
 enum EmailFlag {
+  // Message has been read.
   SEEN = 0;
+  // Message has been answered.
   ANSWERED = 1;
+  // Message is flagged for special attention.
   EMAIL_FLAGGED = 2;
+  // Message is marked for deletion.
   DELETED = 3;
+  // Message is a draft.
   DRAFT = 4;
+  // Message has been recently arrived.
   RECENT = 5;
+  // The client may create new messages in this mailbox.
   MAY_CREATE = 6;
+  // A custom flag, requiring the `custom` field to be set.
   CUSTOM = 7;
 }
 
+// Attribute represents a single IMAP mailbox attribute.
 message Attribute {
+  // The enumerated attribute type.
   AttributeEnum attr = 1;
+  // Optional: Extension string for custom attributes.
   optional string extension = 2;
 }
 
+// AttributeEnum enumerates standard IMAP mailbox attributes.
 enum AttributeEnum {
+  // No inferior hierarchical names exist.
   NO_INFERIORS = 0;
+  // Mailbox cannot be selected.
   NO_SELECT = 1;
+  // Mailbox is marked (implementation-defined).
   MARKED = 2;
+  // Mailbox is unmarked (implementation-defined).
   UNMARKED = 3;
+  // Generic attribute for all mailboxes.
   ALL = 4;
+  // Mailbox for archive messages.
   ARCHIVE = 5;
+  // Mailbox for draft messages.
   DRAFTS = 6;
+  // Mailbox for flagged messages.
   FLAGGED = 7;
+  // Mailbox for junk/spam messages.
   JUNK = 8;
+  // Mailbox for sent messages.
   SENT = 9;
+  // Mailbox for trash/deleted messages.
   TRASH = 10;
+  // An extension attribute, requiring the `extension` field to be set.
   EXTENSION = 11;
+  // An unknown attribute.
   UNKNOWN = 12;
 }
 
+// ListMailboxesRequest is used to request a list of mailboxes for a given account.
 message ListMailboxesRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // If true, fetches mailboxes directly from the remote server.
   bool remote = 2;
 }
 
-
+// ListSubscribedRequest is used to request a list of subscribed mailboxes for a given account.
 message ListSubscribedRequest {
+  // The ID of the account.
   uint64 account_id = 1;
 }
 
+// ListMailboxesResponse contains a list of MailBox messages.
 message ListMailboxesResponse {
+  // The list of mailboxes.
   repeated MailBox mailboxes = 1;
 }
 
+// SubscribeRequest is used to subscribe to a mailbox.
 message SubscribeRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox to subscribe to.
   string mailbox_name = 2;
 }
 
+// UnsubscribeRequest is used to unsubscribe from a mailbox.
 message UnsubscribeRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox to unsubscribe from.
   string mailbox_name = 2;
 }
 
+// CreateMailboxRequest is used to create a new mailbox.
 message CreateMailboxRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox to create.
   string mailbox_name = 2;
 }
 
+// DeleteMailboxRequest is used to delete a mailbox.
 message DeleteMailboxRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox to delete.
   string mailbox_name = 2;
 }
 
+// RenameMailboxRequest is used to rename an existing mailbox.
 message RenameMailboxRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The current name of the mailbox.
   string current_name = 2;
+  // The new name for the mailbox.
   string new_name = 3;
 }
 
-
+// MailboxService provides APIs for managing mailboxes (folders) on an email server.
 service MailboxService {
+  // Lists all mailboxes for a given account.
   rpc ListMailboxes(ListMailboxesRequest) returns (ListMailboxesResponse);
+  // Lists mailboxes to which the account is subscribed.
   rpc ListSubscribedMailboxes(ListSubscribedRequest) returns (ListMailboxesResponse);
+  // Subscribes the account to a specific mailbox.
   rpc SubscribeMailbox(SubscribeRequest) returns (Empty);
+  // Unsubscribes the account from a specific mailbox.
   rpc UnsubscribeMailbox(UnsubscribeRequest) returns (Empty);
+  // Creates a new mailbox for the account.
   rpc CreateMailbox(CreateMailboxRequest) returns (Empty);
+  // Removes (deletes) a mailbox from the account.
   rpc RemoveMailbox(DeleteMailboxRequest) returns (Empty);
+  // Renames an existing mailbox for the account.
   rpc RenameMailbox(RenameMailboxRequest) returns (Empty);
 }
 
-
+// MailboxTransferRequest is used to move or copy messages between mailboxes.
 message MailboxTransferRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // A list of unique identifiers (UIDs) of the messages to transfer.
   repeated uint32 uids = 2;
+  // The name of the mailbox from which to transfer messages.
   string current_mailbox = 3;
+  // The name of the target mailbox to which messages will be transferred.
   string target_mailbox = 4;
 }
 
+// MessageDeleteRequest is used to delete messages from a mailbox.
 message MessageDeleteRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // A list of unique identifiers (UIDs) of the messages to delete.
   repeated uint32 uids = 2;
+  // The name of the mailbox from which to delete messages.
   string mailbox_name = 3;
 }
 
+// FlagMessageRequest is used to update flags on messages within a mailbox.
 message FlagMessageRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // A list of unique identifiers (UIDs) of the messages to flag.
   repeated uint32 uids = 2;
+  // The name of the mailbox containing the messages.
   string mailbox_name = 3;
+  // The flag actions to perform (add, remove, overwrite).
   FlagAction action = 4;
 }
 
+// FlagAction defines how message flags should be modified.
 message FlagAction {
+  // Flags to add to the messages.
   repeated EnvelopeFlag add = 1;
+  // Flags to remove from the messages.
   repeated EnvelopeFlag remove = 2;
+  // Flags to set, replacing all existing flags on the messages.
   repeated EnvelopeFlag overwrite = 3;
 }
 
-
+// Addr represents an email address, including an optional display name.
 message Addr {
+  // Optional: The display name associated with the email address (e.g., "John Doe").
   optional string name = 1;
+  // Optional: The email address (e.g., "john.doe@example.com").
   optional string address = 2;
 }
 
-
+// Received provides details from a "Received" header in an email.
 message Received {
+  // Optional: The host from which the message was received.
   optional string from = 1;
+  // Optional: The host by which the message was received.
   optional string by = 2;
+  // Optional: The protocol used (e.g., "ESMTP").
   optional string with = 3;
+  // Optional: The date the message was received (Unix timestamp).
   optional int64 date = 4;
 }
 
+// EmailBodyPart represents a specific part of an email's body, typically a text or HTML section.
 message EmailBodyPart {
+  // A unique identifier for this body part.
   string id = 1;
+  // The type of content in this body part (e.g., PLAIN, HTML).
   PartType part_type = 2;
+  // The path (segment numbers) within the MIME structure to locate this part.
   SegmentPath path = 3;
+  // A list of parameters associated with this body part (e.g., charset).
   repeated Param params = 4;
+  // The size of the body part in bytes.
   uint64 size = 5;
+  // The content transfer encoding of this body part (e.g., QUOTED_PRINTABLE).
   Encoding transfer_encoding = 6;
 }
 
-
+// PartType defines the content type of an email body part.
 enum PartType {
+  // Plain text content.
   PLAIN = 0;
+  // HTML content.
   HTML = 1;
 }
 
-
+// SegmentPath represents a numerical path to a specific MIME part within an email.
 message SegmentPath {
+  // A sequence of segment numbers to navigate the MIME tree.
   repeated uint64 segments = 1;
 }
 
+// Param represents a key-value pair for MIME parameters.
 message Param {
+  // The key of the parameter.
   string key = 1;
+  // The value of the parameter.
   string value = 2;
 }
 
+// Encoding defines common content transfer encodings.
 enum Encoding {
+  // No specific encoding applied.
   NONE_CODING = 0;
+  // Quoted-Printable encoding.
   QUOTED_PRINTABLE = 1;
+  // Base64 encoding.
   BASE64 = 2;
 }
 
-
+// ImapAttachment represents an attachment parsed from an IMAP message.
 message ImapAttachment {
+  // A unique identifier for this attachment.
   string id = 1;
+  // The path (segment numbers) within the MIME structure to locate this attachment.
   SegmentPath path = 2;
+  // Optional: The filename of the attachment.
   optional string filename = 3;
+  // Indicates if the attachment should be displayed inline with the message.
   bool inline = 4;
+  // Optional: The Content-ID header value for inline attachments.
   optional string content_id = 5;
+  // The size of the attachment in bytes.
   uint64 size = 6;
+  // The MIME type of the attachment (e.g., "image/jpeg", "application/pdf").
   string file_type = 7;
+  // The content transfer encoding of this attachment.
   Encoding transfer_encoding = 8;
 }
 
+// EmailEnvelope contains summary information about an email message, similar to IMAP ENVELOPE data.
 message EmailEnvelope {
+  // The ID of the account this email belongs to.
   uint64 account_id = 1;
+  // The hash of the mailbox this email is in.
   uint64 mailbox_id = 2;
+  // The name of the mailbox this email is in.
   string mailbox_name = 3;
+  // The unique identifier of the message within its mailbox.
   uint32 uid = 4;
+  // Optional: The internal date and time of the message on the server (Unix timestamp).
   optional int64 internal_date = 5;
+  // The size of the message in bytes.
   uint32 size = 6;
+  // A list of flags currently set on the message (e.g., \Seen, \Answered).
   repeated EnvelopeFlag flags = 7;
+  // A hash of the message flags for quick comparison.
   uint64 flags_hash = 8;
+  // A list of blind carbon copy (BCC) recipients.
   repeated Addr bcc = 9;
+  // A list of carbon copy (CC) recipients.
   repeated Addr cc = 10;
+  // Optional: The date from the message's "Date" header (Unix timestamp).
   optional int64 date = 11;
+  // The sender's address.
   Addr from = 12;
+  // Optional: The Message-ID of the message this one is a reply to.
   optional string in_reply_to = 13;
+  // The actual sender's address (distinct from 'from' if delegated).
   Addr sender = 14;
+  // Optional: The return address for bounces (Return-Path).
   optional string return_address = 15;
+  // Optional: The unique message identifier (Message-ID).
   optional string message_id = 16;
+  // Optional: The subject line of the email.
   optional string subject = 17;
+  // Optional: The name of the thread this message belongs to.
   optional string thread_name = 18;
+  // Optional: The MIME-Version header.
   optional string mime_version = 19;
+  // A list of Message-IDs that this message references.
   repeated string references = 20;
+  // A list of reply-to addresses.
   repeated Addr reply_to = 21;
+  // A list of primary recipients (To).
   repeated Addr to = 22;
+  // A list of attachments found in the message.
   repeated ImapAttachment attachments = 23;
+  // Metadata about the body parts (e.g., plain text, HTML).
   repeated EmailBodyPart body_meta = 24;
+  // Information from the "Received" header.
   Received received = 25;
 }
 
-
+// FetchMessageContentRequest is used to fetch specific content sections of an email message.
 message FetchMessageContentRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox containing the message.
   string mailbox_name = 2;
+  // The unique identifier (UID) of the message.
   uint32 uid = 3;
+  // Optional: The maximum length of content to fetch.
   optional uint64 max_length = 4;
+  // A list of specific body sections to fetch.
   repeated EmailBodyPart sections = 5;
+  // A list of inline attachments to fetch.
   repeated ImapAttachment inline = 6;
 }
 
+// FetchMessageAttachmentRequest is used to fetch a specific attachment from an email message.
 message FetchMessageAttachmentRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The unique identifier (UID) of the message.
   uint32 uid = 2;
+  // The name of the mailbox containing the message.
   string mailbox_name = 3;
+  // The attachment to fetch, identified by its data.
   ImapAttachment attachment = 4;
 }
 
+// FetchFullMessageRequest is used to fetch the complete raw content of an email message.
 message FetchFullMessageRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox containing the message.
   string mailbox_name = 2;
+  // The unique identifier (UID) of the message.
   uint32 uid = 3;
 }
 
-
+// MessageSearch represents a search query for email messages, which can be a single condition or a logical combination of conditions.
 message MessageSearch {
+  // A search can be either a single condition or a logical combination of conditions.
   oneof search_type {
+    // A single search condition.
     Condition condition = 1;
+    // A logical combination of multiple search conditions.
     Logic logic = 2;
   }
 }
 
+// Condition represents a single search criterion for email messages.
 message Condition {
+  // The type of condition to apply (e.g., SUBJECT, FROM).
   Conditions condition = 1;
+  // Optional: The value to match for the condition.
   optional string value = 2;
 }
 
+// Conditions enumerates various IMAP search criteria.
 enum Conditions {
+  // All messages in the mailbox.
   ALL_C = 0;
+  // Messages with the \Answered flag set.
   ANSWERED_C = 1;
+  // Messages with a BCC header containing the value.
   BCC = 2;
+  // Messages with an internal date earlier than the specified date.
   BEFORE = 3;
+  // Messages with a body containing the value.
   BODY = 4;
+  // Messages with a CC header containing the value.
   CC = 5;
+  // Messages with the \Deleted flag set.
   DELETED_C = 6;
+  // Messages with the \Draft flag set.
   DRAFT_C = 7;
+  // Messages with the \Flagged flag set.
   FLAGGED_C = 8;
+  // Messages with a FROM header containing the value.
   FROM = 9;
+  // Messages with a specific header containing the value.
   HEADER = 10;
+  // Messages with a specific keyword flag set.
   KEYWORD = 11;
+  // Messages larger than the specified size in bytes.
   LARGER = 12;
+  // Messages with the \Recent flag set and not \Seen.
   NEW = 13;
+  // Messages that do not have the \Recent flag set.
   OLD = 14;
+  // Messages with an internal date equal to the specified date.
   ON = 15;
+  // Messages with the \Recent flag set.
   RECENT_C = 16;
+  // Messages with the \Seen flag set.
   SEEN_C = 17;
+  // Messages with a SENT date earlier than the specified date.
   SENT_BEFORE = 18;
+  // Messages with a SENT date equal to the specified date.
   SENT_ON = 19;
+  // Messages with a SENT date later than or equal to the specified date.
   SENT_SINCE = 20;
+  // Messages with an internal date later than or equal to the specified date.
   SINCE = 21;
+  // Messages smaller than the specified size in bytes.
   SMALLER = 22;
+  // Messages with a SUBJECT header containing the value.
   SUBJECT = 23;
+  // Messages with text in the header or body containing the value.
   TEXT = 24;
+  // Messages with a TO header containing the value.
   TO = 25;
+  // Messages with a UID matching the value.
   UID = 26;
+  // Messages that do not have the \Answered flag set.
   UNANSWERED = 27;
+  // Messages that do not have the \Deleted flag set.
   UNDELETED = 28;
+  // Messages that do not have the \Draft flag set.
   UNDRAFT = 29;
+  // Messages that do not have the \Flagged flag set.
   UNFLAGGED = 30;
+  // Messages that do not have a specific keyword flag set.
   UNKEYWORD = 31;
+  // Messages that do not have the \Seen flag set.
   UNSEEN = 32;
 }
 
-
+// Logic defines a logical operator (AND, OR, NOT) applied to child search conditions.
 message Logic {
+  // The logical operator to apply.
   Operator operator = 1;
+  // A list of nested MessageSearch components.
   repeated MessageSearch children = 2;
 }
 
+// Operator enumerates logical operators for message searches.
 enum Operator {
+  // Logical AND.
   AND = 0;
+  // Logical OR.
   OR = 1;
+  // Logical NOT.
   NOT = 2;
 }
 
+// MessageSearchRequest is used to search for messages within a mailbox.
 message MessageSearchRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox to search within.
   string mailbox_name = 2;
+  // The search query.
   MessageSearch search = 3;
+  // The requested page number (1-based).
   uint64 page = 4;
+  // The number of messages to return per page.
   uint64 page_size = 5;
+  // If true, results will be returned in descending order.
   bool desc = 6;
 }
 
-
+// ListMessagesRequest is used to retrieve a list of messages from a mailbox with pagination.
 message ListMessagesRequest {
+  // The ID of the account.
   uint64 account_id = 1;
+  // The name of the mailbox to list messages from.
   string mailbox_name = 2;
+  // The requested page number (1-based).
   uint64 page = 3;
+  // The number of messages to return per page.
   uint64 page_size = 4;
+  // If true, fetches messages directly from the remote server.
   bool remote = 5;
+  // If true, results will be returned in descending order.
   bool desc = 6;
 }
 
+// PagedMessages represents a paginated list of EmailEnvelope messages.
 message PagedMessages {
-    optional uint64 current_page = 1;
-    optional uint64 page_size = 2;
-    uint64 total_items = 3;
-    repeated EmailEnvelope items = 4;
-    optional uint64 total_pages = 5;
+  // Optional: The current page number being returned.
+  optional uint64 current_page = 1;
+  // Optional: The number of items per page.
+  optional uint64 page_size = 2;
+  // The total number of items available across all pages.
+  uint64 total_items = 3;
+  // The list of EmailEnvelope items for the current page.
+  repeated EmailEnvelope items = 4;
+  // Optional: The total number of pages available.
+  optional uint64 total_pages = 5;
 }
 
+// PlainText represents plain text content, potentially truncated.
 message PlainText {
+  // The plain text content.
   string content = 1;
+  // Indicates if the content has been truncated.
   bool truncated = 2;
 }
 
+// MessageContentResponse contains the parsed content of an email message.
 message MessageContentResponse {
+  // The plain text version of the email content.
   PlainText plain = 1;
+  // Optional: The HTML version of the email content.
   optional string html = 2;
 }
 
+// ByteResponse is a generic message for returning raw byte data.
 message ByteResponse {
+  // The raw byte data.
   bytes data = 1;
 }
 
+// MessageService provides APIs for interacting with email messages.
 service MessageService {
+  // Moves messages from one mailbox to another.
   rpc MoveMessages(MailboxTransferRequest) returns (Empty);
+  // Copies messages from one mailbox to another.
   rpc CopyMessages(MailboxTransferRequest) returns (Empty);
+  // Deletes messages from a mailbox.
   rpc DeleteMessages(MessageDeleteRequest) returns (Empty);
+  // Updates flags on messages within a mailbox.
   rpc UpdateMessageFlags(FlagMessageRequest) returns (Empty);
+  // Lists messages within a mailbox with pagination.
   rpc ListMessages(ListMessagesRequest) returns (PagedMessages);
+  // Fetches specific content parts (e.g., plain text, HTML) of an email message.
   rpc FetchMessageContent(FetchMessageContentRequest) returns (MessageContentResponse);
+  // Fetches the raw content of a specific attachment from an email message.
   rpc FetchMessageAttachment(FetchMessageAttachmentRequest) returns (ByteResponse);
+  // Fetches the complete raw EML content of an email message.
   rpc FetchFullMessage(FetchFullMessageRequest) returns (ByteResponse);
+  // Searches for messages within a mailbox based on specified criteria.
   rpc MessageSearch(MessageSearchRequest) returns (PagedMessages);
 }
 
+// Mta represents a Mail Transfer Agent configuration.
 message Mta {
-  uint64 id = 1;                 
-  optional string description = 2;  
-  MTACredentials credentials = 3;  
-  SmtpServerConfig server = 4;      
-  int64 created_at = 5;             
-  bool dsn_capable = 6;            
-  int64 updated_at = 7;           
+  // The unique identifier for the MTA.
+  uint64 id = 1;
+  // Optional: A description for the MTA.
+  optional string description = 2;
+  // The credentials used for authenticating with the MTA.
+  MTACredentials credentials = 3;
+  // The SMTP server configuration for the MTA.
+  SmtpServerConfig server = 4;
+  // The timestamp when the MTA was created.
+  int64 created_at = 5;
+  // Indicates if the MTA supports Delivery Status Notifications (DSN).
+  bool dsn_capable = 6;
+  // The timestamp when the MTA was last updated.
+  int64 updated_at = 7;
+  // The timestamp of the last time this MTA was accessed or used.
   int64 last_access_at = 8;
+  // Optional: The ID of a proxy to use for the MTA connection.
   optional uint64 use_proxy = 9;
 }
 
+// MTACredentials defines the username and optional password for MTA authentication.
 message MTACredentials {
+  // The username for authentication.
   string username = 1;
+  // Optional: The password for authentication.
   optional string password = 2;
 }
 
+// SmtpServerConfig defines the basic connection details for an SMTP server.
 message SmtpServerConfig {
+  // The hostname or IP address of the SMTP server.
   string host = 1;
+  // The port number for the SMTP server.
   uint32 port = 2;
+  // The encryption method to use for the SMTP connection.
   Encryption encryption = 3;
 }
 
+// GetMtaRequest is used to retrieve a specific MTA by its ID.
 message GetMtaRequest {
+  // The ID of the MTA to retrieve.
   uint64 id = 1;
 }
 
+// DeleteMtaRequest is used to delete a specific MTA by its ID.
 message DeleteMtaRequest {
+  // The ID of the MTA to delete.
   uint64 id = 1;
 }
 
+// MTACreateRequest defines the parameters for creating a new MTA.
 message MTACreateRequest {
+  // Optional: A description for the new MTA.
   optional string description = 1;
+  // The credentials for the new MTA.
   MTACredentials credentials = 2;
+  // The SMTP server configuration for the new MTA.
   SmtpServerConfig server = 3;
+  // Indicates if the new MTA should be DSN capable.
   bool dsn_capable = 4;
+  // Optional: The ID of a proxy to use for the MTA connection.
   optional uint64 use_proxy = 5;
 }
 
+// MTAUpdateRequest defines the parameters for updating an existing MTA.
 message MTAUpdateRequest {
+  // The ID of the MTA to update.
   uint64 id = 1;
+  // Optional: Update the description of the MTA.
   optional string description = 2;
+  // Optional: Update the credentials for the MTA.
   optional MTACredentials credentials = 3;
+  // Optional: Update the SMTP server configuration for the MTA.
   optional SmtpServerConfig server = 4;
+  // Optional: Update the DSN capability of the MTA.
   optional bool dsn_capable = 5;
+  // Optional: The ID of a proxy to use for the MTA connection.
   optional uint64 use_proxy = 6;
 }
 
-
+// ListMtaRequest defines parameters for paginating lists of MTAs.
 message ListMtaRequest {
+  // Optional: The requested page number (1-based).
   optional uint64 page = 1;
+  // Optional: The number of items to return per page.
   optional uint64 page_size = 2;
+  // Optional: If true, results will be returned in descending order.
   optional bool desc = 3;
 }
 
-
+// PagedMta represents a paginated list of Mta messages.
 message PagedMta {
-    optional uint64 current_page = 1;
-    optional uint64 page_size = 2;
-    uint64 total_items = 3;
-    repeated Mta items = 4;
-    optional uint64 total_pages = 5;
+  // Optional: The current page number being returned.
+  optional uint64 current_page = 1;
+  // Optional: The number of items per page.
+  optional uint64 page_size = 2;
+  // The total number of items available across all pages.
+  uint64 total_items = 3;
+  // The list of Mta items for the current page.
+  repeated Mta items = 4;
+  // Optional: The total number of pages available.
+  optional uint64 total_pages = 5;
 }
-
 
 // Message representing a request to send a test email.
 message SendTestEmailRequest {
   // The email address of the sender (e.g., "no-reply@yourdomain.com").
   string from = 1;
-
   // The email address of a single recipient (e.g., "user@example.com").
   string to = 2;
-
   // The subject line of the email.
   // Must be between 1 and 256 characters.
   string subject = 3;
-
   // The plain text body content of the email, sent as the text/plain part.
   // Must be between 1 and 1024 characters.
   string message = 4;
-
-  // The name of the MTA (Mail Transfer Agent) to use for sending the email.
+  // The ID of the MTA (Mail Transfer Agent) to use for sending the email.
   uint64 mta_id = 5;
 }
 
-
+// MtaService provides APIs for managing Mail Transfer Agents.
 service MtaService {
+  // Retrieves a specific MTA by its ID.
   rpc GetMta(GetMtaRequest) returns (Mta);
+  // Removes an MTA.
   rpc RemoveMta(DeleteMtaRequest) returns (Empty);
+  // Creates a new MTA.
   rpc CreateMta(MTACreateRequest) returns (Empty);
+  // Updates an existing MTA.
   rpc UpdateMta(MTAUpdateRequest) returns (Empty);
+  // Lists MTAs with pagination.
   rpc ListMta(ListMtaRequest) returns (PagedMta);
+  // Sends a test email using a specified MTA.
   rpc SendTestEmail(SendTestEmailRequest) returns (Empty);
 }
 
-
+// OAuth2 represents an OAuth2 client configuration.
 message OAuth2 {
+  // The unique identifier for the OAuth2 configuration.
   uint64 id = 1;
+  // Optional: A description for the OAuth2 configuration.
   optional string description = 2;
+  // The client ID provided by the OAuth2 provider.
   string client_id = 3;
+  // The client secret provided by the OAuth2 provider.
   string client_secret = 4;
+  // The authorization URL of the OAuth2 provider.
   string auth_url = 5;
+  // The token URL of the OAuth2 provider.
   string token_url = 6;
+  // The redirect URI registered with the OAuth2 provider.
   string redirect_uri = 7;
+  // A list of scopes requested for authorization.
   repeated string scopes = 8;
+  // A map of extra parameters to include in OAuth2 requests.
   map<string, string> extra_params = 9;
+  // Indicates whether this OAuth2 configuration is enabled.
   bool enabled = 10;
+  // The timestamp when the OAuth2 configuration was created.
   int64 created_at = 11;
+  // The timestamp when the OAuth2 configuration was last updated.
   int64 updated_at = 12;
+  // Optional: The ID of a proxy to use for OAuth2 related requests.
   optional uint64 use_proxy = 13;
 }
 
+// GetOAuth2Request is used to retrieve a specific OAuth2 configuration by its ID.
 message GetOAuth2Request {
+  // The ID of the OAuth2 configuration to retrieve.
   uint64 id = 1;
 }
 
+// DeleteOAuth2Request is used to delete a specific OAuth2 configuration by its ID.
 message DeleteOAuth2Request {
+  // The ID of the OAuth2 configuration to delete.
   uint64 id = 1;
 }
 
+// OAuth2CreateRequest defines the parameters for creating a new OAuth2 configuration.
 message OAuth2CreateRequest {
+  // Optional: A description for the new OAuth2 configuration.
   optional string description = 2;
+  // The client ID for the new OAuth2 configuration.
   string client_id = 3;
+  // The client secret for the new OAuth2 configuration.
   string client_secret = 4;
+  // The authorization URL for the new OAuth2 configuration.
   string auth_url = 5;
+  // The token URL for the new OAuth2 configuration.
   string token_url = 6;
+  // The redirect URI for the new OAuth2 configuration.
   string redirect_uri = 7;
+  // A list of scopes for the new OAuth2 configuration.
   repeated string scopes = 8;
+  // A map of extra parameters for the new OAuth2 configuration.
   map<string, string> extra_params = 9;
+  // Indicates whether the new OAuth2 configuration should be enabled.
   bool enabled = 10;
+  // Optional: The ID of a proxy to use for OAuth2 related requests.
   optional uint64 use_proxy = 11;
 }
 
+// UpdateOAuth2Request defines the parameters for updating an existing OAuth2 configuration.
 message UpdateOAuth2Request {
+  // The ID of the OAuth2 configuration to update.
   uint64 id = 1;
+  // Optional: Update the description.
   optional string description = 2;
+  // Optional: Update the client ID.
   optional string client_id = 3;
+  // Optional: Update the client secret.
   optional string client_secret = 4;
+  // Optional: Update the authorization URL.
   optional string auth_url = 5;
+  // Optional: Update the token URL.
   optional string token_url = 6;
+  // Optional: Update the redirect URI.
   optional string redirect_uri = 7;
+  // A list of scopes to set (replaces existing scopes).
   repeated string scopes = 8;
+  // A map of extra parameters to set (replaces existing params).
   map<string, string> extra_params = 9;
+  // Optional: Update the enabled status.
   optional bool enabled = 10;
+  // Optional: The ID of a proxy to use for OAuth2 related requests.
   optional uint64 use_proxy = 11;
 }
 
+// ListOAuth2Request defines parameters for paginating lists of OAuth2 configurations.
 message ListOAuth2Request {
+  // Optional: The requested page number (1-based).
   optional uint64 page = 1;
+  // Optional: The number of items to return per page.
   optional uint64 page_size = 2;
+  // Optional: If true, results will be returned in descending order.
   optional bool desc = 3;
 }
 
+// PagedOAuth2 represents a paginated list of OAuth2 messages.
 message PagedOAuth2 {
+  // Optional: The current page number being returned.
   optional uint64 current_page = 1;
+  // Optional: The number of items per page.
   optional uint64 page_size = 2;
+  // The total number of items available across all pages.
   uint64 total_items = 3;
+  // The list of OAuth2 items for the current page.
   repeated OAuth2 items = 4;
+  // Optional: The total number of pages available.
   optional uint64 total_pages = 5;
 }
 
+// AuthorizeUrlRequest is used to generate an OAuth2 authorization URL.
 message AuthorizeUrlRequest {
+  // The ID of the account for which to generate the URL.
   uint64 account_id = 1;
+  // The ID of the OAuth2 configuration to use.
   uint64 oauth2_id = 2;
 }
 
+// AuthorizeUrlResponse contains the generated OAuth2 authorization URL.
 message AuthorizeUrlResponse {
+  // The generated authorization URL.
   string url = 1;
 }
 
+// OAuth2AccessToken represents stored OAuth2 access and refresh tokens.
 message OAuth2AccessToken {
+  // The ID of the account associated with these tokens.
   uint64 account_id = 1;
+  // The ID of the OAuth2 configuration used to obtain these tokens.
   uint64 oauth2_id = 2;
+  // Optional: The OAuth2 access token.
   optional string access_token = 3;
+  // Optional: The OAuth2 refresh token.
   optional string refresh_token = 4;
+  // The timestamp when the tokens were created.
   int64 created_at = 5;
+  // The timestamp when the tokens were last updated.
   int64 updated_at = 6;
 }
 
+// GetOAuth2TokensRequest is used to retrieve OAuth2 tokens for a given account.
 message GetOAuth2TokensRequest {
+  // The ID of the account for which to retrieve tokens.
   uint64 account_id = 1;
 }
 
+// OAuth2Service provides APIs for managing OAuth2 configurations and tokens.
 service OAuth2Service {
+  // Retrieves a specific OAuth2 configuration.
   rpc GetOAuth2Config(GetOAuth2Request) returns (OAuth2);
+  // Removes an OAuth2 configuration.
   rpc RemoveOAuth2Config(DeleteOAuth2Request) returns (Empty);
+  // Creates a new OAuth2 configuration.
   rpc CreateOAuth2Config(OAuth2CreateRequest) returns (Empty);
+  // Updates an existing OAuth2 configuration.
   rpc UpdateOAuth2Config(UpdateOAuth2Request) returns (Empty);
+  // Lists OAuth2 configurations with pagination.
   rpc ListOAuth2Config(ListOAuth2Request) returns (PagedOAuth2);
+  // Generates an OAuth2 authorization URL for an account.
   rpc CreateAuthorizeUrl(AuthorizeUrlRequest) returns (AuthorizeUrlResponse);
+  // Retrieves OAuth2 access and refresh tokens for an account.
   rpc GetOAuth2Tokens(GetOAuth2TokensRequest) returns (OAuth2AccessToken);
 }
 
+// MessageFormat specifies the format of an email template's content.
 enum MessageFormat {
+  // HTML content format.
   HTML_FORMAT = 0;
+  // Markdown content format.
   MARKDOWN = 1;
 }
 
+// EmailTemplate represents a reusable email template.
 message EmailTemplate {
+  // The unique identifier for the email template.
   uint64 id = 1;
+  // Optional: A description for the template.
   optional string description = 2;
+  // The account information associated with this template.
   AccountInfo account = 3;
-  string subject = 4; 
-  optional string preview = 5; 
+  // The subject line of the email template.
+  string subject = 4;
+  // Optional: A preview text for the template.
+  optional string preview = 5;
+  // Optional: The format of the template's content (HTML_FORMAT or MARKDOWN).
   optional MessageFormat format = 6;
+  // Optional: The plain text content of the template.
   optional string text = 7;
+  // Optional: The HTML content of the template.
   optional string html = 8;
+  // The timestamp when the template was created.
   int64 created_at = 9;
+  // The timestamp when the template was last updated.
   int64 updated_at = 10;
+  // The timestamp of the last time this template was accessed or used.
   int64 last_access_at = 11;
 }
 
+// EmailTemplateCreateRequest defines the parameters for creating a new email template.
 message EmailTemplateCreateRequest {
+  // Optional: A description for the new template.
   optional string description = 1;
+  // Optional: The ID of the account to associate with this template.
   optional uint64 account_id = 2;
+  // The subject line of the new template.
   string subject = 3;
+  // Optional: A preview text for the new template.
   optional string preview = 4;
+  // Optional: The plain text content for the new template.
   optional string text = 5;
+  // Optional: The HTML content for the new template.
   optional string html = 6;
+  // Optional: The format of the template's content.
   optional MessageFormat format = 7;
 }
 
+// UpdateTemplateRequest defines the parameters for updating an existing email template.
 message UpdateTemplateRequest {
+  // The ID of the template to update.
   uint64 id = 1;
+  // Optional: Update the description of the template.
   optional string description = 2;
+  // Optional: Update the subject line of the template.
   optional string subject = 3;
+  // Optional: Update the preview text of the template.
   optional string preview = 4;
+  // Optional: Update the plain text content of the template.
   optional string text = 5;
+  // Optional: Update the HTML content of the template.
   optional string html = 6;
+  // Optional: Update the format of the template's content.
   optional MessageFormat format = 7;
 }
 
+// PagedEmailTemplate represents a paginated list of EmailTemplate messages.
 message PagedEmailTemplate {
+  // Optional: The current page number being returned.
   optional uint64 current_page = 1;
+  // Optional: The number of items per page.
   optional uint64 page_size = 2;
+  // The total number of items available across all pages.
   uint64 total_items = 3;
+  // The list of EmailTemplate items for the current page.
   repeated EmailTemplate items = 4;
+  // Optional: The total number of pages available.
   optional uint64 total_pages = 5;
 }
 
-
+// Message representing a request to send a test email based on a template.
 message TemplateSentTestRequest {
-  // Template ID to identify which template to use
+  // Template ID to identify which template to use.
   uint64 template_id = 1;
-  // Account ID associated with the template and sending request
+  // Account ID associated with the template and sending request.
   uint64 account_id = 2;
-  
-  // Email address of the recipient who will receive the test email
-  // Must be a valid email address format (e.g., user@example.com)
+  // Email address of the recipient who will receive the test email.
+  // Must be a valid email address format (e.g., user@example.com).
   string recipient = 3;
-  
-  // Optional parameters to be used for template variable substitution
+  // Optional parameters to be used for template variable substitution.
   // When provided, should be a valid JSON object that matches the template's expected variables.
   // Example: {"name": "John Doe", "order_id": 12345}
   optional google.protobuf.Value template_params = 4;
 }
 
-
+// GetTemplateRequest is used to retrieve a specific email template by its ID.
 message GetTemplateRequest {
+  // The ID of the template to retrieve.
   uint64 id = 1;
 }
 
+// DeleteTemplateRequest is used to delete a specific email template by its ID.
 message DeleteTemplateRequest {
+  // The ID of the template to delete.
   uint64 id = 1;
 }
 
+// ListTemplatesRequest defines parameters for paginating lists of email templates.
 message ListTemplatesRequest {
+  // Optional: The requested page number (1-based).
   optional uint64 page = 1;
+  // Optional: The number of items to return per page.
   optional uint64 page_size = 2;
+  // Optional: If true, results will be returned in descending order.
   optional bool desc = 3;
 }
 
+// ListAccountTemplatesRequest defines parameters for paginating lists of email templates associated with a specific account.
 message ListAccountTemplatesRequest {
+  // The ID of the account whose templates are to be listed.
   uint64 account_id = 1;
+  // Optional: The requested page number (1-based).
   optional uint64 page = 2;
+  // Optional: The number of items to return per page.
   optional uint64 page_size = 3;
+  // Optional: If true, results will be returned in descending order.
   optional bool desc = 4;
 }
 
+// DeleteAccountTemplatesRequest is used to delete all email templates associated with a specific account.
 message DeleteAccountTemplatesRequest {
+  // The ID of the account whose templates are to be deleted.
   uint64 account_id = 1;
 }
 
+// TemplatesService provides APIs for managing email templates.
 service TemplatesService {
+  // Retrieves a specific email template by its ID.
   rpc GetTemplate(GetTemplateRequest) returns (EmailTemplate);
+  // Removes an email template.
   rpc RemoveTemplate(DeleteTemplateRequest) returns (Empty);
+  // Creates a new email template.
   rpc CreateTemplate(EmailTemplateCreateRequest) returns (Empty);
+  // Updates an existing email template.
   rpc UpdateTemplate(UpdateTemplateRequest) returns (Empty);
+  // Lists all email templates with pagination.
   rpc ListTemplates(ListTemplatesRequest) returns (PagedEmailTemplate);
+  // Lists email templates associated with a specific account with pagination.
   rpc ListAccountTemplates(ListAccountTemplatesRequest) returns (PagedEmailTemplate);
+  // Removes all email templates associated with a specific account.
   rpc RemoveAccountTemplates(DeleteAccountTemplatesRequest) returns (Empty);
+  // Sends a test email using a specified template.
   rpc SendTestEmail(TemplateSentTestRequest) returns (Empty);
 }
 
-
+// ServerStatus provides information about the current state and uptime of the server.
 message ServerStatus {
+  // The server's uptime in milliseconds.
   int64 uptime_ms = 1;
+  // A human-readable string representing the uptime (e.g., "1 hour ago").
   string timeago = 2;
+  // The timezone of the server.
   string timezone = 3;
+  // The version of the server software.
   string version = 4;
 }
 
-
+// Release represents information about a software release.
 message Release {
+  // The tag name of the release (e.g., "v1.0.0").
   string tag_name = 1;
+  // The date and time when the release was published.
   string published_at = 2;
+  // The description or body of the release notes.
   string body = 3;
+  // The URL to the release page.
   string html_url = 4;
 }
 
+// ReleaseNotification provides information about new software releases and update availability.
 message ReleaseNotification {
+  // Optional: The latest available software release.
   optional Release latest = 1;
+  // Indicates if a newer version of the software is available.
   bool is_newer = 2;
+  // Optional: An error message if fetching release information failed.
   optional string error_message = 3;
 }
 
+// LicenseCheckResult provides information about the software license status.
 message LicenseCheckResult {
+  // Indicates if the license has expired.
   bool expired = 1;
+  // The number of days remaining until license expiration.
   uint32 days = 2;
 }
 
+// Notifications aggregates various system notifications, such as release and license status.
 message Notifications {
+  // Release notification details.
   ReleaseNotification release = 1;
+  // License check result details.
   LicenseCheckResult license = 2;
 }
 
+// StatusService provides APIs for retrieving server status and notifications.
 service StatusService {
+  // Retrieves the current server status.
   rpc GetStatus (Empty) returns (ServerStatus);
+  // Retrieves system notifications, including release updates and license status.
   rpc GetNotifications (Empty) returns (Notifications);
 }
 
-import "google/protobuf/struct.proto";
-
+// EmailAddress represents an email address with an optional display name.
 message EmailAddress {
+  // Optional: The display name (e.g., "John Doe").
   optional string name = 1;
+  // The actual email address (e.g., "john.doe@example.com").
   string address = 2;
 }
 
+// Recipient defines the recipients of an email and their associated parameters.
 message Recipient {
+  // A list of primary recipients (To).
   repeated EmailAddress to = 1;
+  // A list of carbon copy (CC) recipients.
   repeated EmailAddress cc = 2;
+  // A list of blind carbon copy (BCC) recipients.
   repeated EmailAddress bcc = 3;
+  // A list of reply-to addresses.
   repeated EmailAddress reply_to = 4;
+  // Optional: Parameters for template variable substitution, if applicable.
   optional google.protobuf.Value template_params = 5;
+  // Optional: The scheduled time to send the email (Unix timestamp).
   optional int64 send_at = 6;
 }
 
+// AttachmentRef references an attachment already stored on the server.
 message AttachmentRef {
+  // The mailbox name where the source message is located.
   string mailbox_name = 1;
+  // The UID of the source message containing the attachment.
   uint32 uid = 2;
+  // The data identifying the specific attachment within the source message.
   ImapAttachment attachment_data = 3;
 }
 
+// AttachmentPayload describes the content source for a mail attachment.
 message AttachmentPayload {
+  // The payload can be either base64 encoded content or a reference to an existing attachment.
   oneof payload_type {
+    // The base64 encoded content of the attachment.
     string base64_content = 1;
+    // A reference to an existing attachment on the mail server.
     AttachmentRef attachment_ref = 2;
   }
 }
 
+// MailAttachment represents an attachment to be sent with an email.
 message MailAttachment {
+  // Optional: The filename of the attachment.
   optional string file_name = 1;
+  // The payload containing the attachment content or reference.
   AttachmentPayload payload = 2;
+  // The MIME type of the attachment (e.g., "image/png").
   string mime_type = 3;
+  // Indicates if the attachment should be displayed inline.
   bool inline = 4;
+  // Optional: The Content-ID for inline attachments.
   optional string content_id = 5;
 }
 
-
+// SendEmailRequest defines the parameters for sending a new email.
 message SendEmailRequest {
+  // Optional: The sender's email address. If omitted, the account's primary email will be used.
   optional EmailAddress from = 1;
+  // A list of recipients for the email, including To, CC, and BCC.
   repeated Recipient recipients = 2;
+  // Optional: The subject line of the email.
   optional string subject = 3;
+  // Optional: The plain text body of the email.
   optional string text = 4;
+  // Optional: The HTML body of the email.
   optional string html = 5;
+  // Optional: A preview text for the email.
   optional string preview = 6;
+  // Optional: Raw EML content of the email. If provided, `subject`, `text`, `html`, `attachments` might be ignored.
   optional string eml = 7;
+  // Optional: The ID of an email template to use.
   optional uint64 template_id = 8;
+  // A list of attachments to include in the email.
   repeated MailAttachment attachments = 9;
+  // A map of custom headers to include in the email.
   map<string, HeaderValue> headers = 10;
+  // Controls the sending process, including retry policies and DSN.
   SendControl send_control = 11;
 }
 
-
+// ReplyEmailRequest defines the parameters for replying to an existing email.
 message ReplyEmailRequest {
+  // The name of the mailbox containing the original message.
   string mailbox_name = 1;
+  // The UID of the original message to which to reply.
   uint32 uid = 2;
+  // Optional: The plain text content of the reply.
   optional string text = 3;
+  // Optional: The HTML content of the reply.
   optional string html = 4;
+  // Optional: A preview text for the reply.
   optional string preview = 5;
+  // A map of custom headers for the reply.
   map<string, HeaderValue> headers = 6;
+  // If true, replies to all recipients (To, CC) of the original email.
   bool reply_all = 7;
+  // A list of attachments to include in the reply.
   repeated MailAttachment attachments = 8;
+  // A list of additional CC recipients for the reply.
   repeated EmailAddress cc = 9;
+  // A list of additional BCC recipients for the reply.
   repeated EmailAddress bcc = 10;
+  // Optional: The timezone for date headers in the reply.
   optional string timezone = 11;
+  // If true, includes the original message content in the reply.
   bool include_original = 12;
+  // If true, includes all attachments from the original message in the reply.
   bool include_all_attachments = 13;
+  // Controls the sending process, including retry policies and DSN.
   SendControl send_control = 14;
 }
 
-
+// ForwardEmailRequest defines the parameters for forwarding an existing email.
 message ForwardEmailRequest {
+  // The name of the mailbox containing the original message.
   string mailbox_name = 1;
+  // The UID of the original message to forward.
   uint32 uid = 2;
+  // A list of primary recipients (To) for the forwarded email.
   repeated EmailAddress to = 3;
+  // A list of carbon copy (CC) recipients for the forwarded email.
   repeated EmailAddress cc = 4;
+  // A list of blind carbon copy (BCC) recipients for the forwarded email.
   repeated EmailAddress bcc = 5;
+  // Optional: The plain text content to add to the forwarded email.
   optional string text = 6;
+  // Optional: The HTML content to add to the forwarded email.
   optional string html = 7;
+  // Optional: A preview text for the forwarded email.
   optional string preview = 8;
+  // A map of custom headers for the forwarded email.
   map<string, HeaderValue> headers = 9;
+  // Optional: The timezone for date headers in the forwarded email.
   optional string timezone = 10;
+  // A list of attachments to include in the forwarded email.
   repeated MailAttachment attachments = 11;
+  // If true, includes the original message content in the forwarded email.
   bool include_original = 12;
+  // If true, includes all attachments from the original message in the forwarded email.
   bool include_all_attachments = 13;
+  // Controls the sending process, including retry policies and DSN.
   SendControl send_control = 14;
 }
 
+// EmailTask represents a single email sending task managed by the system.
 message EmailTask {
+  // The unique identifier for the email task.
   uint64 id = 1;
+  // The timestamp when the task was created.
   int64 created_at = 2;
+  // The current status of the task (e.g., SCHEDULED, SUCCESS, FAILED).
   TaskStatus status = 3;
+  // Optional: The reason the task was stopped.
   optional string stopped_reason = 4;
+  // Optional: An error message if the task failed.
   optional string error = 5;
+  // Optional: The duration of the last execution attempt in milliseconds.
   optional uint64 last_duration_ms = 6;
+  // Optional: The number of times the task has been retried.
   optional uint32 retry_count = 7;
+  // The timestamp when the task is scheduled to be processed.
   int64 scheduled_at = 8;
+  // The ID of the account used to send the email.
   uint64 account_id = 9;
+  // The email address of the account used to send the email.
   string account_email = 10;
+  // Optional: The subject line of the email.
   optional string subject = 11;
+  // The Message-ID of the sent email.
   string message_id = 12;
+  // The 'From' address of the email.
   string from = 13;
+  // A list of 'To' recipients.
   repeated string to = 14;
+  // A list of 'CC' recipients.
   repeated string cc = 15;
+  // A list of 'BCC' recipients.
   repeated string bcc = 16;
+  // The number of attachments included in the email.
   uint32 attachment_count = 17;
+  // A cache key associated with the email content.
   string cache_key = 18;
+  // Optional: The mail envelope details (sender and recipients for the SMTP transaction).
   optional MailEnvelope envelope = 19;
+  // Indicates if the sent email should be saved to the 'Sent' folder.
   bool save_to_sent = 20;
+  // Optional: The name of the folder where the sent email should be saved.
   optional string sent_folder = 21;
+  // Optional: The specific timestamp when the email was scheduled to be sent.
   optional int64 send_at = 22;
+  // Optional: The ID of the MTA used for sending.
   optional uint64 mta = 23;
+  // Optional: Delivery Status Notification (DSN) configuration for this email.
   optional DSNConfig dsn = 24;
+  // Optional: Indicates if this email is a reply.
   optional bool reply = 25;
+  // Optional: The mailbox name from which the original message was replied/forwarded.
   optional string mailbox = 26;
+  // Optional: The UID of the original message if this is a reply/forward.
   optional uint32 uid = 27;
 }
 
+// TaskStatus enumerates the possible states of an email sending task.
 enum TaskStatus {
+  // The task is scheduled for future processing.
   SCHEDULED = 0;
+  // The task is currently being processed.
   RUNNING = 1;
+  // The task completed successfully.
   SUCCESS = 2;
+  // The task failed.
   FAILED = 3;
+  // The task was removed.
   REMOVED = 4;
+  // The task was stopped manually or due to an external condition.
   STOPPED = 5;
 }
 
+// HeaderValue allows defining a header value as raw string, plain text, or a list of URLs.
 message HeaderValue {
+  // A header value can be raw string, plain text, or a list of URLs.
   oneof value {
+    // Raw string value for the header.
     Raw raw = 1;
+    // Plain text value for the header.
     Text text = 2;
+    // A list of URLs for the header.
     Url url = 3;
   }
 }
 
+// Raw represents a raw string value.
 message Raw {
+  // The raw string content.
   string raw = 1;
 }
 
+// Text represents a plain text string value.
 message Text {
+  // The plain text content.
   string text = 1;
 }
 
+// Url represents a list of URLs.
 message Url {
+  // A list of URLs.
   repeated string url = 1;
 }
 
-
+// SendControl defines various options for controlling the email sending process.
 message SendControl {
+  // Optional: The mail envelope details for the SMTP transaction.
   optional MailEnvelope envelope = 1;
+  // If true, saves the sent email to the 'Sent' folder of the sending account.
   bool save_to_sent = 2;
+  // Optional: The name of the folder where the sent email should be saved (e.g., "Sent Items").
   optional string sent_folder = 3;
+  // If true, simulates the email sending process without actually sending.
   bool dry_run = 4;
+  // Optional: The specific timestamp to schedule the email for sending (Unix timestamp).
   optional int64 send_at = 5;
+  // Optional: The retry policy to apply if sending fails.
   optional Retry retry_policy = 6;
+  // Optional: The ID of a specific MTA to use for sending this email.
   optional uint64 mta = 7;
+  // Optional: Delivery Status Notification (DSN) configuration for this email.
   optional DSNConfig dsn = 8;
+  // Optional: A campaign ID to associate with this email for tracking purposes.
   optional string campaign_id = 9;
+  // If true, enables tracking (e.g., open tracking, link click tracking) for this email.
   bool enable_tracking = 10;
 }
 
+// MailEnvelope defines the sender and recipients for the SMTP transaction.
 message MailEnvelope {
+  // The email address of the sender for the SMTP envelope.
   string from = 1;
+  // A list of recipient email addresses for the SMTP envelope.
   repeated string recipients = 2;
 }
 
+// Retry defines the retry strategy and parameters for failed email sending attempts.
 message Retry {
+  // The retry strategy to use (LINEAR or EXPONENTIAL).
   Strategy strategy = 1;
+  // The base delay in seconds between retries.
   uint32 seconds = 2;
+  // The maximum number of retry attempts.
   uint32 max_retries = 3;
 }
 
+// Strategy enumerates retry strategies.
 enum Strategy {
+  // Linear backoff strategy.
   LINEAR = 0;
+  // Exponential backoff strategy.
   EXPONENTIAL = 1;
 }
 
-
+// DSNConfig defines Delivery Status Notification (DSN) options.
 message DSNConfig {
+  // Specifies what content to return in DSN reports (FULL or HDRS).
   ReturnContent ret = 1;
+  // Optional: Envelope ID for enhanced DSN tracking.
   optional string envid = 2;
+  // A list of notification options (e.g., SUCCESS, FAILURE).
   repeated NotifyOption notify = 3;
+  // Optional: Original recipient address for DSN.
   optional string orcpt = 4;
 }
 
+// NotifyOption enumerates options for DSN notifications.
 enum NotifyOption {
+  // Notify on successful delivery.
   SUCCESS_N = 0;
+  // Notify on delivery failure.
   FAILURE = 1;
+  // Notify on delayed delivery.
   DELAY = 2;
+  // Never send DSN notifications.
   NEVER = 3;
 }
 
+// ReturnContent specifies the content to be returned in a DSN.
 enum ReturnContent {
+  // Return the full message in the DSN.
   FULL = 0;
+  // Return only the message headers in the DSN.
   HDRS = 1;
 }
 
-
+// PagedEmailTask represents a paginated list of EmailTask messages.
 message PagedEmailTask {
-    optional uint64 current_page = 1;
-    optional uint64 page_size = 2;
-    uint64 total_items = 3;
-    repeated EmailTask items = 4;
-    optional uint64 total_pages = 5;
-}
-
-
-message SendNewMailRequest {
-  uint64 account_id = 1;
-  SendEmailRequest request = 2;
-}
-
-message ReplyMailRequest {
-  uint64 account_id = 1;
-  ReplyEmailRequest request = 2;
-}
-
-message ForwardMailRequest {
-  uint64 account_id = 1;
-  ForwardEmailRequest request = 2;
-}
-
-message ListTasksRequest {
-  optional uint64 page = 1;
-  optional uint64 page_size = 2;
-  optional bool desc = 3;
-  optional TaskStatus status = 4;
-}
-
-
-message GetTaskRequest {
-  uint64 id = 1;
-}
-
-message RemoveTaskRequest {
-  uint64 id = 1;
-}
-
-
-service SendMailService {
-  rpc SendNewMail (SendNewMailRequest) returns (Empty);
-  rpc ReplyMail (ReplyMailRequest) returns (Empty);
-  rpc ForwardMail (ForwardMailRequest) returns (Empty);
-  rpc ListEmailTasks (ListTasksRequest) returns (PagedEmailTask);
-  rpc GetEmailTask (GetTaskRequest) returns (EmailTask);
-  rpc RemoveEmailTask (RemoveTaskRequest) returns (Empty);
-}
-
-
-enum EventType {
-  EMAIL_ADDED_TO_FOLDER = 0;
-  EMAIL_FLAGS_CHANGED = 1;
-  EMAIL_SENT_SUCCESS = 2;
-  EMAIL_SENDING_ERROR = 3;
-  UID_VALIDITY_CHANGE = 4;
-  MAILBOX_DELETION = 5;
-  MAILBOX_CREATION = 6;
-  ACCOUNT_FIRST_SYNC_COMPLETED = 7;
-  EMAIL_BOUNCE = 8;
-  EMAIL_FEEDBACK_REPORT = 9;
-  EmailOpened = 10;
-  EmailLinkClicked = 11;
-}
-
-enum HookType {
-    Http = 0;
-    Nats = 1;
-}
-
-enum HttpMethod {
-  POST = 0;
-  PUT = 1;
-}
-
-message HttpConfig {
-  string target_url = 1; // Target URL where the webhook payload is sent
-  HttpMethod http_method = 2; // HTTP method used to send the webhook payload
-  map<string, string> custom_headers = 3; // Custom headers for the webhook request
-}
-
-enum NatsAuthType {
-    None = 0;
-    Password = 1;
-    Token = 2;
-}
-
-message NatsConfig {
-  string host = 1;
-  uint32 port = 2;
-  NatsAuthType auth_type = 3;
-  optional string token = 4;         // Optional: used when auth_type is TOKEN
-  optional string username = 5;      // Optional: used when auth_type is USER_PASS
-  optional string password = 6;      // Optional: used when auth_type is USER_PASS
-  string stream_name = 7;
-  string namespace = 8;
-}
-
-
-message EventHooks {
-  uint64 id = 1;
-  optional uint64 account_id = 2;  // Unique ID of the account associated with the webhook
-  optional string email = 3;       // Email of the account associated with the webhook
-  optional string description = 4;  // Optional description of the webhook
-  int64 created_at = 5;  // When the webhook was created
-  int64 updated_at = 6;  // When the webhook was last updated
-  uint32 global = 7;  // Indicates whether the hook is global and applies to all accounts. 1: true, 0: false
-  bool enabled = 8;       // Whether the webhook is currently active
-  HookType hook_type = 9;
-  optional HttpConfig http = 10;     // HTTP configuration
-  optional NatsConfig nats = 11;     // NATS configuration
-  optional string vrl_script = 12;  // Optional template for customizing the payload
-  uint64 call_count = 13;           // Total number of times triggered
-  uint64 success_count = 14;        // Number of successful executions
-  uint64 failure_count = 15;        // Number of failed executions
-  optional string last_error = 16;  // Details of the last error
-  repeated EventType watched_events = 17;  // List of event types to monitor
-}
-
-
-message GetEventHookRequest {
-  uint64 id = 1;
-}
-
-
-message RemoveEventHookRequest {
-  uint64 id = 1;
-}
-
-message CreateEventHookRequest {
-  optional uint64 account_id = 1;          // The account associated with the webhook
-  optional string description = 2; // Optional description of the webhook
-  bool enabled = 3;               // Status indicating whether the webhook is active
-  HookType hook_type = 4;
-  optional HttpConfig http = 5;       // HTTP configuration
-  optional NatsConfig nats = 6;       // NATS configuration
-  optional string vrl_script = 7;     // Template for the payload that will be sent
-  repeated EventType watched_events = 8; // List of event types the webhook is watching
-}
-
-message UpdateEventhookRequest {
-  uint64 id = 1;
-  optional string description = 2;      // Optional description update
-  optional bool enabled = 3;            // Status update
-  optional HttpConfig http = 4;         // HTTP configuration update
-  optional NatsConfig nats = 5;         // NATS configuration update
-  optional string vrl_script = 6;       // Payload template update
-  repeated EventType watched_events = 7; // Watched events update
-}
-
-message ListEventHookRequest {
-  optional uint64 page = 1;
-  optional uint64 page_size = 2;
-  optional bool desc = 3;
-}
-
-message PagedEventHooks {
+  // Optional: The current page number being returned.
   optional uint64 current_page = 1;
+  // Optional: The number of items per page.
   optional uint64 page_size = 2;
+  // The total number of items available across all pages.
   uint64 total_items = 3;
-  repeated EventHooks items = 4;
+  // The list of EmailTask items for the current page.
+  repeated EmailTask items = 4;
+  // Optional: The total number of pages available.
   optional uint64 total_pages = 5;
 }
 
+// SendNewMailRequest is used to send a completely new email.
+message SendNewMailRequest {
+  // The ID of the account from which to send the email.
+  uint64 account_id = 1;
+  // The details of the email to send.
+  SendEmailRequest request = 2;
+}
 
+// ReplyMailRequest is used to reply to an existing email.
+message ReplyMailRequest {
+  // The ID of the account from which to send the reply.
+  uint64 account_id = 1;
+  // The details of the reply email.
+  ReplyEmailRequest request = 2;
+}
+
+// ForwardMailRequest is used to forward an existing email.
+message ForwardMailRequest {
+  // The ID of the account from which to send the forwarded email.
+  uint64 account_id = 1;
+  // The details of the forwarded email.
+  ForwardEmailRequest request = 2;
+}
+
+// ListTasksRequest defines parameters for listing email tasks with pagination and filtering by status.
+message ListTasksRequest {
+  // Optional: The requested page number (1-based).
+  optional uint64 page = 1;
+  // Optional: The number of items to return per page.
+  optional uint64 page_size = 2;
+  // Optional: If true, results will be returned in descending order.
+  optional bool desc = 3;
+  // Optional: Filter tasks by their status.
+  optional TaskStatus status = 4;
+}
+
+// GetTaskRequest is used to retrieve a specific email task by its ID.
+message GetTaskRequest {
+  // The ID of the email task to retrieve.
+  uint64 id = 1;
+}
+
+// RemoveTaskRequest is used to remove a specific email task by its ID.
+message RemoveTaskRequest {
+  // The ID of the email task to remove.
+  uint64 id = 1;
+}
+
+// SendMailService provides APIs for sending new emails, replying, forwarding, and managing email tasks.
+service SendMailService {
+  // Sends a new email.
+  rpc SendNewMail (SendNewMailRequest) returns (Empty);
+  // Replies to an existing email.
+  rpc ReplyMail (ReplyMailRequest) returns (Empty);
+  // Forwards an existing email.
+  rpc ForwardMail (ForwardMailRequest) returns (Empty);
+  // Lists email sending tasks with pagination and optional status filtering.
+  rpc ListEmailTasks (ListTasksRequest) returns (PagedEmailTask);
+  // Retrieves a specific email task by its ID.
+  rpc GetEmailTask (GetTaskRequest) returns (EmailTask);
+  // Removes an email task.
+  rpc RemoveEmailTask (RemoveTaskRequest) returns (Empty);
+}
+
+// EventType enumerates the types of events that can trigger webhooks.
+enum EventType {
+  // An email was added to a folder.
+  EMAIL_ADDED_TO_FOLDER = 0;
+  // An email's flags changed.
+  EMAIL_FLAGS_CHANGED = 1;
+  // An email was sent successfully.
+  EMAIL_SENT_SUCCESS = 2;
+  // An error occurred during email sending.
+  EMAIL_SENDING_ERROR = 3;
+  // The UID validity of a mailbox changed, indicating a potential rebuild.
+  UID_VALIDITY_CHANGE = 4;
+  // A mailbox was deleted.
+  MAILBOX_DELETION = 5;
+  // A mailbox was created.
+  MAILBOX_CREATION = 6;
+  // An account's first synchronization process completed.
+  ACCOUNT_FIRST_SYNC_COMPLETED = 7;
+  // An email bounce notification was received.
+  EMAIL_BOUNCE = 8;
+  // An email feedback report (e.g., spam report) was received.
+  EMAIL_FEEDBACK_REPORT = 9;
+  // An email was opened (requires tracking enabled).
+  EmailOpened = 10;
+  // A link within an email was clicked (requires tracking enabled).
+  EmailLinkClicked = 11;
+}
+
+// HookType specifies the type of event hook.
+enum HookType {
+  // HTTP webhook.
+  Http = 0;
+  // NATS message queue hook.
+  Nats = 1;
+}
+
+// HttpMethod enumerates HTTP methods for webhook requests.
+enum HttpMethod {
+  // HTTP POST method.
+  POST = 0;
+  // HTTP PUT method.
+  PUT = 1;
+}
+
+// HttpConfig defines the configuration for an HTTP webhook.
+message HttpConfig {
+  // Target URL where the webhook payload is sent.
+  string target_url = 1;
+  // HTTP method used to send the webhook payload.
+  HttpMethod http_method = 2;
+  // Custom headers for the webhook request.
+  map<string, string> custom_headers = 3;
+}
+
+// NatsAuthType specifies authentication types for NATS connections.
+enum NatsAuthType {
+  // No authentication.
+  None = 0;
+  // Password-based authentication.
+  Password = 1;
+  // Token-based authentication.
+  Token = 2;
+}
+
+// NatsConfig defines the configuration for a NATS event hook.
+message NatsConfig {
+  // The NATS server host.
+  string host = 1;
+  // The NATS server port.
+  uint32 port = 2;
+  // The authentication type for the NATS connection.
+  NatsAuthType auth_type = 3;
+  // Optional: Token used when auth_type is TOKEN.
+  optional string token = 4;
+  // Optional: Username used when auth_type is PASSWORD.
+  optional string username = 5;
+  // Optional: Password used when auth_type is PASSWORD.
+  optional string password = 6;
+  // The NATS stream name to publish to.
+  string stream_name = 7;
+  // The NATS namespace for the message.
+  string namespace = 8;
+}
+
+// EventHooks represents a configuration for an event-driven webhook or NATS message.
+message EventHooks {
+  // The unique identifier for the event hook.
+  uint64 id = 1;
+  // Optional: Unique ID of the account associated with the webhook.
+  optional uint64 account_id = 2;
+  // Optional: Email of the account associated with the webhook.
+  optional string email = 3;
+  // Optional: Description of the webhook.
+  optional string description = 4;
+  // When the webhook was created.
+  int64 created_at = 5;
+  // When the webhook was last updated.
+  int64 updated_at = 6;
+  // Indicates whether the hook is global and applies to all accounts (1: true, 0: false).
+  uint32 global = 7;
+  // Whether the webhook is currently active.
+  bool enabled = 8;
+  // The type of the hook (HTTP or NATS).
+  HookType hook_type = 9;
+  // Optional: HTTP configuration if hook_type is Http.
+  optional HttpConfig http = 10;
+  // Optional: NATS configuration if hook_type is Nats.
+  optional NatsConfig nats = 11;
+  // Optional: VRL (Vector Remap Language) script for customizing the payload.
+  optional string vrl_script = 12;
+  // Total number of times the hook has been triggered.
+  uint64 call_count = 13;
+  // Number of successful executions.
+  uint64 success_count = 14;
+  // Number of failed executions.
+  uint64 failure_count = 15;
+  // Optional: Details of the last error encountered during execution.
+  optional string last_error = 16;
+  // List of event types to monitor that will trigger this hook.
+  repeated EventType watched_events = 17;
+}
+
+// GetEventHookRequest is used to retrieve a specific event hook by its ID.
+message GetEventHookRequest {
+  // The ID of the event hook to retrieve.
+  uint64 id = 1;
+}
+
+// RemoveEventHookRequest is used to remove a specific event hook by its ID.
+message RemoveEventHookRequest {
+  // The ID of the event hook to remove.
+  uint64 id = 1;
+}
+
+// CreateEventHookRequest defines the parameters for creating a new event hook.
+message CreateEventHookRequest {
+  // Optional: The account associated with the webhook. If omitted, the hook is global.
+  optional uint64 account_id = 1;
+  // Optional: Description of the webhook.
+  optional string description = 2;
+  // Status indicating whether the webhook is active.
+  bool enabled = 3;
+  // The type of the hook (HTTP or NATS).
+  HookType hook_type = 4;
+  // Optional: HTTP configuration for the new hook.
+  optional HttpConfig http = 5;
+  // Optional: NATS configuration for the new hook.
+  optional NatsConfig nats = 6;
+  // Optional: VRL script for the payload that will be sent.
+  optional string vrl_script = 7;
+  // List of event types the webhook is watching.
+  repeated EventType watched_events = 8;
+}
+
+// UpdateEventhookRequest defines the parameters for updating an existing event hook.
+message UpdateEventhookRequest {
+  // The ID of the event hook to update.
+  uint64 id = 1;
+  // Optional: Update the description.
+  optional string description = 2;
+  // Optional: Update the enabled status.
+  optional bool enabled = 3;
+  // Optional: Update the HTTP configuration.
+  optional HttpConfig http = 4;
+  // Optional: Update the NATS configuration.
+  optional NatsConfig nats = 5;
+  // Optional: Update the VRL script.
+  optional string vrl_script = 6;
+  // Update the list of watched events (replaces existing events).
+  repeated EventType watched_events = 7;
+}
+
+// ListEventHookRequest defines parameters for paginating lists of event hooks.
+message ListEventHookRequest {
+  // Optional: The requested page number (1-based).
+  optional uint64 page = 1;
+  // Optional: The number of items to return per page.
+  optional uint64 page_size = 2;
+  // Optional: If true, results will be returned in descending order.
+  optional bool desc = 3;
+}
+
+// PagedEventHooks represents a paginated list of EventHooks messages.
+message PagedEventHooks {
+  // Optional: The current page number being returned.
+  optional uint64 current_page = 1;
+  // Optional: The number of items per page.
+  optional uint64 page_size = 2;
+  // The total number of items available across all pages.
+  uint64 total_items = 3;
+  // The list of EventHooks items for the current page.
+  repeated EventHooks items = 4;
+  // Optional: The total number of pages available.
+  optional uint64 total_pages = 5;
+}
+
+// VrlScriptTestRequest is used to test a VRL script with a given event payload.
 message VrlScriptTestRequest {
+  // The VRL program to execute.
   string program = 1;
+  // Optional: The event payload (JSON string) to use as input for the VRL script.
   optional string event = 2;
 }
 
+// ResolveResult contains the result of a VRL script execution or an error.
 message ResolveResult {
+  // Optional: The result of the VRL script execution (as a Protobuf Value).
   optional google.protobuf.Value result = 1;
+  // Optional: An error message if the VRL script execution failed.
   optional string error = 2;
 }
 
+// EventHookTask represents a single execution of an event hook.
 message EventHookTask {
+  // The unique identifier for the event hook task.
   uint64 id = 1;
+  // The timestamp when the task was created.
   int64 created_at = 2;
+  // The current status of the task (e.g., SCHEDULED, SUCCESS, FAILED).
   TaskStatus status = 3;
+  // Optional: The reason the task was stopped.
   optional string stopped_reason = 4;
+  // Optional: An error message if the task failed.
   optional string error = 5;
+  // Optional: The duration of the last execution attempt in milliseconds.
   optional uint32 last_duration_ms = 6;
+  // Optional: The number of times the task has been retried.
   optional uint32 retry_count = 7;
+  // The timestamp when the task is scheduled to be processed.
   int64 scheduled_at = 8;
+  // The ID of the account associated with the event.
   uint64 account_id = 9;
+  // The event payload that triggered the hook.
   google.protobuf.Value event = 10;
+  // The type of event that triggered this task.
   EventType event_type = 11;
 }
 
+// PagedEventHookTask represents a paginated list of EventHookTask messages.
 message PagedEventHookTask {
-    optional uint64 current_page = 1;
-    optional uint64 page_size = 2;
-    uint64 total_items = 3;
-    repeated EventHookTask items = 4;
-    optional uint64 total_pages = 5;
+  // Optional: The current page number being returned.
+  optional uint64 current_page = 1;
+  // Optional: The number of items per page.
+  optional uint64 page_size = 2;
+  // The total number of items available across all pages.
+  uint64 total_items = 3;
+  // The list of EventHookTask items for the current page.
+  repeated EventHookTask items = 4;
+  // Optional: The total number of pages available.
+  optional uint64 total_pages = 5;
 }
 
+// EventHooksService provides APIs for managing event-driven webhooks.
 service EventHooksService {
+  // Retrieves a specific event hook by its ID.
   rpc GetEventHook (GetEventHookRequest) returns (EventHooks);
+  // Removes an event hook.
   rpc RemoveEventHook (RemoveEventHookRequest) returns (Empty);
+  // Creates a new event hook.
   rpc CreateEventHook (CreateEventHookRequest) returns (EventHooks);
+  // Updates an existing event hook.
   rpc UpdateEventHook (UpdateEventhookRequest) returns (Empty);
+  // Lists event hooks with pagination.
   rpc ListEventHook (ListEventHookRequest) returns (PagedEventHooks);
+  // Returns examples of event payloads for testing VRL scripts.
   rpc EventExamples (Empty) returns (google.protobuf.Value);
+  // Tests a VRL script against a given event payload and returns the result.
   rpc VrlScriptResolve(VrlScriptTestRequest) returns (ResolveResult);
+  // Lists event hook tasks with pagination and optional filtering.
   rpc ListEventHookTasks (ListTasksRequest) returns (PagedEventHookTask);
+  // Retrieves a specific event hook task by its ID.
   rpc GetEventHookTask (GetTaskRequest) returns (EventHookTask);
+  // Removes an event hook task.
   rpc RemoveEventHookTask (RemoveTaskRequest) returns (Empty);
 }
