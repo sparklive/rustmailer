@@ -89,7 +89,7 @@ cargo build --release
 ### 🐳 Prefer Docker?
 
 If you don’t want to build manually, you can follow the Docker-based installation guide here:
-📄 [Install via Docker](https://docs.rustmailer.com/docs/install/docker)
+📄 [Install via Docker](https://rustmailer.com/docs/install/docker)
 
 > 🔐 RustMailer comes with a free 14-day trial and supports up to 10 email accounts without a license. See [License](#license) for details.
 
@@ -98,7 +98,7 @@ If you don’t want to build manually, you can follow the Docker-based installat
 
 RustMailer can be configured via environment variables or command-line arguments parsed by Clap.  
 The CLI configuration code is located at `src/modules/settings/cli.rs`.  
-For detailed option descriptions, please refer to the [configuration reference](https://docs.rustmailer.com/docs/configuration/reference).
+For detailed option descriptions, please refer to the [configuration reference](https://rustmailer.com/docs/configuration/reference).
 
 
 
@@ -186,7 +186,7 @@ http://localhost:15630
 RustMailer is source-available. The code is open on GitHub, but requires a **valid commercial license key** for production use.
 
 Visit: [https://rustmailer.com](https://rustmailer.com)  
-Documentation: [https://docs.rustmailer.com](https://docs.rustmailer.com)  
+Documentation: [https://rustmailer.com/docs](https://rustmailer.com/docs)  
 License Purchase: [https://rustmailer.com/pricing](https://rustmailer.com/pricing)
 
 ## 🔐 License Activation Flow
