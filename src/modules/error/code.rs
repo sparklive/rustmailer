@@ -4,42 +4,55 @@ use poem_openapi::Enum;
 #[derive(Copy, Clone, Debug, Enum, Eq, PartialEq)]
 #[repr(u32)]
 pub enum ErrorCode {
+    // Client-side errors (10000–10999)
     InvalidParameter = 10000,
-    NetworkError = 10010,
-    ConnectionTimeout = 10020,
-    ConnectionPoolTimeout = 10030,
-    InternalError = 10040,
-    ResourceNotFound = 10050,
-    AccountDisabled = 10060,
-    AutoconfigFetchFailed = 10070,
-    LicenseAccountLimitReached = 10080,
-    LicenseExpired = 10090,
-    InvalidLicense = 10100,
-    ImapCommandFailed = 10110,
-    ImapAuthenticationFailed = 10120,
-    ImapUnexpectedResult = 10130,
-    PermissionDenied = 10140,
-    HttpResponseError = 10150,
-    NatsRequestFailed = 10160,
-    NatsConnectionFailed = 10170,
-    NatsCreateStreamFailed = 10180,
-    VRLScriptSyntaxError = 10190,
-    AlreadyExists = 10200,
-    MissingConfiguration = 10210,
-    Incompatible = 10220,
-    MailBoxNotCached = 10230,
-    ExceedsLimitation = 10240,
-    OAuth2ItemDisabled = 10250,
-    MissingRefreshToken = 10260,
-    EmlFileParseError = 10270,
-    SmtpCommandFailed = 10280,
-    SmtpConnectionFailed = 10290,
-    TooManyRequest = 10300,
-    MissingContentLength = 10310,
-    PayloadTooLarge = 10320,
-    RequestTimeout = 10330,
-    MethodNotAllowed = 10340,
-    UnhandledPoemError = 10350,
+    VRLScriptSyntaxError = 10010,
+    MissingConfiguration = 10020,
+    Incompatible = 10030,
+    ExceedsLimitation = 10040,
+    EmlFileParseError = 10050,
+    MissingContentLength = 10060,
+    PayloadTooLarge = 10070,
+    RequestTimeout = 10080,
+    MethodNotAllowed = 10090,
+
+    // Authentication and authorization errors (20000–20999)
+    PermissionDenied = 20000,
+    AccountDisabled = 20010,
+    LicenseAccountLimitReached = 20020,
+    LicenseExpired = 20030,
+    InvalidLicense = 20040,
+    OAuth2ItemDisabled = 20050,
+    MissingRefreshToken = 20060,
+
+    // Resource errors (30000–30999)
+    ResourceNotFound = 30000,
+    AlreadyExists = 30010,
+    TooManyRequest = 30020,
+
+    // Network connection errors (40000–40999)
+    NetworkError = 40000,
+    ConnectionTimeout = 40010,
+    ConnectionPoolTimeout = 40020,
+    HttpResponseError = 40030,
+
+    // Mail service errors (50000–50999)
+    ImapCommandFailed = 50000,
+    ImapAuthenticationFailed = 50010,
+    ImapUnexpectedResult = 50020,
+    SmtpCommandFailed = 50030,
+    SmtpConnectionFailed = 50040,
+    MailBoxNotCached = 50050,
+    AutoconfigFetchFailed = 50060,
+
+    // Message queue errors (60000–60999)
+    NatsRequestFailed = 60000,
+    NatsConnectionFailed = 60010,
+    NatsCreateStreamFailed = 60020,
+
+    // Internal system errors (70000–70999)
+    InternalError = 70000,
+    UnhandledPoemError = 70010,
 }
 
 impl ErrorCode {

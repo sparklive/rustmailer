@@ -56,8 +56,8 @@ pub struct DeliveryStatus {
     /// Optional sender email address used by the Postfix system.
     pub postfix_sender: Option<String>,
 }
-#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct FeedbackReport {
     /// Optional type of feedback (e.g., "abuse", "spam", "unsubscribe").
     pub feedback_type: Option<String>,
