@@ -23,6 +23,9 @@ pub struct EventhookCreateRequest {
     pub vrl_script: Option<String>,
     /// List of event types the hook is configured to monitor.
     pub watched_events: Vec<EventType>,
+    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
+    /// When set to `true`, the client will attempt to connect to the hook target via the configured proxy address.
+    pub use_proxy: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Object)]
@@ -39,6 +42,9 @@ pub struct EventhookUpdateRequest {
     pub vrl_script: Option<String>,
     /// List of event types the hook is configured to monitor.
     pub watched_events: Option<Vec<EventType>>,
+    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
+    /// When set to `true`, the client will attempt to connect to the hook target via the configured proxy address.
+    pub use_proxy: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -70,6 +76,10 @@ pub fn apply_update(old: &EventHooks, request: EventhookUpdateRequest) -> EventH
 
     if let Some(vrl_script) = request.vrl_script {
         new.vrl_script = Some(vrl_script);
+    }
+
+    if let Some(use_proxy) = request.use_proxy {
+        new.use_proxy = Some(use_proxy)
     }
 
     if let Some(watched_events) = request.watched_events {

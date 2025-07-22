@@ -74,6 +74,7 @@ async fn test4() {
         }),
         nats: None,
         vrl_script: None,
+        use_proxy: None,
         watched_events: vec![EventType::EmailSendingError],
     };
     let hook = EventHooks::new(request).await.unwrap();

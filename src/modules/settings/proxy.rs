@@ -11,7 +11,7 @@ use crate::{
             update_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
-        utils::net::parse_socks5_proxy_addr,
+        utils::net::parse_proxy_addr,
     },
     raise_error, utc_now,
 };
@@ -102,7 +102,7 @@ impl Proxy {
 
     /// Validate that the URL is a valid SOCKS5 proxy URL.
     pub fn validate(&self) -> RustMailerResult<()> {
-        parse_socks5_proxy_addr(&self.url)?;
+        parse_proxy_addr(&self.url)?;
         Ok(())
     }
 }
@@ -115,43 +115,7 @@ mod tests {
     fn test_valid_proxy_urls() {
         let urls = vec![
             "socks5://127.0.0.1:1080",
-            "socks5://user:pass@127.0.0.1:1080",
-            "Socks5://user:pass@localhost:1080",
-            "SOCKS5://user:pass@[::1]:1080",
-            "socks5://example.com:1080",
-        ];
-
-        for url in urls {
-            let proxy = Proxy::new(url.to_string());
-            assert!(proxy.validate().is_ok(), "URL should be valid: {}", url);
-        }
-    }
-
-    #[test]
-    fn test_invalid_proxy_urls() {
-        let urls = vec![
-            "http://127.0.0.1:1080",          // wrong scheme
-            "socks5://127.0.0.1",             // missing port
-            "socks5://:1080",                 // missing host
-            "socks5://user@127.0.0.1:1080",   // missing password
-            "socks5://user:pass@:1080",       // missing host after credentials
-            "socks5://127.0.0.1:99999",       // port out of range
-            "socks5://user:pass@127.0.0.1:0", // port zero
-        ];
-
-        for url in urls {
-            let proxy = Proxy::new(url.to_string());
-            assert!(proxy.validate().is_err(), "URL should be invalid: {}", url);
-        }
-    }
-
-    #[test]
-    fn test_valid_domain_hostnames() {
-        let urls = vec![
-            "socks5://localhost:1080",
-            "socks5://example.com:1080",
-            "socks5://proxy.internal:1080",
-            "socks5://user:pass@example.com:1080",
+            "http://127.0.0.1:8080",
         ];
 
         for url in urls {

@@ -53,4 +53,5 @@ export interface EventHook {
   failure_count: number;
   last_error?: string;
   watched_events: EventType[];
+  use_proxy?: number;
 }

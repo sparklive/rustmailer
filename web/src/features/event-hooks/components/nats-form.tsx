@@ -92,7 +92,6 @@ export function NatsForm({
 
     const isGlobal = form.watch('global');
 
-
     const handleGlobalToggle = (checked: boolean) => {
         form.setValue('global', checked);
         if (checked) {
@@ -358,7 +357,6 @@ export function NatsForm({
                         />
                     </>
                 )}
-
                 {/* Watched Events */}
                 <FormField
                     control={form.control}

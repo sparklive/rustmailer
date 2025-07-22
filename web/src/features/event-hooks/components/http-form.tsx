@@ -25,6 +25,7 @@ import { VirtualizedSelect } from '@/components/virtualized-select'
 import { eventTypeSchema, eventTypeOptions } from './types'
 import { Switch } from '@/components/ui/switch'
 import { CodeEditorWithDraft } from '@/components/editor-with-draft'
+import useProxyList from '@/hooks/use-proxy'
 
 export const httpConfigSchema = z.object({
     target_url: z.string({
@@ -49,6 +50,7 @@ export const httpFormSchema = z.object({
     enabled: z.boolean(),
     global: z.boolean(),
     http: httpConfigSchema,
+    use_proxy: z.number().optional(),
     vrl_script: z.string().optional(),
     watched_events: z.array(eventTypeSchema).min(1, "At least one event type must be selected"),
 }).superRefine((data, ctx) => {
@@ -100,6 +102,7 @@ export function HttpForm({
 
     const isGlobal = form.watch('global');
 
+    const { proxyOptions } = useProxyList();
 
     const handleGlobalToggle = (checked: boolean) => {
         form.setValue('global', checked);
@@ -292,7 +295,42 @@ export function HttpForm({
                         <Plus className="mr-2 h-4 w-4" /> Add HTTP Header
                     </Button>
                 </div>
-
+                <FormField
+                    control={form.control}
+                    name='use_proxy'
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center justify-between">Use Proxy(optional)</FormLabel>
+                            <FormControl>
+                                <Select
+                                    onValueChange={(val) => field.onChange(Number(val))}
+                                    defaultValue={field.value?.toString()}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a proxy" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {proxyOptions && proxyOptions.length > 0 ? (
+                                            proxyOptions.map((option) => (
+                                                <SelectItem key={option.value} value={option.value.toString()}>
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem disabled value="__none__">No proxy available</SelectItem>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </FormControl>
+                            <FormDescription className='flex-1'>
+                                Use a SOCKS5 proxy for webhook connections.
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 {/* Watched Events */}
                 <FormField
                     control={form.control}

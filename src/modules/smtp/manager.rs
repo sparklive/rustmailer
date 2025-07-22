@@ -4,7 +4,7 @@ use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::settings::proxy::Proxy;
 use crate::modules::smtp::client::RustMailSmtpClient;
 use crate::modules::smtp::mta::entity::Mta;
-use crate::modules::utils::net::parse_socks5_proxy_addr;
+use crate::modules::utils::net::parse_proxy_addr;
 use crate::modules::{account::entity::Account, error::RustMailerResult};
 use crate::{decrypt, raise_error};
 use mail_send::smtp::tls::build_tls_connector;
@@ -51,7 +51,7 @@ impl SmtpClientManager {
         let timeout = Duration::from_secs(30);
         if let Some(proxy_id) = &mta.use_proxy {
             let proxy = Proxy::get(*proxy_id).await?;
-            let proxy = parse_socks5_proxy_addr(&proxy.url)?;
+            let proxy = parse_proxy_addr(&proxy.url)?;
 
             let socks_stream =
                 Socks5Stream::connect(proxy, format!("{}:{}", &mta.server.host, mta.server.port))
@@ -127,7 +127,7 @@ impl SmtpClientManager {
         let timeout = Duration::from_secs(30);
         if let Some(proxy_id) = &account.smtp.use_proxy {
             let proxy = Proxy::get(*proxy_id).await?;
-            let proxy = parse_socks5_proxy_addr(&proxy.url)?;
+            let proxy = parse_proxy_addr(&proxy.url)?;
             let socks_stream = Socks5Stream::connect(
                 proxy,
                 format!("{}:{}", &account.smtp.host, account.smtp.port),

@@ -42,6 +42,7 @@ const httpDefaultValues = {
     custom_headers: []  // Object, default to empty object
   },
   vrl_script: '',
+  use_proxy: undefined,
   watched_events: []
 };
 
@@ -93,6 +94,7 @@ export function EventHooksMutateDrawer({ open, onOpenChange, currentRow }: Props
         ...currentRow.http,
         custom_headers: convertRecordToArray(currentRow.http.custom_headers)
       } : undefined,
+      use_proxy: currentRow.use_proxy ?? undefined,
       vrl_script: currentRow.vrl_script,
       watched_events: currentRow.watched_events
     } : httpDefaultValues,

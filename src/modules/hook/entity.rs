@@ -112,6 +112,9 @@ pub struct EventHooks {
     pub last_error: Option<String>,
     /// List of event types the hook is configured to monitor.
     pub watched_events: Vec<EventType>,
+    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
+    /// When set to `true`, the client will attempt to connect to the hook target via the configured proxy address.
+    pub use_proxy: Option<u64>,
 }
 
 impl EventHooks {
@@ -143,6 +146,7 @@ impl EventHooks {
             failure_count: 0,
             last_error: None,
             watched_events: request.watched_events,
+            use_proxy: request.use_proxy,
         })
     }
 

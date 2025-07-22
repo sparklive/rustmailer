@@ -20,7 +20,7 @@ codegen-units = 1
 
 [dependencies]
 chrono = "0.4.41"
-clap = { version = "4.5.40", features = ["derive", "env"] }
+clap = { version = "4.5.41", features = ["derive", "env"] }
 mimalloc = "0.1.47"
 native_db = "0.8.2"
 redb = "2.6.0"
@@ -45,7 +45,7 @@ poem-grpc = { version = "0.5.6", features = [
 min_jwt = { version = "0.10.0", features = ["ring", "serde", "serde_json"] }
 ring = { version = "0.17.14", features = ["std"] }
 serde = { version = "1.0.218", features = ["derive"] }
-serde_json = "1.0.139"
+serde_json = "1.0.141"
 tokio = { version = "1.46.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
@@ -56,7 +56,7 @@ reqwest = { version = "0.12.22", default-features = false, features = [
     "json",
     "stream",
     "native-tls",
-    "rustls-tls",
+    # "rustls-tls",
     "blocking",
     "socks",
 ] }
@@ -78,22 +78,22 @@ handlebars = "6.3.2"
 ahash = "0.8.12"
 oauth2 = { version = "5.0.0", features = ["reqwest-blocking"] }
 url = { version = "2.5.4", features = ["serde"] }
-sysinfo = "0.35.2"
+sysinfo = "0.36.1"
 proc-macro2 = "1.0.95"
 cacache = { version = "13.1.0", default-features = false, features = [
     "tokio-runtime",
     "mmap",
 ] }
-rand = "0.9.1"
+rand = "0.9.2"
 encoding_rs = "0.8.35"
-async-imap = { version = "0.10.4", default-features = false, features = [
+async-imap = { version = "0.11.0", default-features = false, features = [
     "runtime-tokio",
     "compress",
 ] }
-webpki-roots = "1.0.1"
-rustls = { version = "0.23.28", default-features = false, features = ["ring"] }
+webpki-roots = "1.0.2"
+rustls = { version = "0.23.29", default-features = false, features = ["ring"] }
 rustls-pki-types = "1.12.0"
-tokio-io-timeout = "1.2.0"
+tokio-io-timeout = "1.2.1"
 bb8 = "0.9.0"
 # Note: Keep prost and prost-types at the same version to avoid potential conflicts.
 # Make sure to test thoroughly before upgrading or changing versions.
@@ -102,7 +102,7 @@ prost-types = "0.13.5"
 semver = "1.0.26"
 governor = "0.10.0"
 async-nats = { version = "0.42.0" }
-lru = "0.14.0"
+lru = "0.16.0"
 mime_guess = "2.0.5"
 pulldown-cmark = "0.13.0"
 html-escape = "0.2.13"

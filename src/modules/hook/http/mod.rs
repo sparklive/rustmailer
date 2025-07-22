@@ -1,5 +1,6 @@
 use crate::modules::error::code::ErrorCode;
 use crate::modules::hook::entity::HttpMethod;
+use crate::modules::settings::proxy::Proxy;
 use crate::raise_error;
 use crate::{modules::error::RustMailerResult, rustmailer_version};
 use std::collections::HashMap;
@@ -13,15 +14,41 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
-    pub fn new() -> RustMailerResult<HttpClient> {
-        Ok(Self {
-            client: reqwest::ClientBuilder::new()
-                .user_agent(rustmailer_version!())
-                .timeout(Duration::from_secs(10))
-                .connect_timeout(Duration::from_secs(3))
-                .build()
-                .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?,
-        })
+    #[cfg(test)]
+    pub fn create(client: reqwest::Client) -> HttpClient {
+        Self { client }
+    }
+
+    pub async fn new(use_proxy: Option<u64>) -> RustMailerResult<HttpClient> {
+        let mut builder = reqwest::ClientBuilder::new()
+            .user_agent(rustmailer_version!())
+            .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(10));
+
+        if let Some(proxy_id) = use_proxy {
+            let proxy = Proxy::get(proxy_id).await?;
+            let proxy_obj = reqwest::Proxy::all(&proxy.url).map_err(|e| {
+                raise_error!(
+                    format!(
+                        "Failed to configure SOCKS5 proxy ({}): {:#?}. Please check",
+                        &proxy.url, e
+                    ),
+                    ErrorCode::InternalError
+                )
+            })?;
+            builder = builder
+                .redirect(reqwest::redirect::Policy::none())
+                .proxy(proxy_obj);
+        }
+
+        let client = builder.build().map_err(|e| {
+            raise_error!(
+                format!("Failed to build HTTP client: {:#?}", e),
+                ErrorCode::InternalError
+            )
+        })?;
+
+        Ok(Self { client })
     }
 
     pub async fn send_json_request(
@@ -60,15 +87,6 @@ impl HttpClient {
             .send()
             .await
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-
-        // Check for successful response status
-        if !response.status().is_success() {
-            return Err(raise_error!(
-                format!("Error response: {}", response.status()),
-                ErrorCode::HttpResponseError
-            ));
-        }
-
         Ok(response)
     }
 }

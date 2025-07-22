@@ -251,7 +251,7 @@ async fn send_event(
             let payload = process_payload(event, event_hook.vrl_script).await?;
 
             if payload != serde_json::Value::Null {
-                let client = HttpClient::new()?;
+                let client = HttpClient::new(event_hook.use_proxy).await?;
                 let response = client
                     .send_json_request(
                         task,
@@ -262,13 +262,7 @@ async fn send_event(
                     )
                     .await?;
 
-                let status = response.status();
-                if !status.is_success() {
-                    return Err(raise_error!(
-                        format!("HTTP hook failed with status: {}", status),
-                        ErrorCode::HttpResponseError
-                    ));
-                }
+                handle_response(response).await?;
             }
             Ok(())
         }
@@ -289,6 +283,35 @@ async fn send_event(
             Ok(())
         }
     }
+}
+
+async fn handle_response(response: reqwest::Response) -> RustMailerResult<()> {
+    if !response.status().is_success() {
+        let status = response.status();
+        let url = response.url().clone();
+        let headers = response.headers().clone();
+
+        let body = match response.text().await {
+            Ok(text) => text,
+            Err(e) => format!("<failed to read body: {}>", e),
+        };
+
+        // Log detailed error information
+        tracing::error!(
+            status = %status,
+            url = %url,
+            headers = ?headers,
+            body = %body,
+            "HTTP request failed with error response"
+        );
+
+        return Err(raise_error!(
+            format!("Error response: {} - {}", status, body),
+            ErrorCode::HttpResponseError
+        ));
+    }
+
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Object)]

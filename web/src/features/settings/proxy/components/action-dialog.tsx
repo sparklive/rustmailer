@@ -36,13 +36,13 @@ const proxyFormSchema = z.object({
       (value) => {
         try {
           const url = new URL(value);
-          return url.protocol === 'socks5:';
+          return url.protocol === 'socks5:' || url.protocol === 'http:';
         } catch {
           return false;
         }
       },
       {
-        message: "Must use socks5:// protocol prefix",
+        message: "URL must start with http:// or socks5://",
       }
     )
     .refine(

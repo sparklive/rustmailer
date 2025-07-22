@@ -2005,6 +2005,8 @@ message CreateEventHookRequest {
   optional string vrl_script = 7;
   // List of event types the webhook is watching.
   repeated EventType watched_events = 8;
+  // Optional: The ID of a proxy to use.
+  optional uint64 use_proxy = 9;
 }
 
 // UpdateEventhookRequest defines the parameters for updating an existing event hook.
@@ -2023,6 +2025,8 @@ message UpdateEventhookRequest {
   optional string vrl_script = 6;
   // Update the list of watched events (replaces existing events).
   repeated EventType watched_events = 7;
+  // Optional: The ID of a proxy to use.
+  optional uint64 use_proxy = 8;
 }
 
 // ListEventHookRequest defines parameters for paginating lists of event hooks.

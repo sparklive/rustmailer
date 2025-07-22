@@ -53,26 +53,37 @@ pub(crate) async fn establish_tls_connection(
     Ok(tls_stream)
 }
 
-pub fn parse_socks5_proxy_addr(input: &str) -> RustMailerResult<SocketAddr> {
-    // Case-insensitive protocol check
-    let stripped = input
+pub fn parse_proxy_addr(input: &str) -> RustMailerResult<SocketAddr> {
+    // Normalize and check protocol prefix
+    let (scheme, stripped) = if let Some(rest) = input
         .strip_prefix("socks5://")
         .or_else(|| input.strip_prefix("SOCKS5://"))
         .or_else(|| input.strip_prefix("Socks5://"))
-        .ok_or_else(|| {
-            raise_error!(
-                format!(
-                    "Invalid SOCKS5 proxy URL: missing or incorrect prefix: {}",
-                    input
-                ),
-                ErrorCode::InvalidParameter
-            )
-        })?;
+    {
+        ("socks5", rest)
+    } else if let Some(rest) = input
+        .strip_prefix("http://")
+        .or_else(|| input.strip_prefix("HTTP://"))
+        .or_else(|| input.strip_prefix("Http://"))
+    {
+        ("http", rest)
+    } else {
+        return Err(raise_error!(
+            format!(
+                "Invalid proxy URL: must start with 'http://' or 'socks5://', got '{}'",
+                input
+            ),
+            ErrorCode::InvalidParameter
+        ));
+    };
 
-    // Parse and validate SocketAddr
+    // Parse the remaining address
     let addr = stripped.parse::<SocketAddr>().map_err(|e| {
         raise_error!(
-            format!("Failed to parse SOCKS5 proxy address '{}': {}", stripped, e),
+            format!(
+                "Failed to parse {} proxy address '{}': {}",
+                scheme, stripped, e
+            ),
             ErrorCode::InvalidParameter
         )
     })?;
@@ -85,10 +96,10 @@ async fn connect_with_optional_proxy(
     use_proxy: Option<u64>,
     address: SocketAddr,
 ) -> RustMailerResult<TcpStream> {
-    // Try SOCKS5 if proxy is enabled
+    // Try if proxy is enabled
     if let Some(proxy_id) = use_proxy {
         let proxy = Proxy::get(proxy_id).await?;
-        let proxy = parse_socks5_proxy_addr(&proxy.url)?;
+        let proxy = parse_proxy_addr(&proxy.url)?;
         return timeout(TIMEOUT, Socks5Stream::connect(proxy, address))
             .await
             .map_err(|_| {

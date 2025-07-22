@@ -125,6 +125,7 @@ impl TryFrom<rustmailer_grpc::CreateEventHookRequest> for EventhookCreateRequest
                 .into_iter()
                 .map(EventType::try_from)
                 .collect::<Result<Vec<_>, _>>()?,
+            use_proxy: value.use_proxy,
         })
     }
 }
@@ -240,6 +241,7 @@ impl TryFrom<rustmailer_grpc::UpdateEventhookRequest> for EventhookUpdateRequest
                     )
                 }
             },
+            use_proxy: value.use_proxy,
         })
     }
 }

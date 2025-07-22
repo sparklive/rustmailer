@@ -116,13 +116,13 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?
             .ok_or_else(|| {
                 raise_error!(
                     "failed to read greeting".into(),
                     ErrorCode::ImapCommandFailed
                 )
-            })?
-            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?;
+            })?;
 
         // Return the established client
         Ok(client)
@@ -146,13 +146,13 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?
             .ok_or_else(|| {
                 raise_error!(
                     "failed to read greeting".into(),
                     ErrorCode::ImapCommandFailed
                 )
-            })?
-            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?;
+            })?;
 
         // Return the established client
         Ok(client)
@@ -176,13 +176,13 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?
             .ok_or_else(|| {
                 raise_error!(
                     "failed to read greeting".into(),
                     ErrorCode::ImapCommandFailed
                 )
-            })?
-            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?;
+            })?;
 
         // Run the STARTTLS command to upgrade the connection to TLS
         client
