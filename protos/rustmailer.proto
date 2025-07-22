@@ -1698,11 +1698,11 @@ message SendControl {
   // Optional: The mail envelope details for the SMTP transaction.
   optional MailEnvelope envelope = 1;
   // If true, saves the sent email to the 'Sent' folder of the sending account.
-  bool save_to_sent = 2;
+  optional bool save_to_sent = 2;
   // Optional: The name of the folder where the sent email should be saved (e.g., "Sent Items").
   optional string sent_folder = 3;
   // If true, simulates the email sending process without actually sending.
-  bool dry_run = 4;
+  optional bool dry_run = 4;
   // Optional: The specific timestamp to schedule the email for sending (Unix timestamp).
   optional int64 send_at = 5;
   // Optional: The retry policy to apply if sending fails.
@@ -1714,7 +1714,7 @@ message SendControl {
   // Optional: A campaign ID to associate with this email for tracking purposes.
   optional string campaign_id = 9;
   // If true, enables tracking (e.g., open tracking, link click tracking) for this email.
-  bool enable_tracking = 10;
+  optional bool enable_tracking = 10;
 }
 
 // MailEnvelope defines the sender and recipients for the SMTP transaction.

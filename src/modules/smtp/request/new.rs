@@ -212,26 +212,28 @@ impl EmailBuilder for SendEmailRequest {
             }
             let mut tracker: Option<EmailTracker> = None;
 
-            if self.send_control.enable_tracking && SETTINGS.rustmailer_email_tracking_enabled {
-                let campaign_id = self
-                    .send_control
-                    .campaign_id
-                    .clone()
-                    .unwrap_or_else(|| "default".to_string());
+            if let Some(true) = self.send_control.enable_tracking {
+                if SETTINGS.rustmailer_email_tracking_enabled {
+                    let campaign_id = self
+                        .send_control
+                        .campaign_id
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string());
 
-                let recipient_address = recipient
-                    .to
-                    .first()
-                    .map(|r| r.address.clone())
-                    .unwrap_or_default();
+                    let recipient_address = recipient
+                        .to
+                        .first()
+                        .map(|r| r.address.clone())
+                        .unwrap_or_default();
 
-                tracker = Some(EmailTracker::new(
-                    campaign_id,
-                    message_id.clone(),
-                    recipient_address,
-                    account_id.into(),
-                    account.email.clone(),
-                ));
+                    tracker = Some(EmailTracker::new(
+                        campaign_id,
+                        message_id.clone(),
+                        recipient_address,
+                        account_id.into(),
+                        account.email.clone(),
+                    ));
+                }
             }
 
             builder = match &self.eml {

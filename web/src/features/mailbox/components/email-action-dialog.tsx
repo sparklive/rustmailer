@@ -131,7 +131,8 @@ export function EmailActionDialog({
                     include_all_attachments: false,
                     send_control: {
                         save_to_sent: false,
-                        dry_run: false
+                        dry_run: false,
+                        enable_tracking: false
                     }
                 });
             } else {
@@ -145,7 +146,8 @@ export function EmailActionDialog({
                     include_all_attachments: false,
                     send_control: {
                         save_to_sent: false,
-                        dry_run: false
+                        dry_run: false,
+                        enable_tracking: false
                     }
                 });
             }

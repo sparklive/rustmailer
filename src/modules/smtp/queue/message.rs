@@ -105,7 +105,7 @@ impl TryFrom<&TaskMetaEntity> for SendEmailTask {
             attachment_count: smtp_task.attachment_count,
             cache_key: smtp_task.cache_key,
             envelope: smtp_task.control.envelope,
-            save_to_sent: smtp_task.control.save_to_sent,
+            save_to_sent: smtp_task.control.save_to_sent.unwrap_or(false),
             sent_folder: smtp_task.control.sent_folder,
             send_at: smtp_task.control.send_at,
             mta: smtp_task.control.mta,

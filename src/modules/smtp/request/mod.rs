@@ -426,13 +426,13 @@ pub struct SendControl {
     /// The email envelope containing sender and recipient addresses (SMTP `MAIL FROM` and `RCPT TO`).
     pub envelope: Option<MailEnvelope>,
     /// Whether to save a copy of the email to the sent folder after successful delivery.
-    pub save_to_sent: bool,
+    pub save_to_sent: Option<bool>,
     /// The name of the folder where the email should be saved if `save_to_sent` is true.
     /// If `None` and `save_to_sent` is true, a default folder (e.g., "Sent") may be used.
     pub sent_folder: Option<String>,
     /// Whether to perform a dry run (simulate sending without actual delivery).
     /// Useful for testing email configurations without sending emails.
-    pub dry_run: bool,
+    pub dry_run: Option<bool>,
     /// An optional Unix timestamp (milliseconds since epoch) specifying when to send the email.
     /// If `None`, the email is sent immediately.
     pub send_at: Option<i64>,
@@ -456,7 +456,7 @@ pub struct SendControl {
     /// Note: This field only takes effect **if system-wide tracking is enabled** (`SETTINGS.rustmailer_email_tracking_enabled == true`).
     /// If system tracking is disabled, this flag has no effect and no tracking will be inserted.
     /// - This field is **only used when sending new emails**
-    pub enable_tracking: bool,
+    pub enable_tracking: Option<bool>,
 }
 
 impl SendControl {
@@ -522,7 +522,7 @@ impl SendControl {
         account_id: u64,
         body: &[u8],
     ) -> RustMailerResult<()> {
-        if self.save_to_sent {
+        if let Some(true) = self.save_to_sent {
             let encoded_sent_folder = self.resolve_sent_mailbox(account_id).await?;
             let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
             executor
@@ -761,7 +761,7 @@ impl EmailHandler {
             )
         })?;
         // Skip sending if dry_run is enabled; used for testing or simulation.
-        if send_control.dry_run {
+        if let Some(true) = send_control.dry_run {
             return Ok(());
         }
 

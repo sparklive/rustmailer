@@ -85,7 +85,7 @@ export function EventHooksMutateDrawer({ open, onOpenChange, currentRow }: Props
   const httpForm = useForm<HttpEventHookForm>({
     resolver: zodResolver(httpFormSchema),
     defaultValues: currentRow ? {
-      account_id: currentRow.account_id,
+      account_id: currentRow.account_id ?? undefined,
       description: currentRow.description ?? undefined,
       enabled: currentRow.enabled,
       global: currentRow.global === 1,
@@ -101,7 +101,7 @@ export function EventHooksMutateDrawer({ open, onOpenChange, currentRow }: Props
   const natsForm = useForm<NatsEventHookForm>({
     resolver: zodResolver(natsFormSchema),
     defaultValues: currentRow ? {
-      account_id: currentRow.account_id,
+      account_id: currentRow.account_id ?? undefined,
       description: currentRow.description,
       enabled: currentRow.enabled,
       global: currentRow.global === 1,
