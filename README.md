@@ -41,7 +41,7 @@ RustMailer enables developers to focus on core application logic without buildin
 - 🖥️ **Web UI & Client** – Includes a built-in web-based email client and admin dashboard.
 - 🔐 **OAuth2 Support** – Built-in OAuth2 flow with web-based authorization UI. Automatically manages access and refresh tokens.
 - 🌍 **Proxy Support** – Supports proxies for IMAP, SMTP, and OAuth2 connections in restricted environments.
-- 🎟️ **License Required for Deployment** – Source-available on GitHub; requires a license key for production use.
+
 
 ## 📸 Snapshot
 
@@ -49,7 +49,9 @@ RustMailer enables developers to focus on core application logic without buildin
 |-------------------------------------|--------------------------------|
 | ![Accounts](./assets/accounts.png)  | ![Tasks Queue](./assets/tasks-queue.png) |
 
+## API Reference
 
+https://rustmailer.com/redoc
 
 
 ## 📦 Installation
