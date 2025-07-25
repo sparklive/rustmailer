@@ -66,7 +66,7 @@ export function MailList({
                 const isUnread = !seen(item);
                 const hasAttachments = item.attachments && item.attachments.length > 0;
                 const attachmentCount = item.attachments?.length || 0;
-                
+
                 return (
                     <div
                         key={item.uid}
@@ -92,14 +92,17 @@ export function MailList({
                                 ) : (
                                     <MailOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 )}
-                                
+                                <span className="text-xs text-muted-foreground">
+                                    uid: {item.uid}
+                                </span>
+
                                 <p className={cn(
                                     "text-xs font-medium truncate ml-1",
                                     isUnread && "font-semibold"
                                 )}>
-                                    {item.from?.name || item.from?.address?.split('@')[0] || "Unknown"}
+                                    {item.from ? `${item.from.name || ""} <${item.from.address}>` : "Unknown"}
                                 </p>
-                                
+
                                 {isUnread && (
                                     <span className="flex h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0 ml-1" />
                                 )}
@@ -120,11 +123,11 @@ export function MailList({
                                         </span>
                                     </div>
                                 )}
-                                
+
                                 <span className="text-xs text-muted-foreground">
                                     {formatFileSize(item.size)}
                                 </span>
-                                
+
                                 <span className={cn(
                                     "text-xs",
                                     currentEnvelope?.uid === item.uid
@@ -159,7 +162,6 @@ export function MailList({
                                     </Badge>
                                 ))}
                             </div>
-
                             <button
                                 className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
                                 onClick={(e) => {

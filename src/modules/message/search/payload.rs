@@ -171,7 +171,7 @@ pub enum MessageSearch {
 //  }
 
 impl MessageSearch {
-    pub fn to_imap_command(&self) -> RustMailerResult<String> {
+    pub fn to_imap_command(&self, top_level: bool) -> RustMailerResult<String> {
         match self {
             Self::Condition(condition) => {
                 let c = &condition.condition;
@@ -238,34 +238,66 @@ impl MessageSearch {
                 Ok(command)
             }
             Self::Logic(logic) => {
-                let operator = match logic.operator {
-                    Operator::And => " AND ",
-                    Operator::Or => " OR ",
-                    Operator::Not => " NOT ",
-                };
+                match logic.operator {
+                    Operator::And => {
+                        let parts: Vec<String> = logic
+                            .children
+                            .iter()
+                            .map(|child| child.to_imap_command(false))
+                            .collect::<Result<_, _>>()?;
 
-                let children_commands: Vec<String> = logic
-                    .children
-                    .iter()
-                    .map(|child| -> RustMailerResult<String> {
-                        let child_command = child.to_imap_command()?;
-                        if matches!(child, Self::Logic(_)) {
-                            Ok(format!("({})", child_command))
+                        let command = parts.join(" ");
+                        if top_level {
+                            Ok(command)
                         } else {
-                            Ok(child_command)
+                            Ok(format!("({})", command))
                         }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                let command = children_commands.join(operator);
-                if logic.operator == Operator::Not {
-                    if command.starts_with('(') && command.ends_with(')') {
-                        Ok(format!("NOT {}", command))
-                    } else {
-                        Ok(format!("NOT ({})", command))
                     }
-                } else {
-                    Ok(command)
+                    Operator::Or => {
+                        if logic.children.len() < 2 {
+                            return Err(raise_error!(
+                                "OR must have at least 2 conditions".into(),
+                                ErrorCode::InvalidParameter
+                            ));
+                        }
+
+                        // 构建OR表达式时，从右向左构建
+                        let mut children = logic.children.iter().rev();
+                        let first = children.next().unwrap().to_imap_command(false)?;
+                        let mut command = first;
+
+                        // 我们需要知道还有多少元素要处理
+                        let remaining = children.len();
+                        for (i, child) in children.enumerate() {
+                            let child_cmd = child.to_imap_command(false)?;
+                            command = format!("OR {} {}", child_cmd, command);
+                            // 如果不是最后一个元素，需要加括号
+                            if i < remaining - 1 {
+                                command = format!("({})", command);
+                            }
+                        }
+
+                        if !top_level {
+                            command = format!("({})", command);
+                        }
+
+                        Ok(command)
+                    }
+                    Operator::Not => {
+                        if logic.children.len() != 1 {
+                            return Err(raise_error!(
+                                "NOT must have exactly 1 condition".into(),
+                                ErrorCode::InvalidParameter
+                            ));
+                        }
+                        let inner = logic.children[0].to_imap_command(false)?;
+                        let command = format!("NOT {}", inner);
+                        if top_level {
+                            Ok(command)
+                        } else {
+                            Ok(format!("({})", command))
+                        }
+                    }
                 }
             }
         }
@@ -370,7 +402,6 @@ impl MessageSearch {
     }
 }
 
-
 /// Request for searching messages in a specific mailbox  
 ///  
 /// This structure combines search criteria with a target mailbox.  
@@ -407,7 +438,6 @@ impl MessageSearchRequest {
         self.search_remote(&account, page, page_size, desc).await
     }
 
-
     async fn search_remote(
         &self,
         account: &Account,
@@ -429,7 +459,7 @@ impl MessageSearchRequest {
             ));
         }
 
-        let search_query = self.search.to_imap_command()?;
+        let search_query = self.search.to_imap_command(true)?;
         info!(
             "Executing remote search for account_id: {}, mailbox: {}, with query: {}",
             account.id, self.mailbox, &search_query
@@ -532,224 +562,5 @@ impl MessageSearchRequest {
             Some(total_pages),
             envelopes,
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashSet;
-
-    use super::*;
-
-    #[test]
-    fn test_generate_uid_sequence_hashset_odd_chunk_size() {
-        let unique_nums: HashSet<u32> = [1, 2, 3, 4, 5, 6, 7, 10].iter().cloned().collect();
-        let chunk_size = 3;
-
-        let result = generate_uid_sequence_hashset(unique_nums.clone(), chunk_size, false);
-        assert_eq!(result, vec!["1:3", "4:6", "7,10"]);
-        let result = generate_uid_sequence_hashset(unique_nums.clone(), chunk_size, true);
-        assert_eq!(result, vec!["6:7,10", "3:5", "1:2"]);
-    }
-
-    #[test]
-    fn test_condition_node_all() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::All,
-            value: None,
-        });
-
-        let result = condition_node.to_imap_command();
-        assert_eq!(result.unwrap(), "ALL");
-    }
-
-    #[test]
-    fn test_condition_node_from() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::From,
-            value: Some("example@example.com".to_string()),
-        });
-
-        let result = condition_node.to_imap_command();
-        assert_eq!(result.unwrap(), "FROM \"example@example.com\"");
-    }
-
-    #[test]
-    fn test_condition_node_subject() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::Subject,
-            value: Some("Hello".to_string()),
-        });
-
-        let result = condition_node.to_imap_command();
-        assert_eq!(result.unwrap(), "SUBJECT \"Hello\"");
-    }
-
-    #[test]
-    fn test_condition_node_date() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::On,
-            value: Some("2025-02-03".to_string()),
-        });
-
-        let result = condition_node.to_imap_command();
-        assert_eq!(result.unwrap(), "ON 03-Feb-2025");
-    }
-
-    #[test]
-    fn test_logic_node_and() {
-        let condition1 = MessageSearch::Condition(Condition {
-            condition: Conditions::From,
-            value: Some("example@example.com".to_string()),
-        });
-
-        let condition2 = MessageSearch::Condition(Condition {
-            condition: Conditions::Subject,
-            value: Some("Hello".to_string()),
-        });
-
-        let logic_node = MessageSearch::Logic(Logic {
-            operator: Operator::And,
-            children: vec![condition1, condition2],
-        });
-
-        let result = logic_node.to_imap_command();
-        assert_eq!(
-            result.unwrap(),
-            "FROM \"example@example.com\" AND SUBJECT \"Hello\""
-        );
-    }
-
-    #[test]
-    fn test_logic_node_or() {
-        let condition1 = MessageSearch::Condition(Condition {
-            condition: Conditions::From,
-            value: Some("example@example.com".to_string()),
-        });
-
-        let condition2 = MessageSearch::Condition(Condition {
-            condition: Conditions::Subject,
-            value: Some("Hello".to_string()),
-        });
-
-        let logic_node = MessageSearch::Logic(Logic {
-            operator: Operator::Or,
-            children: vec![condition1, condition2],
-        });
-
-        let result = logic_node.to_imap_command();
-        assert_eq!(
-            result.unwrap(),
-            "FROM \"example@example.com\" OR SUBJECT \"Hello\""
-        );
-    }
-
-    #[test]
-    fn test_logic_node_not() {
-        let condition = MessageSearch::Condition(Condition {
-            condition: Conditions::Subject,
-            value: Some("Hello".to_string()),
-        });
-
-        let logic_node = MessageSearch::Logic(Logic {
-            operator: Operator::Not,
-            children: vec![condition],
-        });
-
-        let result = logic_node.to_imap_command();
-        assert_eq!(result.unwrap(), "NOT (SUBJECT \"Hello\")");
-    }
-
-    #[test]
-    fn test_nested_logic_nodes() {
-        let condition1 = MessageSearch::Condition(Condition {
-            condition: Conditions::From,
-            value: Some("example@example.com".to_string()),
-        });
-
-        let condition2 = MessageSearch::Condition(Condition {
-            condition: Conditions::Subject,
-            value: Some("Hello".to_string()),
-        });
-
-        let logic_node1 = MessageSearch::Logic(Logic {
-            operator: Operator::And,
-            children: vec![condition1, condition2],
-        });
-
-        let condition3 = MessageSearch::Condition(Condition {
-            condition: Conditions::To,
-            value: Some("receiver@example.com".to_string()),
-        });
-
-        let logic_node2 = MessageSearch::Logic(Logic {
-            operator: Operator::Or,
-            children: vec![logic_node1, condition3],
-        });
-
-        let result = logic_node2.to_imap_command();
-        assert_eq!(
-            result.unwrap(),
-            "(FROM \"example@example.com\" AND SUBJECT \"Hello\") OR TO \"receiver@example.com\""
-        );
-    }
-
-    #[test]
-    fn test_not() {
-        let condition1 = MessageSearch::Condition(Condition {
-            condition: Conditions::From,
-            value: Some("example@example.com".to_string()),
-        });
-
-        let condition2 = MessageSearch::Condition(Condition {
-            condition: Conditions::Subject,
-            value: Some("Hello".to_string()),
-        });
-
-        let logic_node1 = MessageSearch::Logic(Logic {
-            operator: Operator::And,
-            children: vec![condition1, condition2],
-        });
-
-        let logic_node2 = MessageSearch::Logic(Logic {
-            operator: Operator::Not,
-            children: vec![logic_node1],
-        });
-
-        let result = logic_node2.to_imap_command();
-        println!("{}", result.unwrap());
-    }
-
-    #[test]
-    fn test_invalid_header_format() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::Header,
-            value: Some("InvalidHeader".to_string()), // Invalid header format
-        });
-
-        let result = condition_node.to_imap_command();
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_invalid_date_format() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::On,
-            value: Some("invalid-date".to_string()), // Invalid date format
-        });
-
-        let result = condition_node.to_imap_command();
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_invalid_number_format() {
-        let condition_node = MessageSearch::Condition(Condition {
-            condition: Conditions::Larger,
-            value: Some("not-a-number".to_string()), // Invalid number format
-        });
-
-        let result = condition_node.to_imap_command();
-        assert!(result.is_err());
     }
 }

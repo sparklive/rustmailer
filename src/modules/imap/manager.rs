@@ -24,13 +24,6 @@ impl ImapConnectionManager {
         Self { account_id }
     }
 
-    #[cfg(test)]
-    pub async fn fetch_account(&self) -> RustMailerResult<Account> {
-        // Return the default account in test environment
-        Ok(default_account())
-    }
-
-    #[cfg(not(test))]
     pub async fn fetch_account(&self) -> RustMailerResult<Account> {
         // Fetch the account entity in non-test environment
         Account::get(self.account_id).await
@@ -149,35 +142,4 @@ impl ImapConnectionManager {
 
         Ok(session)
     }
-}
-
-#[cfg(test)]
-fn default_account() -> Account {
-    use crate::modules::account::entity::{AuthConfig, Encryption, ImapConfig, SmtpConfig};
-
-    let email = "test1@zohomail.com".to_string();
-    let imap = ImapConfig {
-        // Initialize with appropriate values
-        //host: "imap.zoho.com".to_string(),
-        host: "imap.zoho.com".to_string(),
-        port: 993,
-        encryption: Encryption::Ssl,
-        auth: AuthConfig {
-            auth_type: AuthType::Password,
-            password: Some("xxxxxxxxxx".to_string()),
-        },
-        use_proxy: None,
-    };
-    let smtp = SmtpConfig {
-        // Initialize with appropriate values
-        host: "smtp.example.com".to_string(),
-        port: 465,
-        encryption: Encryption::Ssl,
-        auth: AuthConfig {
-            auth_type: AuthType::Password,
-            password: Some("".to_string()),
-        },
-        use_proxy: None,
-    };
-    Account::new(email, None, imap, smtp, false, false, None, None, 100, 200)
 }

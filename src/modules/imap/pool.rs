@@ -28,7 +28,6 @@ impl bb8::ManageConnection for ImapConnectionManager {
 
 pub async fn build_imap_pool(account_id: u64) -> RustMailerResult<Pool<ImapConnectionManager>> {
     let manager = ImapConnectionManager::new(account_id);
-
     let pool = Pool::builder()
         .connection_timeout(Duration::from_secs(30))
         .idle_timeout(Duration::from_secs(120))
