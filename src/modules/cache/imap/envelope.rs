@@ -1,9 +1,12 @@
+use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
+use crate::modules::cache::imap::manager::EnvelopeFlagsManager;
+use crate::modules::cache::imap::minimal::MinimalEnvelope;
 use crate::modules::common::Addr;
 use crate::modules::database::manager::DB_MANAGER;
 use crate::modules::database::{
-    batch_delete_impl, batch_insert_impl, delete_impl, paginate_secondary_scan_impl,
-    secondary_find_impl, update_impl,
+    batch_delete_impl, delete_impl, paginate_secondary_scan_impl, secondary_find_impl, update_impl,
+    with_transaction,
 };
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerResult;
@@ -133,8 +136,50 @@ impl EmailEnvelope {
         .await
     }
 
-    pub async fn batch_insert(envelopes: &[EmailEnvelope]) -> RustMailerResult<()> {
-        batch_insert_impl(DB_MANAGER.envelope_db(), envelopes.to_vec()).await
+    pub async fn get(envelope_hash: u64) -> RustMailerResult<Option<EmailEnvelope>> {
+        secondary_find_impl(
+            DB_MANAGER.envelope_db(),
+            EmailEnvelopeKey::create_envelope_hash,
+            envelope_hash,
+        )
+        .await
+    }
+
+    pub async fn save_envelopes(envelopes: Vec<EmailEnvelope>) -> RustMailerResult<()> {
+        with_transaction(DB_MANAGER.envelope_db(), move |rw| {
+            for e in envelopes {
+                // Create a minimal representation of the envelope to speed up UID and flags_hash lookup
+                // This avoids the need to deserialize the full EmailEnvelope during sync
+                let minimal: MinimalEnvelope = MinimalEnvelope::from(&e);
+
+                EnvelopeFlagsManager::update_flag_change(
+                    e.account_id,
+                    e.mailbox_id,
+                    e.uid,
+                    e.flags_hash,
+                );
+
+                // Extract address entities (e.g. from, to, cc) for indexing
+                // This allows searching emails by address, especially useful since to/cc are vectors
+                let address_entities = AddressEntity::extract(&e);
+
+                // Store the full envelope
+                rw.insert::<EmailEnvelope>(e)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
+                // Store the minimal envelope for quick access during sync
+                rw.insert::<MinimalEnvelope>(minimal)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
+                // Store each address entity to enable address-based search
+                for a in address_entities {
+                    rw.insert::<AddressEntity>(a)
+                        .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+                }
+            }
+            Ok(())
+        })
+        .await
     }
 
     pub async fn list_messages_in_mailbox(

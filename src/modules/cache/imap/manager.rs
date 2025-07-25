@@ -6,6 +6,7 @@ use std::sync::LazyLock;
 use tracing::warn;
 
 use crate::modules::account::entity::Account;
+use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::envelope::EmailEnvelope;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
@@ -70,7 +71,8 @@ impl EnvelopeFlagsManager {
     pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
         FLAGS_STATE_MAP.remove(&account_id);
         EmailEnvelope::clean_account(account_id).await?;
-        MinimalEnvelope::clean_account(account_id).await
+        MinimalEnvelope::clean_account(account_id).await?;
+        AddressEntity::clean_account(account_id).await
     }
 
     pub async fn clean_envelopes(
@@ -93,20 +95,21 @@ impl EnvelopeFlagsManager {
         }
         EmailEnvelope::clean_envelopes(account_id, mailbox_id, to_delete_uid).await?;
         MinimalEnvelope::clean_envelopes(account_id, mailbox_id, to_delete_uid).await?;
-        Ok(())
+        AddressEntity::clean_envelopes(account_id, mailbox_id, to_delete_uid).await
     }
 
+    /// Clean all data associated with a specific mailbox for a given account.
     pub async fn clean_mailbox(account_id: u64, mailbox_hash: u64) -> RustMailerResult<()> {
         if let Some(mailbox_map) = FLAGS_STATE_MAP.get(&account_id) {
             mailbox_map.remove(&mailbox_hash);
         }
         EmailEnvelope::clean_mailbox_envelopes(account_id, mailbox_hash).await?;
-        MinimalEnvelope::clean_mailbox_envelopes(account_id, mailbox_hash).await
+        MinimalEnvelope::clean_mailbox_envelopes(account_id, mailbox_hash).await?;
+        AddressEntity::clean_mailbox_envelopes(account_id, mailbox_hash).await
     }
 
     pub fn get_uid_map(account_id: u64, mailbox_id: u64, min_uid: UID) -> AHashMap<UID, FlagsHash> {
         let mut result = AHashMap::new();
-
         if let Some(mailboxes) = FLAGS_STATE_MAP.get(&account_id) {
             if let Some(uids_map) = mailboxes.get(&mailbox_id) {
                 for entry in uids_map.iter() {
@@ -117,7 +120,6 @@ impl EnvelopeFlagsManager {
                 }
             }
         }
-
         result
     }
 

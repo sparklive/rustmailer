@@ -50,9 +50,8 @@ impl MinimalEnvelope {
         .await
     }
 
-    pub async fn batch_insert(envelopes: &[MinimalEnvelope]) -> RustMailerResult<()> {
-        batch_insert_impl(DB_MANAGER.envelope_db(), envelopes.to_vec()).await?;
-        for e in envelopes {
+    pub async fn batch_insert(envelopes: Vec<MinimalEnvelope>) -> RustMailerResult<()> {
+        for e in &envelopes {
             EnvelopeFlagsManager::update_flag_change(
                 e.account_id,
                 e.mailbox_id,
@@ -60,6 +59,7 @@ impl MinimalEnvelope {
                 e.flags_hash,
             );
         }
+        batch_insert_impl(DB_MANAGER.envelope_db(), envelopes).await?;
         Ok(())
     }
 
@@ -192,8 +192,8 @@ impl MinimalEnvelope {
     }
 }
 
-impl From<EmailEnvelope> for MinimalEnvelope {
-    fn from(value: EmailEnvelope) -> Self {
+impl From<&EmailEnvelope> for MinimalEnvelope {
+    fn from(value: &EmailEnvelope) -> Self {
         Self {
             account_id: value.account_id,
             mailbox_id: value.mailbox_id,

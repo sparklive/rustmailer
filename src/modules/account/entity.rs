@@ -106,43 +106,6 @@ impl Account {
         format!("{}_{}", self.created_at, self.id)
     }
 
-    #[cfg(test)]
-    pub fn new(
-        email: String,
-        name: Option<String>,
-        imap: ImapConfig,
-        smtp: SmtpConfig,
-        enabled: bool,
-        minimal_sync: bool,
-        date_since: Option<DateSince>,
-        sync_folders: Option<Vec<String>>,
-        full_sync_interval_min: i64,
-        incremental_sync_interval_sec: i64,
-    ) -> Self {
-        use crate::id;
-
-        Account {
-            id: id!(64),
-            email,
-            name,
-            imap,
-            smtp,
-            enabled,
-            minimal_sync,
-            capabilities: Vec::new(),
-            //status: AccountStatus::Registered,
-            //error_reason: None,
-            date_since,
-            dsn_capable: None,
-            sync_folders: sync_folders.unwrap_or(Vec::new()),
-            known_folders: BTreeSet::new(),
-            full_sync_interval_min,
-            incremental_sync_interval_sec,
-            created_at: utc_now!(),
-            updated_at: utc_now!(),
-        }
-    }
-
     pub fn create(request: AccountCreateRequest) -> RustMailerResult<Self> {
         Ok(Account {
             id: id!(64),

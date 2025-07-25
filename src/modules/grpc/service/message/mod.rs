@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::grpc::service::rustmailer_grpc::{
-    ByteResponse, MessageContentResponse, PagedMessages,
+    ByteResponse, MessageContentResponse, PagedMessages, UnifiedSearchRequest,
 };
 use crate::modules::grpc::service::rustmailer_grpc::{
     Empty, FetchFullMessageRequest, FetchMessageAttachmentRequest, FetchMessageContentRequest,
@@ -20,6 +20,7 @@ use crate::modules::message::full::retrieve_full_email;
 use crate::modules::message::list::list_messages_in_mailbox;
 use crate::modules::message::mv::move_mailbox_messages;
 use crate::modules::message::search::payload::MessageSearchRequest as RustMailerMessageSearchRequest;
+use crate::modules::message::search::payload::UnifiedSearchRequest as RustMailerUnifiedSearchRequest;
 use crate::raise_error;
 use poem_grpc::{Request, Response, Status};
 use tokio::io::AsyncReadExt;
@@ -239,6 +240,43 @@ impl MessageService for RustMailerMessageService {
             .map_err(|e: &'static str| raise_error!(e.to_string(), ErrorCode::InvalidParameter))?;
 
         let result = request.search(account_id, page, page_size, desc).await?;
+        Ok(Response::new(result.into()))
+    }
+
+    async fn unified_search(
+        &self,
+        request: Request<UnifiedSearchRequest>,
+    ) -> Result<Response<PagedMessages>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+        let page = req.page;
+        let page_size = req.page_size;
+        let desc = req.desc;
+
+        let mut request: RustMailerUnifiedSearchRequest = req.into();
+
+        match &mut request.accounts {
+            Some(accounts) => {
+                for &account_id in accounts.iter() {
+                    context.require_account_access(account_id)?;
+                }
+            }
+            None => {
+                if !context.is_root {
+                    // Inject accessible accounts if not specified
+                    if let Some(accessible) = context.accessible_accounts()? {
+                        let account_ids = accessible.iter().map(|a| a.id).collect::<Vec<u64>>();
+                        request.accounts = Some(account_ids);
+                    }
+                }
+            }
+        }
+        let result = request.search(page, page_size, desc).await?;
         Ok(Response::new(result.into()))
     }
 }

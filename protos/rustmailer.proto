@@ -840,6 +840,39 @@ message MessageSearchRequest {
   bool desc = 6;
 }
 
+/// Request structure for unified message search across accounts.
+message UnifiedSearchRequest {
+  // Optional list of account IDs to search within.
+  // If omitted, search across all accessible accounts.
+  repeated uint64 accounts = 1;
+
+  // Customer email address to search for.
+  // This will match fields like from, to, cc, and bcc.
+  string email = 2;
+
+  // Optional start timestamp in UTC milliseconds.
+  // Filters messages received/sent after this time.
+  optional int64 after = 3;
+
+  // Optional end timestamp in UTC milliseconds.
+  // Filters messages received/sent before this time.
+  optional int64 before = 4;
+
+  // The page number to retrieve, starting from 1.
+  // Defaults to 1 if not specified.
+  uint64 page = 5;
+
+  // Number of messages to return per page.
+  // Defaults to a reasonable value (e.g., 50).
+  uint64 page_size = 6;
+
+  // If true, sort messages in descending order (newest first).
+  // If false or unset, sort in ascending order (oldest first).
+  bool desc = 7;
+}
+
+
+
 // ListMessagesRequest is used to retrieve a list of messages from a mailbox with pagination.
 message ListMessagesRequest {
   // The ID of the account.
@@ -912,6 +945,8 @@ service MessageService {
   rpc FetchFullMessage(FetchFullMessageRequest) returns (ByteResponse);
   // Searches for messages within a mailbox based on specified criteria.
   rpc MessageSearch(MessageSearchRequest) returns (PagedMessages);
+  // Performs a unified search across mail accounts and messages.
+  rpc UnifiedSearch(UnifiedSearchRequest) returns (PagedMessages);
 }
 
 // Mta represents a Mail Transfer Agent configuration.

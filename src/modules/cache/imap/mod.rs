@@ -3,26 +3,27 @@ use std::sync::LazyLock;
 use crate::{
     calculate_hash,
     modules::{
-        cache::imap::{envelope::EmailEnvelope, minimal::MinimalEnvelope},
+        cache::imap::{address::AddressEntity, envelope::EmailEnvelope, minimal::MinimalEnvelope},
         database::ModelsAdapter,
     },
 };
 use ahash::{AHashMap, AHashSet};
 use mailbox::{EmailFlag, EnvelopeFlag, MailBox};
 use native_db::Models;
+pub mod address;
 pub mod envelope;
 pub mod mailbox;
-pub mod minimal;
 pub mod manager;
+pub mod minimal;
 pub mod sync;
 pub mod task;
-
 
 pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
     let mut adapter = ModelsAdapter::new();
     adapter.register_model::<EmailEnvelope>();
     adapter.register_model::<MailBox>();
     adapter.register_model::<MinimalEnvelope>();
+    adapter.register_model::<AddressEntity>();
     adapter.models
 });
 

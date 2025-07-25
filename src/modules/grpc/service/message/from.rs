@@ -14,6 +14,7 @@ use crate::modules::{
         flag::{FlagAction, FlagMessageRequest},
         search::payload::{
             Condition, Conditions, Logic, MessageSearch, MessageSearchRequest, Operator,
+            UnifiedSearchRequest,
         },
     },
     rest::response::DataPage,
@@ -433,6 +434,21 @@ impl TryFrom<rustmailer_grpc::MessageSearch> for MessageSearch {
             rustmailer_grpc::message_search::SearchType::Logic(logic) => {
                 Ok(MessageSearch::Logic(logic.try_into()?))
             }
+        }
+    }
+}
+
+impl From<rustmailer_grpc::UnifiedSearchRequest> for UnifiedSearchRequest {
+    fn from(value: rustmailer_grpc::UnifiedSearchRequest) -> Self {
+        Self {
+            accounts: if value.accounts.is_empty() {
+                None
+            } else {
+                Some(value.accounts)
+            },
+            email: value.email,
+            after: value.after,
+            before: value.before,
         }
     }
 }

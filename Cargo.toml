@@ -23,7 +23,7 @@ chrono = "0.4.41"
 clap = { version = "4.5.41", features = ["derive", "env"] }
 mimalloc = "0.1.47"
 native_db = "0.8.2"
-redb = "2.6.0"
+redb = "2.6.1"
 itertools = "0.14.0"
 native_model = "0.4.20"
 poem = { version = "3.1.11", features = ["embed", "compression", "rustls"] }

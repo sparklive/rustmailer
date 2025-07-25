@@ -107,14 +107,11 @@ pub async fn fetch_and_save_since_date(
                         if minimal_sync {
                             let envelopes =
                                 extract_minimal_envelopes(fetches, account_id, mailbox_hash)?;
-                            MinimalEnvelope::batch_insert(&envelopes).await?;
+                            MinimalEnvelope::batch_insert(envelopes).await?;
                         } else {
                             let envelopes =
                                 extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
-                            EmailEnvelope::batch_insert(&envelopes).await?;
-                            let envelopes: Vec<MinimalEnvelope> =
-                                envelopes.into_iter().map(|e| e.into()).collect();
-                            MinimalEnvelope::batch_insert(&envelopes).await?;
+                            EmailEnvelope::save_envelopes(envelopes).await?;
                         };
                         Ok(())
                     });
@@ -187,16 +184,13 @@ pub async fn fetch_and_save_full_mailbox(
                             .await?;
                         let count = fetches.len();
                         if minimal_sync {
-                            let documents =
+                            let envelopes =
                                 extract_minimal_envelopes(fetches, account_id, mailbox_id)?;
-                            MinimalEnvelope::batch_insert(&documents).await?;
+                            MinimalEnvelope::batch_insert(envelopes).await?;
                         } else {
-                            let documents =
+                            let envelopes =
                                 extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
-                            EmailEnvelope::batch_insert(&documents).await?;
-                            let documents: Vec<MinimalEnvelope> =
-                                documents.into_iter().map(|e| e.into()).collect();
-                            MinimalEnvelope::batch_insert(&documents).await?;
+                            EmailEnvelope::save_envelopes(envelopes).await?;
                         };
                         info!("Batch insertion completed for mailbox: {}, current page: {}, inserted count: {}", &mailbox_name, page, count);
                         Ok(count)
@@ -223,6 +217,24 @@ pub async fn fetch_and_save_full_mailbox(
     Ok(inserted_count)
 }
 
+/// # Example
+///
+/// ```rust
+/// use std::collections::HashSet;
+///
+/// let mut uids = HashSet::new();
+/// uids.extend([1, 2, 3, 5, 6, 7, 9, 10, 11, 15]);
+///
+/// let chunks = generate_uid_sequence_hashset(uids, 6, false);
+/// assert_eq!(chunks, vec![
+///     "1:3,5:7".to_string(),
+///     "9:11,15".to_string()
+/// ]);
+/// ```
+///
+/// This splits the UIDs into chunks of 6, compresses each chunk into ranges,
+/// and returns a vector like: `["1:3,5:7", "9:11,15"]`.
+///
 pub fn generate_uid_sequence_hashset(
     unique_nums: HashSet<u32>,
     chunk_size: usize,
@@ -455,7 +467,6 @@ async fn perform_incremental_sync(
     }
 
     if remote_mailbox.exists > 0 {
-        //let local_max_uid = INDEX_MANAGER.get_max_uid(account, local_mailbox.id).await?;
         let local_max_uid = EnvelopeFlagsManager::get_max_uid(account.id, local_mailbox.id);
         match local_max_uid {
             Some(max_uid) => {
@@ -526,7 +537,6 @@ async fn perform_full_sync(
         EnvelopeFlagsManager::clean_mailbox(account.id, local_mailbox.id).await?;
         return Ok(());
     }
-   
 
     let local_uid_flags_index = EnvelopeFlagsManager::get_uid_map(account.id, local_mailbox.id, 0);
 
@@ -654,7 +664,7 @@ async fn cleanup_missing_remote_emails(
             mailbox_name,
             uids_to_remove.len()
         );
-        
+
         EnvelopeFlagsManager::clean_envelopes(account.id, mailbox_id, &uids_to_remove).await?;
     }
     Ok(())
@@ -703,7 +713,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
                 flags_hash,
             })
             .collect();
-        MinimalEnvelope::batch_insert(&envelopes).await?;
+        MinimalEnvelope::batch_insert(envelopes).await?;
     }
 
     // Process batches of UIDs
@@ -720,9 +730,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
 
         // Store rich documents if not in minimal sync mode
         let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
-        EmailEnvelope::batch_insert(&envelopes).await?;
-        let documents: Vec<MinimalEnvelope> = envelopes.into_iter().map(|e| e.into()).collect();
-        MinimalEnvelope::batch_insert(&documents).await?;
+        EmailEnvelope::save_envelopes(envelopes).await?;
 
         // Process bounce reports if needed
         if is_bounce_watched {
@@ -824,7 +832,7 @@ async fn handle_minimal_sync_or_metadata_fetch(
                 flags_hash,
             })
             .collect();
-        MinimalEnvelope::batch_insert(&envelopes).await?;
+        MinimalEnvelope::batch_insert(envelopes).await?;
     } else {
         info!("Account {}: Mailbox '{}' has {} new message UID(s) to fetch metadata. Starting download...", account.id, &remote.name, len);
 
@@ -839,9 +847,7 @@ async fn handle_minimal_sync_or_metadata_fetch(
                 .uid_fetch_meta(&batch, &remote.encoded_name(), false)
                 .await?;
             let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
-            EmailEnvelope::batch_insert(&envelopes).await?;
-            let documents: Vec<MinimalEnvelope> = envelopes.into_iter().map(|e| e.into()).collect();
-            MinimalEnvelope::batch_insert(&documents).await?;
+            EmailEnvelope::save_envelopes(envelopes).await?;
         }
 
         info!(

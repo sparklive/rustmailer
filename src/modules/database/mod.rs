@@ -135,6 +135,25 @@ pub async fn batch_upsert_impl<T: ToInput + Clone + Send + 'static>(
     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
 }
 
+pub async fn with_transaction(
+    database: &Arc<Database<'static>>,
+    f: impl FnOnce(&RwTransaction) -> RustMailerResult<()> + Send + 'static,
+) -> RustMailerResult<()> {
+    let db = database.clone();
+    tokio::task::spawn_blocking(move || {
+        let rw_transaction = db
+            .rw_transaction()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+        f(&rw_transaction)?;
+        rw_transaction
+            .commit()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+}
+
 pub async fn upsert_impl<T: ToInput + Clone + Send + 'static>(
     database: &Arc<Database<'static>>,
     item: T,
@@ -417,7 +436,6 @@ pub async fn filter_by_secondary_key_impl<T: ToInput + Clone + Send + 'static>(
     .await
     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
 }
-
 
 pub async fn count_by_unique_secondary_key_impl<T: ToInput + Clone + Send + 'static>(
     database: &Arc<Database<'static>>,

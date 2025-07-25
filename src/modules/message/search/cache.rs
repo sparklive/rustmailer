@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 pub static IMAP_SEARCH_CACHE: LazyLock<ImapSearchCache> =
-    LazyLock::new(|| ImapSearchCache::new(100, Duration::from_secs(60)));
+    LazyLock::new(|| ImapSearchCache::new(100, Duration::from_secs(120)));
 
 #[derive(Clone)]
 struct CacheEntry {

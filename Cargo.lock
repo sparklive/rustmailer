@@ -3784,7 +3784,7 @@ dependencies = [
  "native_db_macro",
  "native_model",
  "redb 1.5.1",
- "redb 2.6.0",
+ "redb 2.6.1",
  "semver 1.0.26",
  "serde",
  "skeptic",
@@ -5218,9 +5218,9 @@ dependencies = [
 
 [[package]]
 name = "redb"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cef6a6d3a65ea334d6cdfb31fa2525c20184b7aa7bd1ad1e2e37502610d4609f"
+checksum = "fef838cd981b5c46e9e91e20e4623e43b29b5c251eb245b34da0cbd2da09ab27"
 dependencies = [
  "libc",
 ]
@@ -5618,7 +5618,7 @@ dependencies = [
  "prost-types",
  "pulldown-cmark 0.13.0",
  "rand 0.9.2",
- "redb 2.6.0",
+ "redb 2.6.1",
  "regex",
  "reqwest",
  "ring",

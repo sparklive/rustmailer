@@ -13,7 +13,7 @@ use crate::modules::message::flag::{modify_flags, FlagMessageRequest};
 use crate::modules::message::full::retrieve_full_email;
 use crate::modules::message::list::list_messages_in_mailbox;
 use crate::modules::message::mv::move_mailbox_messages;
-use crate::modules::message::search::payload::MessageSearchRequest;
+use crate::modules::message::search::payload::{MessageSearchRequest, UnifiedSearchRequest};
 use crate::modules::rest::api::ApiTags;
 use crate::modules::rest::response::DataPage;
 use crate::modules::rest::ApiResult;
@@ -253,5 +253,53 @@ impl MessageApi {
                 .search(account_id, page.0, page_size.0, desc)
                 .await?,
         ))
+    }
+
+    /// Searches for messages from local cache for the specified account(s).
+    /// This performs a unified search across mailboxes based on indexed data,
+    /// without querying the remote IMAP server.
+    #[oai(
+        path = "/unified-search",
+        method = "post",
+        operation_id = "unified_search"
+    )]
+    async fn unified_search(
+        &self,
+        /// The page number for pagination (1-based).
+        page: Query<u64>,
+
+        /// The number of messages per page.
+        page_size: Query<u64>,
+
+        /// If `true`, lists results in descending order; otherwise, ascending.
+        desc: Query<Option<bool>>,
+
+        /// The unified search criteria (email, time range, accounts, etc.).
+        payload: Json<UnifiedSearchRequest>,
+
+        /// Request context (includes authentication and permissions).
+        context: ClientContext,
+    ) -> ApiResult<Json<DataPage<EmailEnvelope>>> {
+        let mut request = payload.0;
+        let desc = desc.0.unwrap_or(false);
+
+        // Ensure account access control
+        match &mut request.accounts {
+            Some(accounts) => {
+                for &account_id in accounts.iter() {
+                    context.require_account_access(account_id)?;
+                }
+            }
+            None => {
+                if !context.is_root {
+                    // Inject accessible accounts if not specified
+                    if let Some(accessible) = context.accessible_accounts()? {
+                        let account_ids = accessible.iter().map(|a| a.id).collect::<Vec<u64>>();
+                        request.accounts = Some(account_ids);
+                    }
+                }
+            }
+        }
+        Ok(Json(request.search(page.0, page_size.0, desc).await?))
     }
 }

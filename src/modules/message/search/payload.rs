@@ -1,4 +1,7 @@
+use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
+use crate::modules::common::paginated::paginate_vec;
+use crate::modules::database::Paginated;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::message::search::cache::IMAP_SEARCH_CACHE;
 use crate::{
@@ -10,6 +13,7 @@ use crate::{
     },
     raise_error,
 };
+use ahash::AHashMap;
 use chrono::NaiveDate;
 use poem_openapi::{Enum, Object, Union};
 use serde::{Deserialize, Serialize};
@@ -237,69 +241,64 @@ impl MessageSearch {
                 };
                 Ok(command)
             }
-            Self::Logic(logic) => {
-                match logic.operator {
-                    Operator::And => {
-                        let parts: Vec<String> = logic
-                            .children
-                            .iter()
-                            .map(|child| child.to_imap_command(false))
-                            .collect::<Result<_, _>>()?;
+            Self::Logic(logic) => match logic.operator {
+                Operator::And => {
+                    let parts: Vec<String> = logic
+                        .children
+                        .iter()
+                        .map(|child| child.to_imap_command(false))
+                        .collect::<Result<_, _>>()?;
 
-                        let command = parts.join(" ");
-                        if top_level {
-                            Ok(command)
-                        } else {
-                            Ok(format!("({})", command))
-                        }
-                    }
-                    Operator::Or => {
-                        if logic.children.len() < 2 {
-                            return Err(raise_error!(
-                                "OR must have at least 2 conditions".into(),
-                                ErrorCode::InvalidParameter
-                            ));
-                        }
-
-                        // 构建OR表达式时，从右向左构建
-                        let mut children = logic.children.iter().rev();
-                        let first = children.next().unwrap().to_imap_command(false)?;
-                        let mut command = first;
-
-                        // 我们需要知道还有多少元素要处理
-                        let remaining = children.len();
-                        for (i, child) in children.enumerate() {
-                            let child_cmd = child.to_imap_command(false)?;
-                            command = format!("OR {} {}", child_cmd, command);
-                            // 如果不是最后一个元素，需要加括号
-                            if i < remaining - 1 {
-                                command = format!("({})", command);
-                            }
-                        }
-
-                        if !top_level {
-                            command = format!("({})", command);
-                        }
-
+                    let command = parts.join(" ");
+                    if top_level {
                         Ok(command)
-                    }
-                    Operator::Not => {
-                        if logic.children.len() != 1 {
-                            return Err(raise_error!(
-                                "NOT must have exactly 1 condition".into(),
-                                ErrorCode::InvalidParameter
-                            ));
-                        }
-                        let inner = logic.children[0].to_imap_command(false)?;
-                        let command = format!("NOT {}", inner);
-                        if top_level {
-                            Ok(command)
-                        } else {
-                            Ok(format!("({})", command))
-                        }
+                    } else {
+                        Ok(format!("({})", command))
                     }
                 }
-            }
+                Operator::Or => {
+                    if logic.children.len() < 2 {
+                        return Err(raise_error!(
+                            "OR must have at least 2 conditions".into(),
+                            ErrorCode::InvalidParameter
+                        ));
+                    }
+
+                    let mut children = logic.children.iter().rev();
+                    let first = children.next().unwrap().to_imap_command(false)?;
+                    let mut command = first;
+
+                    let remaining = children.len();
+                    for (i, child) in children.enumerate() {
+                        let child_cmd = child.to_imap_command(false)?;
+                        command = format!("OR {} {}", child_cmd, command);
+                        if i < remaining - 1 {
+                            command = format!("({})", command);
+                        }
+                    }
+
+                    if !top_level {
+                        command = format!("({})", command);
+                    }
+
+                    Ok(command)
+                }
+                Operator::Not => {
+                    if logic.children.len() != 1 {
+                        return Err(raise_error!(
+                            "NOT must have exactly 1 condition".into(),
+                            ErrorCode::InvalidParameter
+                        ));
+                    }
+                    let inner = logic.children[0].to_imap_command(false)?;
+                    let command = format!("NOT {}", inner);
+                    if top_level {
+                        Ok(command)
+                    } else {
+                        Ok(format!("({})", command))
+                    }
+                }
+            },
         }
     }
 
@@ -562,5 +561,92 @@ impl MessageSearchRequest {
             Some(total_pages),
             envelopes,
         ))
+    }
+}
+
+/// Query parameters for unified customer email search.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Object)]
+pub struct UnifiedSearchRequest {
+    /// Optional list of account IDs to search within. If omitted, search all accessible accounts.
+    pub accounts: Option<Vec<u64>>,
+
+    /// Customer email address to search for (appears in from, to, cc, bcc).
+    pub email: String,
+
+    /// Optional start timestamp (UTC milliseconds). Filters messages after this time.
+    pub after: Option<i64>,
+
+    /// Optional end timestamp (UTC milliseconds). Filters messages before this time.
+    pub before: Option<i64>,
+}
+
+impl UnifiedSearchRequest {
+    pub async fn search(
+        &self,
+        page: u64,
+        page_size: u64,
+        desc: bool,
+    ) -> RustMailerResult<DataPage<EmailEnvelope>> {
+        if page == 0 || page_size == 0 {
+            return Err(raise_error!(
+                "'page' and 'page_size' must be greater than 0.".into(),
+                ErrorCode::InvalidParameter
+            ));
+        }
+
+        let filter = |entities: Vec<AddressEntity>| {
+            entities.into_iter().filter(|e| {
+                let ts = e.internal_date.unwrap_or(0);
+                let time_match =
+                    self.after.map_or(true, |a| ts >= a) && self.before.map_or(true, |b| ts <= b);
+                let account_match = self
+                    .accounts
+                    .as_ref()
+                    .map_or(true, |accounts| accounts.contains(&e.account_id));
+                time_match && account_match
+            })
+        };
+
+        let from = filter(AddressEntity::from(&self.email).await?);
+        let to = filter(AddressEntity::to(&self.email).await?);
+        let cc = filter(AddressEntity::cc(&self.email).await?);
+
+        let all = from.into_iter().chain(to.into_iter()).chain(cc.into_iter());
+
+        let mut hash_map: AHashMap<u64, i64> = AHashMap::new();
+
+        for entity in all {
+            let ts = entity.internal_date.unwrap_or(0);
+            hash_map.entry(entity.envelope_hash).or_insert(ts);
+        }
+
+        let mut vec: Vec<(u64, i64)> = hash_map.into_iter().collect();
+        vec.sort_by(|a, b| b.1.cmp(&a.1));
+
+        if !desc {
+            vec.reverse();
+        }
+
+        let result = paginate_vec(&vec, Some(page), Some(page_size))?;
+        let mut items = Vec::new();
+        for (id, _) in result.items {
+            let envelope = EmailEnvelope::get(id).await?.ok_or_else(|| {
+                raise_error!(
+                    format!("Failed to get EmailEnvelope for hash {id} in search operation"),
+                    ErrorCode::InternalError
+                )
+            })?;
+            items.push(envelope);
+        }
+
+        let paginated = Paginated::new(
+            result.page,
+            result.page_size,
+            result.total_items,
+            result.total_pages,
+            items,
+        );
+
+        Ok(paginated.into())
     }
 }

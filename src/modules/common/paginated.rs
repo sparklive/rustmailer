@@ -8,7 +8,7 @@ use crate::{
     raise_error,
 };
 
-pub fn paginate_vec<T: Clone>(
+pub fn  paginate_vec<T: Clone>(
     items: &Vec<T>,
     page: Option<u64>,
     page_size: Option<u64>,

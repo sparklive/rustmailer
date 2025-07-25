@@ -3,9 +3,14 @@ use poem_grpc::{ClientConfig, CompressionEncoding, Metadata};
 
 use crate::{
     id,
-    modules::{common::rustls::RustMailerTls, context::Initialize, grpc::service::rustmailer_grpc::{
-        ListMessagesRequest, MessageServiceClient, TemplateSentTestRequest, TemplatesServiceClient,
-    }},
+    modules::{
+        common::rustls::RustMailerTls,
+        context::Initialize,
+        grpc::service::rustmailer_grpc::{
+            ListMessagesRequest, MessageServiceClient, TemplateSentTestRequest,
+            TemplatesServiceClient, UnifiedSearchRequest,
+        },
+    },
 };
 
 #[tokio::test]
@@ -47,9 +52,8 @@ async fn test1() {
 
 #[tokio::test]
 async fn test2() {
-
     RustMailerTls::initialize().await.unwrap();
-    
+
     let cfg = ClientConfig::builder()
         .uri("http://localhost:16630")
         .build()
@@ -72,4 +76,35 @@ async fn test2() {
     );
 
     let response = grpc_client.send_test_email(request).await.unwrap();
+}
+
+#[tokio::test]
+async fn test3() {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = MessageServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = UnifiedSearchRequest {
+        accounts: Vec::new(),
+        email: "no-reply@accounts.google.com".into(),
+        after: None,
+        before: None,
+        page: 1,
+        page_size: 15,
+        desc: true,
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    let response = grpc_client.unified_search(request).await.unwrap();
+    println!("{:#?}", response.items);
 }
