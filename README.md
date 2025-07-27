@@ -93,8 +93,8 @@ cargo build --release
 If you don’t want to build manually, you can follow the Docker-based installation guide here:
 📄 [Install via Docker](https://rustmailer.com/docs/install/docker)
 
-> 🔐 RustMailer comes with a free 14-day trial and supports up to 10 email accounts without a license. See [License](#license) for details.
-
+> 🔐 RustMailer offers a free 14-day trial with unlimited email accounts during the trial period. See License for details.
+> A valid license key is required for continued use after the trial.
 
 ## ⚙️ Configuration
 
