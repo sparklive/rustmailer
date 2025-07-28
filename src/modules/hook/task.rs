@@ -109,7 +109,7 @@ impl Task for EventHookTask {
     const TASK_QUEUE: &'static str = EVENTHOOK_QUEUE;
 
     fn delay_seconds(&self) -> u32 {
-        1
+        0
     }
 
     fn retry_policy(&self) -> RetryPolicy {

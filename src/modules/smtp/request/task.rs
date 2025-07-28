@@ -99,7 +99,7 @@ impl Task for SmtpTask {
 
     //default delay seconds
     fn delay_seconds(&self) -> u32 {
-        1
+        0
     }
 
     fn retry_policy(&self) -> RetryPolicy {
