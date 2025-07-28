@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::common::signal::SIGNAL_MANAGER;
 use crate::modules::scheduler::model::TaskMeta;
 use crate::modules::scheduler::processor::Package;

@@ -1,3 +1,8 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
+
 // These bounce subject prefixes are inspired by the go-sisimai project:
 // https://github.com/sisimai/go-sisimai
 // They are used to identify common bounce or feedback message subjects.

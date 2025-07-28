@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import { flag_messages } from '@/api/mailbox/envelope/api';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from './use-toast';

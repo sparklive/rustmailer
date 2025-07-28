@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use base64::{engine::general_purpose, Engine as _};
 use ring::aead::{Aad, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, AES_256_GCM};
 use ring::pbkdf2::{self, derive};

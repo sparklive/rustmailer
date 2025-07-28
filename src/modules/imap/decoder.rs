@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use mail_parser::parsers::MessageStream;
 
 pub fn try_decode_string(encoded: &str) -> String {

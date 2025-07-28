@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import { Row } from '@tanstack/react-table'
 import { AccountEntity } from '../data/schema'
 import { Switch } from '@/components/ui/switch'

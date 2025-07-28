@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::context::RustMailTask;
 use crate::modules::oauth2::{flow::OAuth2Flow, token::OAuth2AccessToken};
 use crate::modules::scheduler::periodic::PeriodicTask;

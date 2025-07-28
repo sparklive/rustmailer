@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 const ACCESS_TOKEN_KEY = 'f4d3e92d7b1241a8a0b2e7cdb5c5d19d';
 
 export const setAccessToken = (token: string) => {

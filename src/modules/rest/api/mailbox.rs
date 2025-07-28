@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::cache::imap::mailbox::MailBox;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::mailbox::create::create_mailbox;

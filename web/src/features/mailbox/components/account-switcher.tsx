@@ -1,3 +1,10 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
+
 import useMinimalAccountList from "@/hooks/use-minimal-account-list";
 import { VirtualizedSelect } from "@/components/virtualized-select";
 import { Button } from "@/components/ui/button";

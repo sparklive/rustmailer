@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use mail_send::mail_builder::headers::raw::Raw as XRaw;
 use mail_send::mail_builder::headers::text::Text as XText;
 use mail_send::mail_builder::headers::url::URL as XURL;

@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
 // import { ReactQueryDevtools } from '@tanstack/react-query-devtools'

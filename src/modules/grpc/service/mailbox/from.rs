@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, EmailFlag, EnvelopeFlag};
 use crate::modules::mailbox::rename::MailboxRenameRequest;
 use crate::modules::{cache::imap::mailbox::MailBox, grpc::service::rustmailer_grpc};

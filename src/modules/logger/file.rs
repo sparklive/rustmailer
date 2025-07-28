@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::logger::{validate_log_level, LocalTimer};
 use crate::modules::settings::cli::SETTINGS;
 use crate::modules::settings::dir::DATA_DIR_MANAGER;

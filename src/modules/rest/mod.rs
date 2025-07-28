@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::common::error::ErrorCapture;
 use crate::modules::common::log::Tracing;
 use crate::modules::common::tls::rustls_config;
@@ -20,6 +24,7 @@ use poem::get;
 use poem::listener::{Listener, TcpListener};
 use poem::middleware::{CatchPanic, Compression, SetHeader};
 use poem::{endpoint::EmbeddedFileEndpoint, middleware::Cors, EndpointExt, Route, Server};
+use poem_openapi::ContactObject;
 use public::oauth2::oauth2_callback;
 use public::tracking::get_tracking_code;
 use std::time::Duration;
@@ -30,6 +35,16 @@ pub mod public;
 pub mod response;
 
 pub type ApiResult<T, E = ApiErrorResponse> = std::result::Result<T, E>;
+
+const DESCRIPTION: &str = r#"
+    RustMailer is a self-hosted IMAP/SMTP middleware platform designed for developers and businesses seeking a robust, scalable, and secure email solution.
+
+    - Provides seamless IMAP synchronization and reliable SMTP sending via blazing-fast REST and gRPC APIs.
+    - Supports programmable email workflows, customizable filters, and webhook notifications.
+    - Offers multi-account synchronization, license-based access control, and a built-in web UI for easy management.
+
+    Whether you're building SaaS platforms, CRM systems, or customer support tools, RustMailer delivers high performance and full control over your email infrastructure.
+"#;
 
 pub async fn start_http_server() -> RustMailerResult<()> {
     let listener = TcpListener::bind((
@@ -47,7 +62,11 @@ pub async fn start_http_server() -> RustMailerResult<()> {
     };
 
     let api_service = create_openapi_service()
-        .description("Empower Your Apps with RustMailer's Blazing-Fast REST & gRPC Email APIs");
+        .description(DESCRIPTION)
+        .contact(ContactObject::new().email("rustmailer.git@gmail.com"))
+        .license("https://rustmailer.com/license")
+        .external_document("https://rustmailer.com/docs")
+        .summary("A self-hosted IMAP/SMTP middleware designed for developers");
 
     let swagger = api_service.swagger_ui();
     let redoc = api_service.redoc();

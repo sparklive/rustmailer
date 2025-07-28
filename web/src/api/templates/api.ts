@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import axiosInstance from "@/api/axiosInstance";
 import { EmailTemplate } from "@/features/templates/data/schema";
 import { PaginatedResponse } from "..";

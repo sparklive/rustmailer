@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 // Inspired by react-hot-toast library
 import * as React from 'react'
 import type { ToastActionElement, ToastProps } from '@/components/ui/toast'

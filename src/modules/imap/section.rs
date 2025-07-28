@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::{generate_token, modules::imap::decoder::try_decode_string};
 use async_imap::{
     imap_proto::{

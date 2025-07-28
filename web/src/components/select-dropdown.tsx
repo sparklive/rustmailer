@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import { IconLoader } from '@tabler/icons-react'
 import { cn } from '@/lib/utils'
 import { FormControl } from '@/components/ui/form'

@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use super::error::code::ErrorCode;
 use super::error::RustMailerError;
 use mail_parser::{Addr as ImapAddr, Address as ImapAddress};

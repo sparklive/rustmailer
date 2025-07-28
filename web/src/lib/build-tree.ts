@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import { MailboxData } from "@/api/mailbox/api";
 import { TreeDataItem } from "@/components/tree-view";
 import { Badge } from '@/components/ui/badge'

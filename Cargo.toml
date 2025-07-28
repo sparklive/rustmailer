@@ -1,6 +1,6 @@
 [package]
 name = "rustmailer"
-version = "1.1.0"
+version = "1.2.1"
 edition = "2021"
 
 [[bin]]
@@ -26,9 +26,9 @@ native_db = "0.8.2"
 redb = "2.6.1"
 itertools = "0.14.0"
 native_model = "0.4.20"
-poem = { version = "3.1.11", features = ["embed", "compression", "rustls"] }
-poem-derive = "3.1.11"
-poem-openapi = { version = "5.1.15", features = [
+poem = { version = "3.1.12", features = ["embed", "compression", "rustls"] }
+poem-derive = "3.1.12"
+poem-openapi = { version = "5.1.16", features = [
     "openapi-explorer",
     "rapidoc",
     "scalar",
@@ -36,7 +36,7 @@ poem-openapi = { version = "5.1.15", features = [
     "swagger-ui",
     "email",
 ] }
-poem-grpc = { version = "0.5.6", features = [
+poem-grpc = { version = "0.5.7", features = [
     "gzip",
     "deflate",
     "brotli",
@@ -46,7 +46,7 @@ min_jwt = { version = "0.10.0", features = ["ring", "serde", "serde_json"] }
 ring = { version = "0.17.14", features = ["std"] }
 serde = { version = "1.0.218", features = ["derive"] }
 serde_json = "1.0.141"
-tokio = { version = "1.46.1", features = ["full"] }
+tokio = { version = "1.47.0", features = ["full"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
@@ -91,7 +91,7 @@ async-imap = { version = "0.11.0", default-features = false, features = [
     "compress",
 ] }
 webpki-roots = "1.0.2"
-rustls = { version = "0.23.29", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.30", default-features = false, features = ["ring"] }
 rustls-pki-types = "1.12.0"
 tokio-io-timeout = "1.2.1"
 bb8 = "0.9.0"
@@ -127,7 +127,7 @@ image = "0.25.6"
 gethostname = "1.0.2"
 glob = "0.3.2"
 [build-dependencies]
-poem-grpc-build = "0.5.6"
+poem-grpc-build = "0.5.7"
 
 [dev-dependencies]
 #bincode = "1.3.3"

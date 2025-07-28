@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2025 rustmailer.com
+ * Licensed under RustMailer License Agreement v1.0
+ * Unauthorized use or distribution is prohibited.
+ */
+
 import { CheckCircle } from "lucide-react"; // Using Lucide icon library
 import { Button } from "@/components/ui/button"; // Using custom button component
 

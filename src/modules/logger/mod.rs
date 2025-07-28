@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::logger::file::setup_file_logger;
 use crate::modules::settings::cli::SETTINGS;
 use chrono::Local;

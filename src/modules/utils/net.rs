@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use crate::modules::error::code::ErrorCode;
 use crate::modules::settings::proxy::Proxy;
 use crate::modules::utils::tls::establish_tls_stream;

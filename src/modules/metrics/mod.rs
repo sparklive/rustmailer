@@ -1,3 +1,7 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
 use std::sync::LazyLock;
 
 use crate::rustmailer_version;
@@ -6,7 +10,9 @@ use crate::{
     utc_now,
 };
 use prometheus::{
-    register_gauge, register_gauge_vec, register_histogram, register_histogram_vec, register_int_counter, register_int_counter_vec, register_int_gauge_vec, Gauge, GaugeVec, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec
+    register_gauge, register_gauge_vec, register_histogram, register_histogram_vec,
+    register_int_counter, register_int_counter_vec, register_int_gauge_vec, Gauge, GaugeVec,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec,
 };
 
 pub mod endpoint;
