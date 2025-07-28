@@ -15,7 +15,8 @@ WORKDIR /opt/rustmailer
 
 # Copy compiled binary (ensure it's statically linked or compatible with bullseye)
 COPY --chown=rmailer:rmailer rustmailer /opt/rustmailer/rustmailer
-
+COPY --chown=rmailer:rmailer LICENSE /opt/rustmailer/
+COPY --chown=rmailer:rmailer license.html /opt/rustmailer/
 # Set proper permissions
 RUN chmod +x /opt/rustmailer/rustmailer
 

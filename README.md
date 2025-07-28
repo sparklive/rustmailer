@@ -150,7 +150,7 @@ It does **not rely on real-time push**, but instead performs full or incremental
 Mail events are then emitted as:
 
 RustMailer detects mail changes (e.g. new messages, flag updates, etc.) by periodically scanning IMAP folders.  
-It performs either **full** or **incremental synchronization**, depending on configuration.
+It performs either **full** or **incremental synchronization**, depending on configuration. see details [`https://rustmailer.com/docs/guide/imap-sync`](https://rustmailer.com/docs/guide/imap-sync)
 
 Detected events can be forwarded using:
 

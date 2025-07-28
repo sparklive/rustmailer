@@ -95,7 +95,7 @@ jobs:
         run: |
           mkdir -p release
           BINARY="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
-          cp README.md LICENSE release/
+          cp README.md LICENSE license.html release/
           cp "$BINARY" release/
           tar -czvf "${{ env.BINARY_NAME }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" -C release .
           mv "${{ env.BINARY_NAME }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" release/
@@ -116,6 +116,7 @@ jobs:
           Copy-Item -Path $BINARY -Destination release/
           Copy-Item -Path README.md -Destination release/
           Copy-Item -Path LICENSE -Destination release/
+          Copy-Item -Path license.html -Destination release/
           Compress-Archive -Path release\* -DestinationPath "release/${{ env.BINARY_NAME }}-${{ github.ref_name }}-${{ matrix.target }}.zip" -Force
 
       - name: Upload build artifact
