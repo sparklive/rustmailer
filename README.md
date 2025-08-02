@@ -6,7 +6,7 @@
 </h1>
 
 <h3 align="center">
-A self-hosted Email API, built in Rust.
+  A self-hosted IMAP/SMTP middleware designed for developers
 </h3>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rustmailer/rustmailer)
