@@ -3,6 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::cache::imap::address::AddressEntity;
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::database::Paginated;
@@ -11,9 +12,8 @@ use crate::modules::message::search::cache::IMAP_SEARCH_CACHE;
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::entity::Account, cache::imap::envelope::EmailEnvelope,
-        context::executors::RUST_MAIL_CONTEXT, envelope::extractor::extract_envelope,
-        error::RustMailerResult, rest::response::DataPage,
+        account::entity::Account, context::executors::RUST_MAIL_CONTEXT,
+        envelope::extractor::extract_envelope, error::RustMailerResult, rest::response::DataPage,
     },
     raise_error,
 };
@@ -436,7 +436,7 @@ impl MessageSearchRequest {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelope>> {
+    ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
         let account = Account::check_account_active(account_id).await?;
         self.search_remote(&account, page, page_size, desc).await
     }
@@ -447,7 +447,7 @@ impl MessageSearchRequest {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelope>> {
+    ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
         // Validate page and page_size
         if page == 0 || page_size == 0 {
             return Err(raise_error!(
@@ -590,7 +590,7 @@ impl UnifiedSearchRequest {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelope>> {
+    ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
         if page == 0 || page_size == 0 {
             return Err(raise_error!(
                 "'page' and 'page_size' must be greater than 0.".into(),
@@ -634,7 +634,7 @@ impl UnifiedSearchRequest {
         let result = paginate_vec(&vec, Some(page), Some(page_size))?;
         let mut items = Vec::new();
         for (id, _) in result.items {
-            let envelope = EmailEnvelope::get(id).await?.ok_or_else(|| {
+            let envelope = EmailEnvelopeV2::get(id).await?.ok_or_else(|| {
                 raise_error!(
                     format!("Failed to get EmailEnvelope for hash {id} in search operation"),
                     ErrorCode::InternalError

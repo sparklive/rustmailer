@@ -8,7 +8,7 @@ use crate::{
         bounce::parser::{extract_bounce_report, BounceReport},
         cache::imap::{
             diff,
-            envelope::EmailEnvelope,
+            envelope_v2::EmailEnvelopeV2,
             find_deleted_mailboxes, find_flag_updates, find_intersecting_mailboxes,
             find_missing_mailboxes, find_missing_remote_uids,
             mailbox::{EnvelopeFlag, MailBox},
@@ -115,7 +115,7 @@ pub async fn fetch_and_save_since_date(
                         } else {
                             let envelopes =
                                 extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
-                            EmailEnvelope::save_envelopes(envelopes).await?;
+                            EmailEnvelopeV2::save_envelopes(envelopes).await?;
                         };
                         Ok(())
                     });
@@ -194,7 +194,7 @@ pub async fn fetch_and_save_full_mailbox(
                         } else {
                             let envelopes =
                                 extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
-                            EmailEnvelope::save_envelopes(envelopes).await?;
+                            EmailEnvelopeV2::save_envelopes(envelopes).await?;
                         };
                         info!("Batch insertion completed for mailbox: {}, current page: {}, inserted count: {}", &mailbox_name, page, count);
                         Ok(count)
@@ -734,7 +734,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
 
         // Store rich documents if not in minimal sync mode
         let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
-        EmailEnvelope::save_envelopes(envelopes).await?;
+        EmailEnvelopeV2::save_envelopes(envelopes).await?;
 
         // Process bounce reports if needed
         if is_bounce_watched {
@@ -851,7 +851,7 @@ async fn handle_minimal_sync_or_metadata_fetch(
                 .uid_fetch_meta(&batch, &remote.encoded_name(), false)
                 .await?;
             let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
-            EmailEnvelope::save_envelopes(envelopes).await?;
+            EmailEnvelopeV2::save_envelopes(envelopes).await?;
         }
 
         info!(

@@ -5,7 +5,7 @@
 use crate::encode_mailbox_name;
 use crate::generate_token;
 use crate::modules::cache::disk::DISK_CACHE;
-use crate::modules::cache::imap::envelope::EmailEnvelope;
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::mailbox::EmailFlag;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::mailbox::MailBox;
@@ -601,7 +601,7 @@ impl EmailHandler {
 
     pub async fn retrieve_message_content(
         account: &Account,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
     ) -> RustMailerResult<Option<MessageContent>> {
         let body_meta = match &envelope.body_meta {
             Some(meta) => meta,
@@ -629,10 +629,10 @@ impl EmailHandler {
         account: &Account,
         mailbox_name: &str,
         uid: u32,
-    ) -> RustMailerResult<EmailEnvelope> {
+    ) -> RustMailerResult<EmailEnvelopeV2> {
         if let Ok(mailbox) = MailBox::get(account.id, mailbox_name).await {
             if !account.minimal_sync {
-                let envelope = EmailEnvelope::find(account.id, mailbox.id, uid).await?;
+                let envelope = EmailEnvelopeV2::find(account.id, mailbox.id, uid).await?;
                 if let Some(envelope) = envelope {
                     return Ok(envelope);
                 }
@@ -703,7 +703,7 @@ impl EmailHandler {
     async fn add_attachment(
         builder: MessageBuilder<'static>,
         attachment: &ImapAttachment,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
         inline: bool,
         account: &Account,
     ) -> RustMailerResult<MessageBuilder<'static>> {

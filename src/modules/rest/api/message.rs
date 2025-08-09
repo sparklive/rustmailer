@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::current_datetime;
-use crate::modules::cache::imap::envelope::EmailEnvelope;
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentRequest};
 use crate::modules::message::content::{
@@ -15,7 +15,9 @@ use crate::modules::message::delete::{
 };
 use crate::modules::message::flag::{modify_flags, FlagMessageRequest};
 use crate::modules::message::full::retrieve_full_email;
-use crate::modules::message::list::list_messages_in_mailbox;
+use crate::modules::message::list::{
+    get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
+};
 use crate::modules::message::mv::move_mailbox_messages;
 use crate::modules::message::search::payload::{MessageSearchRequest, UnifiedSearchRequest};
 use crate::modules::rest::api::ApiTags;
@@ -130,7 +132,7 @@ impl MessageApi {
         /// lists messages in descending order; otherwise, ascending. internal date
         desc: Query<Option<bool>>,
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelope>>> {
+    ) -> ApiResult<Json<DataPage<EmailEnvelopeV2>>> {
         let remote = remote.0.unwrap_or(false);
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
@@ -146,6 +148,64 @@ impl MessageApi {
                 desc,
             )
             .await?,
+        ))
+    }
+
+    /// Lists threads in a specified mailbox for the given account.
+    #[oai(
+        path = "/list-threads/:account_id",
+        method = "get",
+        operation_id = "list_threads"
+    )]
+    async fn list_threads(
+        &self,
+        /// The ID of the account owning the mailbox.
+        account_id: Path<u64>,
+        /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").
+        /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
+        /// so no manual decoding is required.
+        mailbox: Query<String>,
+        /// The page number for pagination (1-based).
+        page: Query<u64>,
+        /// The number of messages per page.
+        page_size: Query<u64>,
+        /// lists messages in descending order; otherwise, ascending. internal date
+        desc: Query<Option<bool>>,
+        context: ClientContext,
+    ) -> ApiResult<Json<DataPage<EmailEnvelopeV2>>> {
+        let desc = desc.0.unwrap_or(false);
+        let account_id = account_id.0;
+        context.require_account_access(account_id)?;
+
+        Ok(Json(
+            list_threads_in_mailbox(account_id, mailbox.0.trim(), page.0, page_size.0, desc)
+                .await?,
+        ))
+    }
+
+    /// Get thread's envelopes in a specified mailbox for the given account.
+    #[oai(
+        path = "/get-thread-messages/:account_id",
+        method = "get",
+        operation_id = "get_thread_messages"
+    )]
+    async fn get_thread_messages(
+        &self,
+        /// The ID of the account owning the mailbox.
+        account_id: Path<u64>,
+        /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").
+        /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
+        /// so no manual decoding is required.
+        mailbox: Query<String>,
+        // Thread ID
+        thread_id: Query<u64>,
+        context: ClientContext,
+    ) -> ApiResult<Json<Vec<EmailEnvelopeV2>>> {
+        let account_id = account_id.0;
+        context.require_account_access(account_id)?;
+
+        Ok(Json(
+            get_thread_messages(account_id, mailbox.0.trim(), thread_id.0).await?,
         ))
     }
 
@@ -247,7 +307,7 @@ impl MessageApi {
         /// specifying the search criteria (e.g., keywords, flags).
         payload: Json<MessageSearchRequest>,
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelope>>> {
+    ) -> ApiResult<Json<DataPage<EmailEnvelopeV2>>> {
         let request = payload.0;
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
@@ -283,7 +343,7 @@ impl MessageApi {
 
         /// Request context (includes authentication and permissions).
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelope>>> {
+    ) -> ApiResult<Json<DataPage<EmailEnvelopeV2>>> {
         let mut request = payload.0;
         let desc = desc.0.unwrap_or(false);
 

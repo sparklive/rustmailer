@@ -6,7 +6,7 @@ use crate::{
     encode_mailbox_name,
     modules::{
         account::entity::Account,
-        cache::imap::{envelope::EmailEnvelope, mailbox::MailBox},
+        cache::imap::{envelope_v2::EmailEnvelopeV2, mailbox::MailBox, thread::EmailThread},
         context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope,
         error::{code::ErrorCode, RustMailerResult},
@@ -23,7 +23,7 @@ pub async fn list_messages_in_mailbox(
     page_size: u64,
     remote: bool,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelope>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
     let account = Account::check_account_active(account_id).await?;
     validate_pagination_params(page, page_size)?;
     let remote = remote || account.minimal_sync;
@@ -57,7 +57,7 @@ async fn fetch_remote_messages(
     page: u64,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelope>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
     let excutor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     let (mut fetches, total_items) = excutor
         .retrieve_metadata_paginated(
@@ -89,7 +89,7 @@ async fn process_fetches(
     fetches: Vec<Fetch>,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<Vec<EmailEnvelope>> {
+) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
     let mut envelopes = Vec::with_capacity(fetches.len());
     for fetch in fetches {
         let envelope = extract_envelope(&fetch, account_id, mailbox_name)?;
@@ -104,16 +104,84 @@ async fn fetch_local_messages(
     page: u64,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelope>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
     match MailBox::get(account.id, mailbox_name).await {
         Ok(mailbox) => {
-            EmailEnvelope::list_messages_in_mailbox(mailbox.id, page, page_size, desc)
-                .await
+            EmailEnvelopeV2::list_messages_in_mailbox(mailbox.id, page, page_size, desc).await
         }
         Err(_) => Err(raise_error!(
             "This mailbox might not be included in the synchronized mailbox list of the account. \
             To fetch emails from the mailbox, please add the parameter 'remote=true' in the URL."
                 .into(),
+            ErrorCode::MailBoxNotCached
+        )),
+    }
+}
+
+pub async fn list_threads_in_mailbox(
+    account_id: u64,
+    mailbox_name: &str,
+    page: u64,
+    page_size: u64,
+    desc: bool,
+) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+    let account = Account::check_account_active(account_id).await?;
+    validate_pagination_params(page, page_size)?;
+    if account.minimal_sync {
+        return Err(raise_error!(
+            format!(
+                "Account {} is in minimal sync mode. Listing threads in a mailbox is not supported. \
+                To enable this feature, you must delete the email account configuration and set it up again \
+                with minimal sync mode disabled.",
+                account_id
+            ),
+            ErrorCode::Incompatible
+        ));
+    }
+
+    match MailBox::get(account.id, mailbox_name).await {
+        Ok(mailbox) => {
+            EmailThread::list_threads_in_mailbox(mailbox.id, page, page_size, desc).await
+        }
+        Err(_) => Err(raise_error!(
+            format!(
+                "Mailbox '{}' not found in the synchronized mailbox list for account {}. \
+                This may happen if the mailbox was not selected during synchronization settings \
+                or has been removed from the email server.",
+                mailbox_name, account_id
+            ),
+            ErrorCode::MailBoxNotCached
+        )),
+    }
+}
+
+pub async fn get_thread_messages(
+    account_id: u64,
+    mailbox_name: &str,
+    thread_id: u64,
+) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
+    let account = Account::check_account_active(account_id).await?;
+    if account.minimal_sync {
+        return Err(raise_error!(
+            format!(
+                "Account {} is in minimal sync mode. Listing threads in a mailbox is not supported. \
+                To enable this feature, you must delete the email account configuration and set it up again \
+                with minimal sync mode disabled.",
+                account_id
+            ),
+            ErrorCode::Incompatible
+        ));
+    }
+
+    match MailBox::get(account.id, mailbox_name).await {
+        Ok(mailbox) => EmailEnvelopeV2::get_thread(account_id, mailbox.id, thread_id).await,
+        Err(_) => Err(raise_error!(
+            format!(
+                "Mailbox '{}' not found in the synchronized mailbox list for account {}. \
+                This may happen if the mailbox was not selected during synchronization settings \
+                or has been removed from the email server.",
+                mailbox_name, account_id
+            ),
             ErrorCode::MailBoxNotCached
         )),
     }

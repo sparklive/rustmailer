@@ -681,6 +681,9 @@ message EmailEnvelope {
   repeated EmailBodyPart body_meta = 24;
   // Information from the "Received" header.
   Received received = 25;
+  // The identifier of the thread this email belongs to.
+  // This is computed based on `in_reply_to` / `references` / `message_id`.
+  uint64 thread_id = 26;
 }
 
 // FetchMessageContentRequest is used to fetch specific content sections of an email message.
@@ -893,6 +896,32 @@ message ListMessagesRequest {
   bool desc = 6;
 }
 
+
+// ListThreadsRequest is used to retrieve a list of threads from a mailbox with pagination.
+message ListThreadsRequest {
+  // The ID of the account.
+  uint64 account_id = 1;
+  // The name of the mailbox to list messages from.
+  string mailbox_name = 2;
+  // The requested page number (1-based).
+  uint64 page = 3;
+  // The number of messages to return per page.
+  uint64 page_size = 4;
+  // If true, results will be returned in descending order.
+  bool desc = 5;
+}
+
+
+// GetThreadMessagesRequest is used to retrieve a list of envelopes of a thread.
+message GetThreadMessagesRequest {
+  // The ID of the account.
+  uint64 account_id = 1;
+  // The name of the mailbox to list messages from.
+  string mailbox_name = 2;
+  // thread id.
+  uint64 thread_id = 3;
+}
+
 // PagedMessages represents a paginated list of EmailEnvelope messages.
 message PagedMessages {
   // Optional: The current page number being returned.
@@ -906,6 +935,13 @@ message PagedMessages {
   // Optional: The total number of pages available.
   optional uint64 total_pages = 5;
 }
+
+// A list of email envelopes.
+// corresponding to an EmailEnvelope array.
+message EmailEnvelopeList {
+    repeated EmailEnvelope items = 1;
+}
+
 
 // PlainText represents plain text content, potentially truncated.
 message PlainText {
@@ -941,6 +977,10 @@ service MessageService {
   rpc UpdateMessageFlags(FlagMessageRequest) returns (Empty);
   // Lists messages within a mailbox with pagination.
   rpc ListMessages(ListMessagesRequest) returns (PagedMessages);
+  // Lists threads within a mailbox with pagination.
+  rpc ListThreads(ListThreadsRequest) returns (PagedMessages);
+  // Get thread's envelopes within a mailbox.
+  rpc GetThreadMessages(GetThreadMessagesRequest) returns (EmailEnvelopeList);
   // Fetches specific content parts (e.g., plain text, HTML) of an email message.
   rpc FetchMessageContent(FetchMessageContentRequest) returns (MessageContentResponse);
   // Fetches the raw content of a specific attachment from an email message.

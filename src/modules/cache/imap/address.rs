@@ -14,7 +14,7 @@ use tracing::info;
 use crate::{
     id,
     modules::{
-        cache::imap::envelope::EmailEnvelope,
+        cache::imap::envelope_v2::EmailEnvelopeV2,
         database::{batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER},
         error::{code::ErrorCode, RustMailerResult},
         utils::envelope_hash,
@@ -165,9 +165,9 @@ impl AddressEntity {
         Ok(())
     }
 
-    pub fn extract(envelope: &EmailEnvelope) -> Vec<AddressEntity> {
+    pub fn extract(envelope: &EmailEnvelopeV2) -> Vec<AddressEntity> {
         let from = envelope.from.as_ref().map(|f| f.address.clone()).flatten();
-        let envelope_hash = envelope.create_envelope_hash();
+        let envelope_hash = envelope.create_envelope_id();
         let date = envelope.date.clone();
         let internal_date = envelope.internal_date.clone();
         let account_id = envelope.account_id;

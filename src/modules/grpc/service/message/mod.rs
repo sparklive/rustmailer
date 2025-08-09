@@ -7,7 +7,8 @@ use std::sync::Arc;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::grpc::service::rustmailer_grpc::{
-    ByteResponse, MessageContentResponse, PagedMessages, UnifiedSearchRequest,
+    ByteResponse, EmailEnvelopeList, GetThreadMessagesRequest, ListThreadsRequest,
+    MessageContentResponse, PagedMessages, UnifiedSearchRequest,
 };
 use crate::modules::grpc::service::rustmailer_grpc::{
     Empty, FetchFullMessageRequest, FetchMessageAttachmentRequest, FetchMessageContentRequest,
@@ -21,7 +22,9 @@ use crate::modules::message::delete::move_to_trash_or_delete_messages_directly;
 use crate::modules::message::flag::modify_flags;
 use crate::modules::message::flag::FlagMessageRequest as RustMailerFlagMessageRequest;
 use crate::modules::message::full::retrieve_full_email;
-use crate::modules::message::list::list_messages_in_mailbox;
+use crate::modules::message::list::{
+    get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
+};
 use crate::modules::message::mv::move_mailbox_messages;
 use crate::modules::message::search::payload::MessageSearchRequest as RustMailerMessageSearchRequest;
 use crate::modules::message::search::payload::UnifiedSearchRequest as RustMailerUnifiedSearchRequest;
@@ -282,5 +285,55 @@ impl MessageService for RustMailerMessageService {
         }
         let result = request.search(page, page_size, desc).await?;
         Ok(Response::new(result.into()))
+    }
+
+    async fn list_threads(
+        &self,
+        request: Request<ListThreadsRequest>,
+    ) -> Result<Response<PagedMessages>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+
+        let result = list_threads_in_mailbox(
+            req.account_id,
+            &req.mailbox_name,
+            req.page,
+            req.page_size,
+            req.desc,
+        )
+        .await?;
+
+        Ok(Response::new(result.into()))
+    }
+
+    async fn get_thread_messages(
+        &self,
+        request: Request<GetThreadMessagesRequest>,
+    ) -> Result<Response<EmailEnvelopeList>, Status> {
+        let extensions = request.extensions().clone();
+        let req = request.into_inner();
+
+        // Get ClientContext from cloned extensions
+        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
+            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
+        })?;
+
+        // Check account access
+        context.require_account_access(req.account_id)?;
+
+        let envelopes =
+            get_thread_messages(req.account_id, &req.mailbox_name, req.thread_id).await?;
+
+        Ok(Response::new(EmailEnvelopeList {
+            items: envelopes.into_iter().map(|e| e.into()).collect(),
+        }))
     }
 }

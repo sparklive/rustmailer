@@ -2,34 +2,20 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
-use crate::modules::cache::imap::manager::EnvelopeFlagsManager;
-use crate::modules::cache::imap::minimal::MinimalEnvelope;
 use crate::modules::common::Addr;
-use crate::modules::database::manager::DB_MANAGER;
-use crate::modules::database::{
-    batch_delete_impl, delete_impl, paginate_secondary_scan_impl, secondary_find_impl, update_impl,
-    with_transaction,
-};
-use crate::modules::error::code::ErrorCode;
-use crate::modules::error::RustMailerResult;
 use crate::modules::imap::section::{EmailBodyPart, ImapAttachment};
-use crate::modules::rest::response::DataPage;
 use crate::modules::utils::envelope_hash;
-use crate::{raise_error, utc_now};
-use itertools::Itertools;
+use crate::utc_now;
 use mail_parser::Received as OriginalReceived;
 use native_db::*;
 use native_model::{native_model, Model};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
-use tracing::{error, info};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 #[native_model(id = 1, version = 1)]
-#[native_db(primary_key(pk -> String), secondary_key(create_envelope_hash -> u64, unique))]
+#[native_db(primary_key(pk -> String), secondary_key(create_envelope_id -> u64, unique))]
 pub struct EmailEnvelope {
     /// The ID of the account owning the email.
     #[secondary_key]
@@ -123,219 +109,8 @@ impl EmailEnvelope {
         )
     }
 
-    pub fn create_envelope_hash(&self) -> u64 {
+    pub fn create_envelope_id(&self) -> u64 {
         envelope_hash(self.account_id, self.mailbox_id, self.uid)
-    }
-
-    pub async fn find(
-        account_id: u64,
-        mailbox_id: u64,
-        uid: u32,
-    ) -> RustMailerResult<Option<EmailEnvelope>> {
-        secondary_find_impl(
-            DB_MANAGER.envelope_db(),
-            EmailEnvelopeKey::create_envelope_hash,
-            envelope_hash(account_id, mailbox_id, uid),
-        )
-        .await
-    }
-
-    pub async fn get(envelope_hash: u64) -> RustMailerResult<Option<EmailEnvelope>> {
-        secondary_find_impl(
-            DB_MANAGER.envelope_db(),
-            EmailEnvelopeKey::create_envelope_hash,
-            envelope_hash,
-        )
-        .await
-    }
-
-    pub async fn save_envelopes(envelopes: Vec<EmailEnvelope>) -> RustMailerResult<()> {
-        with_transaction(DB_MANAGER.envelope_db(), move |rw| {
-            for e in envelopes {
-                // Create a minimal representation of the envelope to speed up UID and flags_hash lookup
-                // This avoids the need to deserialize the full EmailEnvelope during sync
-                let minimal: MinimalEnvelope = MinimalEnvelope::from(&e);
-
-                EnvelopeFlagsManager::update_flag_change(
-                    e.account_id,
-                    e.mailbox_id,
-                    e.uid,
-                    e.flags_hash,
-                );
-
-                // Extract address entities (e.g. from, to, cc) for indexing
-                // This allows searching emails by address, especially useful since to/cc are vectors
-                let address_entities = AddressEntity::extract(&e);
-
-                // Store the full envelope
-                rw.insert::<EmailEnvelope>(e)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-
-                // Store the minimal envelope for quick access during sync
-                rw.insert::<MinimalEnvelope>(minimal)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-
-                // Store each address entity to enable address-based search
-                for a in address_entities {
-                    rw.insert::<AddressEntity>(a)
-                        .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-                }
-            }
-            Ok(())
-        })
-        .await
-    }
-
-    pub async fn list_messages_in_mailbox(
-        mailbox_id: u64,
-        page: u64,
-        page_size: u64,
-        desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelope>> {
-        paginate_secondary_scan_impl(
-            DB_MANAGER.envelope_db(),
-            Some(page),
-            Some(page_size),
-            Some(desc),
-            EmailEnvelopeKey::mailbox_id,
-            mailbox_id,
-        )
-        .await
-        .map(DataPage::from)
-    }
-
-    pub async fn update_flags(
-        account_id: u64,
-        mailbox_id: u64,
-        uid: u32,
-        flags: &[EnvelopeFlag],
-        flags_hash: u64,
-    ) -> RustMailerResult<()> {
-        let flags = flags.to_vec();
-
-        update_impl(
-            DB_MANAGER.envelope_db(),
-            move |rw| {
-                rw.get()
-                    .secondary::<EmailEnvelope>(
-                        EmailEnvelopeKey::create_envelope_hash,
-                        envelope_hash(account_id, mailbox_id, uid),
-                    )
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .ok_or_else(|| {
-                        raise_error!(
-                            "The EmailEnvelope that you want to modify was not found.".to_string(),
-                            ErrorCode::ResourceNotFound
-                        )
-                    })
-            },
-            move |current| {
-                let mut updated = current.clone();
-                updated.flags = flags;
-                updated.flags_hash = flags_hash;
-                Ok(updated)
-            },
-        )
-        .await
-        .map_err(|e| {
-            error!(
-                "Failed to update flags: account_id={}, mailbox_hash={}, uid={}, error={:?}",
-                account_id, mailbox_id, uid, e
-            );
-            e
-        })?;
-
-        Ok(())
-    }
-
-    pub async fn clean_mailbox_envelopes(account_id: u64, mailbox_id: u64) -> RustMailerResult<()> {
-        const BATCH_SIZE: usize = 200;
-        let mut total_deleted = 0usize;
-        let start_time = Instant::now();
-        loop {
-            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                let to_delete: Vec<EmailEnvelope> = rw
-                    .scan()
-                    .secondary(EmailEnvelopeKey::mailbox_id)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .start_with(mailbox_id)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
-                    .filter_map(Result::ok) // filter only Ok values
-                    .filter(|e: &EmailEnvelope| e.account_id == account_id)
-                    .collect();
-                Ok(to_delete)
-            })
-            .await?;
-            total_deleted += deleted;
-            // If this batch is empty, break the loop
-            if deleted == 0 {
-                break;
-            }
-        }
-
-        info!(
-            "Finished deleting envelopes for mailbox_hash={} account_id={} total_deleted={} in {:?}",
-            mailbox_id,
-            account_id,
-            total_deleted,
-            start_time.elapsed()
-        );
-        Ok(())
-    }
-
-    pub async fn clean_envelopes(
-        account_id: u64,
-        mailbox_id: u64,
-        to_delete_uid: &[u32],
-    ) -> RustMailerResult<()> {
-        for uid in to_delete_uid {
-            let key = envelope_hash(account_id, mailbox_id, *uid);
-            delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                rw.get()
-                    .secondary::<EmailEnvelope>(EmailEnvelopeKey::create_envelope_hash, key)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .ok_or_else(|| {
-                        raise_error!("envelope missing".into(), ErrorCode::InternalError)
-                    })
-            })
-            .await?;
-        }
-        Ok(())
-    }
-
-    pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
-        const BATCH_SIZE: usize = 200;
-        let mut total_deleted = 0usize;
-        let start_time = Instant::now();
-        loop {
-            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                let to_delete: Vec<EmailEnvelope> = rw
-                    .scan()
-                    .secondary(EmailEnvelopeKey::account_id)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .start_with(account_id)
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
-                    .try_collect()
-                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-                Ok(to_delete)
-            })
-            .await?;
-            total_deleted += deleted;
-            // If this batch is empty, break the loop
-            if deleted == 0 {
-                break;
-            }
-        }
-
-        info!(
-            "Finished deleting envelopes for account_id={} total_deleted={} in {:?}",
-            account_id,
-            total_deleted,
-            start_time.elapsed()
-        );
-        Ok(())
     }
 }
 

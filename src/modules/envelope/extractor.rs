@@ -2,7 +2,8 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::envelope::EmailEnvelope;
+use crate::id;
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;
@@ -21,14 +22,15 @@ pub fn extract_envelope(
     fetch: &Fetch,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<EmailEnvelope> {
-    let attachments = SectionExtractor::new(fetch.bodystructure().ok_or_else(|| {
-        raise_error!(
-            "No bodystructure available".into(),
-            ErrorCode::InternalError
-        )
-    })?)
-    .get_attachments();
+) -> RustMailerResult<EmailEnvelopeV2> {
+    let attachments: Option<Vec<crate::modules::imap::section::ImapAttachment>> =
+        SectionExtractor::new(fetch.bodystructure().ok_or_else(|| {
+            raise_error!(
+                "No bodystructure available".into(),
+                ErrorCode::InternalError
+            )
+        })?)
+        .get_attachments();
 
     let body = SectionExtractor::new(fetch.bodystructure().ok_or_else(|| {
         raise_error!(
@@ -65,7 +67,7 @@ pub fn extract_envelope(
         )
     })?;
 
-    let envelope = EmailEnvelope {
+    let envelope = EmailEnvelopeV2 {
         account_id,
         mailbox_id: mailbox_id(account_id, mailbox_name),
         mailbox_name: mailbox_name.into(),
@@ -90,6 +92,7 @@ pub fn extract_envelope(
         message_id: message.message_id().map(String::from),
         subject: message.subject().map(String::from),
         mime_version: message.mime_version().as_text().map(String::from),
+        thread_id: id!(64),
         thread_name: message.thread_name().map(String::from),
         references: extract_references(&message),
         reply_to: message.reply_to().map(|addr| AddrVec::from(addr).0),
@@ -122,7 +125,7 @@ pub fn extract_rich_envelopes(
     fetches: &Vec<Fetch>,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<Vec<EmailEnvelope>> {
+) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
     let mut envelopes = Vec::with_capacity(fetches.len());
     for fetch in fetches {
         let envelope = extract_envelope(fetch, account_id, mailbox_name)?;

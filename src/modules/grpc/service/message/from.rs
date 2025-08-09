@@ -4,7 +4,8 @@
 
 use crate::modules::{
     cache::imap::{
-        envelope::{EmailEnvelope, Received},
+        envelope::Received,
+        envelope_v2::EmailEnvelopeV2,
         mailbox::{EmailFlag, EnvelopeFlag},
     },
     common::Addr,
@@ -130,8 +131,8 @@ impl TryFrom<rustmailer_grpc::FlagMessageRequest> for FlagMessageRequest {
     }
 }
 
-impl From<DataPage<EmailEnvelope>> for PagedMessages {
-    fn from(value: DataPage<EmailEnvelope>) -> Self {
+impl From<DataPage<EmailEnvelopeV2>> for PagedMessages {
+    fn from(value: DataPage<EmailEnvelopeV2>) -> Self {
         Self {
             current_page: value.current_page,
             page_size: value.page_size,
@@ -142,8 +143,8 @@ impl From<DataPage<EmailEnvelope>> for PagedMessages {
     }
 }
 
-impl From<EmailEnvelope> for rustmailer_grpc::EmailEnvelope {
-    fn from(value: EmailEnvelope) -> Self {
+impl From<EmailEnvelopeV2> for rustmailer_grpc::EmailEnvelope {
+    fn from(value: EmailEnvelopeV2) -> Self {
         Self {
             account_id: value.account_id,
             mailbox_id: value.mailbox_id,
@@ -173,6 +174,7 @@ impl From<EmailEnvelope> for rustmailer_grpc::EmailEnvelope {
             message_id: value.message_id,
             subject: value.subject,
             thread_name: value.thread_name,
+            thread_id: value.thread_id,
             mime_version: value.mime_version,
             references: value.references.unwrap_or_default(),
             reply_to: value

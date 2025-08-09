@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::envelope::EmailEnvelope;
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::smtp::request::builder::EmailBuilder;
 use crate::modules::smtp::request::headers::HeaderValue;
@@ -226,7 +226,7 @@ impl ForwardEmailRequest {
     fn apply_references(
         &self,
         builder: MessageBuilder<'static>,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let mut references = envelope.references.clone().unwrap_or_default();
         if let Some(message_id) = &envelope.message_id {
@@ -240,7 +240,7 @@ impl ForwardEmailRequest {
     async fn apply_content(
         &self,
         mut builder: MessageBuilder<'static>,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
         account: &Account,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let timezone = self.timezone.as_deref().unwrap_or("UTC");

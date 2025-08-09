@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::envelope::EmailEnvelope;
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use scraper::{Html, Selector};
 use time::{macros::format_description, OffsetDateTime};
 use time_tz::timezones;
@@ -30,17 +30,15 @@ impl BodyComposer {
         }
 
         let document = Html::parse_document(html);
-        let body_selector = Selector::parse("body").unwrap_or_else(|_| {
-            Selector::parse("*").unwrap()
-        });
+        let body_selector =
+            Selector::parse("body").unwrap_or_else(|_| Selector::parse("*").unwrap());
 
         let body = document.select(&body_selector).next();
         let body_or_html = if body.is_some() {
             body
         } else {
-            let html_selector = Selector::parse("html").unwrap_or_else(|_| {
-                Selector::parse("*").unwrap()
-            });
+            let html_selector =
+                Selector::parse("html").unwrap_or_else(|_| Selector::parse("*").unwrap());
             document.select(&html_selector).next()
         };
 
@@ -52,7 +50,7 @@ impl BodyComposer {
     pub fn generate_html(
         original_html: &str,
         reply_content: &str,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
         timezone_name: &str,
         reply: bool,
     ) -> String {
@@ -163,7 +161,7 @@ impl BodyComposer {
     pub fn generate_text(
         original_text: &str,
         reply_content: &str,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
         timezone_name: &str,
         reply: bool,
     ) -> String {
@@ -227,9 +225,15 @@ impl BodyComposer {
 
 #[cfg(test)]
 mod tests {
-    use crate::modules::{
-        cache::imap::mailbox::{EmailFlag, EnvelopeFlag},
-        common::Addr,
+    use crate::{
+        id,
+        modules::{
+            cache::imap::{
+                envelope_v2::EmailEnvelopeV2,
+                mailbox::{EmailFlag, EnvelopeFlag},
+            },
+            common::Addr,
+        },
     };
 
     use super::*; // Import the Reply struct and its methods
@@ -285,7 +289,7 @@ mod tests {
 
         let reply_content = "Thanks for your message!";
 
-        let envelope = EmailEnvelope {
+        let envelope = EmailEnvelopeV2 {
             account_id: 0,
             mailbox_id: 0,
             mailbox_name: "inbox_001".to_string(),
@@ -319,6 +323,7 @@ mod tests {
             return_address: None,
             message_id: Some("msg123@server.example.com".to_string()),
             thread_name: None,
+            thread_id: id!(64),
             mime_version: Some("1.0".to_string()),
             references: None,
             reply_to: None,
@@ -342,7 +347,7 @@ mod tests {
         let original_text = "Hello,\nThis is a test email.\nRegards,\nJohn";
         let reply_content = "Hi John,\nThanks for your email!";
 
-        let envelope = EmailEnvelope {
+        let envelope = EmailEnvelopeV2 {
             from: Some(Addr {
                 name: Some("John Doe".to_string()),
                 address: Some("john@example.com".to_string()),
@@ -366,6 +371,7 @@ mod tests {
             sender: None,
             return_address: None,
             thread_name: None,
+            thread_id: id!(64),
             references: None,
             reply_to: None,
             attachments: None,

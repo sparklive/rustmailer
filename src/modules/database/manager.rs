@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::ENVELOPE_MODELS;
 use crate::modules::context::Initialize;
 use crate::modules::error::{code::ErrorCode, RustMailerError};
@@ -215,9 +216,19 @@ impl DatabaseManager {
             ) //default 1GB
             .create(&ENVELOPE_MODELS, DATA_DIR_MANAGER.envelope_db.clone())
             .map_err(Self::handle_database_error)?;
+
+        let rw = database
+            .rw_transaction()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+        rw.migrate::<EmailEnvelopeV2>()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+        rw.commit()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
         database
             .compact()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
         Ok(Arc::new(database))
     }
 

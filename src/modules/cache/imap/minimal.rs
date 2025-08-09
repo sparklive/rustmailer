@@ -2,7 +2,6 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-
 use std::time::Instant;
 
 use native_db::*;
@@ -12,7 +11,7 @@ use tracing::{error, info};
 
 use crate::{
     modules::{
-        cache::imap::{envelope::EmailEnvelope, manager::EnvelopeFlagsManager},
+        cache::imap::{envelope_v2::EmailEnvelopeV2, manager::EnvelopeFlagsManager},
         database::{
             batch_delete_impl, batch_insert_impl, delete_impl, filter_by_secondary_key_impl,
             manager::DB_MANAGER, update_impl,
@@ -197,8 +196,8 @@ impl MinimalEnvelope {
     }
 }
 
-impl From<&EmailEnvelope> for MinimalEnvelope {
-    fn from(value: &EmailEnvelope) -> Self {
+impl From<&EmailEnvelopeV2> for MinimalEnvelope {
+    fn from(value: &EmailEnvelopeV2) -> Self {
         Self {
             account_id: value.account_id,
             mailbox_id: value.mailbox_id,

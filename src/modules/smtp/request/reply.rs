@@ -5,7 +5,7 @@
 use crate::{
     modules::{
         account::entity::Account,
-        cache::imap::envelope::EmailEnvelope,
+        cache::imap::envelope_v2::EmailEnvelopeV2,
         error::{code::ErrorCode, RustMailerResult},
         smtp::{
             composer::BodyComposer,
@@ -192,7 +192,7 @@ impl ReplyEmailRequest {
     fn apply_recipient_headers(
         &self,
         mut builder: MessageBuilder<'static>,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
         message_id: &str,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         if self.reply_all {
@@ -229,7 +229,7 @@ impl ReplyEmailRequest {
     fn apply_references(
         &self,
         builder: MessageBuilder<'static>,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let builder = if let Some(message_id) = &envelope.message_id {
             builder.in_reply_to(message_id.clone())
@@ -249,7 +249,7 @@ impl ReplyEmailRequest {
     async fn apply_content(
         &self,
         mut builder: MessageBuilder<'static>,
-        envelope: &EmailEnvelope,
+        envelope: &EmailEnvelopeV2,
         account: &Account,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let timezone = self.timezone.as_deref().unwrap_or("UTC");

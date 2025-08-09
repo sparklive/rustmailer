@@ -11,8 +11,9 @@ use crate::{
         common::rustls::RustMailerTls,
         context::Initialize,
         grpc::service::rustmailer_grpc::{
-            ListMessagesRequest, MessageServiceClient, TemplateSentTestRequest,
-            TemplatesServiceClient, UnifiedSearchRequest,
+            GetThreadMessagesRequest, ListMessagesRequest, ListThreadsRequest,
+            MessageServiceClient, TemplateSentTestRequest, TemplatesServiceClient,
+            UnifiedSearchRequest,
         },
     },
 };
@@ -83,6 +84,7 @@ async fn test2() {
 }
 
 #[tokio::test]
+
 async fn test3() {
     RustMailerTls::initialize().await.unwrap();
 
@@ -110,5 +112,61 @@ async fn test3() {
         format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
     );
     let response = grpc_client.unified_search(request).await.unwrap();
+    println!("{:#?}", response.items);
+}
+
+#[tokio::test]
+async fn test4() {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = MessageServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = ListThreadsRequest {
+        account_id: 8869750310191797,
+        mailbox_name: "INBOX".into(),
+        page: 1,
+        page_size: 15,
+        desc: true,
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    let response = grpc_client.list_threads(request).await.unwrap();
+    println!("{:#?}", response.items);
+}
+
+#[tokio::test]
+async fn test5() {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = MessageServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = GetThreadMessagesRequest {
+        account_id: 6606017263301165,
+        mailbox_name: "INBOX".into(),
+        thread_id: 1572863359614161,
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    let response = grpc_client.get_thread_messages(request).await.unwrap();
     println!("{:#?}", response.items);
 }
