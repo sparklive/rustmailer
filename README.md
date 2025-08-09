@@ -10,6 +10,7 @@
 </h3>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rustmailer/rustmailer)
+[![](https://github.com/rustmailer/rustmailer/actions/workflows/release.yml/badge.svg)](https://github.com/rustmailer/rustmailer/actions/workflows/release.yml)
 
 ## 🎯 Use Cases
 
