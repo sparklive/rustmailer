@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./assets/logo.png" alt="RustMailer" width="128" />
+  <img width="407" height="289" alt="image" src="https://github.com/user-attachments/assets/b12d22b2-b8db-4e4c-a89f-3cd99819cedd" />
   <br>
   RustMailer
   <br>
@@ -60,9 +60,9 @@ This allows development teams to focus on core business logic, accelerating time
 
 ## 📸 Snapshot
 
-| ![Dashboard](./assets/dashboard.png) | ![Scalar](./assets/scalar.png) |
+| <img width="1548" height="861" alt="image" src="https://github.com/user-attachments/assets/46e886e5-8f17-4ab5-872e-072686e52d71" />| <img width="1552" height="741" alt="image" src="https://github.com/user-attachments/assets/054b1e1e-294e-4af0-a09a-3040552d4f90" />|
 |-------------------------------------|--------------------------------|
-| ![Accounts](./assets/accounts.png)  | ![Tasks Queue](./assets/tasks-queue.png) |
+| <img width="1553" height="860" alt="image" src="https://github.com/user-attachments/assets/ddd7e1a9-34dc-459b-8701-b59016b8c6e7" />| <img width="1551" height="855" alt="image" src="https://github.com/user-attachments/assets/753102d0-7df7-4efb-9099-c5beb6bf0c79" />|
 
 ## API Reference
 
@@ -154,8 +154,7 @@ It provides links to:
 - **OpenAPI Spec (JSON)**: `/api-docs/spec.json`
 - **OpenAPI Spec (YAML)**: `/api-docs/spec.yaml`
 
-![API Docs UI](./assets/openapi.png)
-
+<img width="1550" height="634" alt="image" src="https://github.com/user-attachments/assets/e39d2292-200f-4eb1-bb81-224b6d979db2" />
 
 ## 🧠 Webhooks & NATS
 
@@ -175,7 +174,7 @@ Detected events can be forwarded using:
 > 🔧 Each mail account can be configured with **either** a webhook or a NATS sink — not both.  
 > 🌐 In addition, RustMailer supports **one or more global hooks**, which apply to all accounts.
 
-![API Docs UI](./assets/vrl.png)
+<img width="1549" height="796" alt="image" src="https://github.com/user-attachments/assets/71477c2f-1ad5-4cd8-884c-6be0867007bd" />
 
 ## 🖥️ Web Interface
 
@@ -197,7 +196,8 @@ http://localhost:15630
 
 > ⚠️ The root access session expires after 5 days and requires re-authentication.
 
-![Login UI](./assets/login.png)
+<img width="1523" height="677" alt="image" src="https://github.com/user-attachments/assets/a5832f0f-30c2-4c12-beff-5425f7f3b6ab" />
+
 ## 💼 License
 
 RustMailer is source-available. The code is open on GitHub, but requires a **valid commercial license key** for production use.
@@ -213,12 +213,14 @@ License Purchase: [https://rustmailer.com/pricing](https://rustmailer.com/pricin
 3. License linked to your account email.
 4. Start RustMailer and import your license key through the Web UI settings panel.
 
-![import license UI](./assets/import-license.png)
+<img width="1539" height="756" alt="image" src="https://github.com/user-attachments/assets/9db16684-2961-47bd-bedc-2024b37a7bd1" />
+
 
 ## 🧩 Ecosystem Integration
 
 - 🔍 RustMailer provides a Prometheus exporter exposing over a dozen key monitoring metrics for observability.
-![monitor](./assets/monitor.png)
+<img width="1555" height="759" alt="image" src="https://github.com/user-attachments/assets/c87d5d11-cb30-441e-9be5-8fbe233eec79" />
+
 
 - 📊 Webhooks can forward new mail events to NATS; currently, downstream integrations (e.g., writing to ClickHouse or search engines) are not provided but may be offered in future advanced license editions based on user feedback.
 
