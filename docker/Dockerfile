@@ -7,31 +7,23 @@ LABEL maintainer="rustmailer <rustmailer.git@gmail.com>"
 LABEL version="${CRATE_VERSION}"
 LABEL description="Dockerized RustMailer service"
 
-# Create application user and group (non-root)
-RUN groupadd -r rmailer && useradd -r -g rmailer rmailer
-
 # Set working directory
 WORKDIR /opt/rustmailer
 
 # Copy compiled binary (ensure it's statically linked or compatible with bullseye)
-COPY --chown=rmailer:rmailer rustmailer /opt/rustmailer/rustmailer
-COPY --chown=rmailer:rmailer LICENSE /opt/rustmailer/
-COPY --chown=rmailer:rmailer license.html /opt/rustmailer/
+COPY rustmailer /opt/rustmailer/rustmailer
+COPY LICENSE /opt/rustmailer/
+COPY license.html /opt/rustmailer/
 # Set proper permissions
 RUN chmod +x /opt/rustmailer/rustmailer
 
 # Create data directory
-RUN mkdir -p /data && chown rmailer:rmailer /data
+RUN mkdir -p /data
 
 # Expose default ports
 EXPOSE 15630 16630
 
-
-# Switch to non-root user
-USER rmailer
-
 # Set volume and working directory
-VOLUME /data
 WORKDIR /data
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

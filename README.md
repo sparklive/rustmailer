@@ -107,7 +107,10 @@ cargo build --release
 
 If you don’t want to build manually, you can follow the Docker-based installation guide here:
 📄 [Install via Docker](https://rustmailer.com/docs/install/docker)
+```shell
+docker run -d --name rustmailer -p 15630:15630 -p 16630:16630 -e RUSTMAILER_ROOT_DIR=/data -v /sourcecode/rustmailer_data/:/data rustmailer/rustmailer:latest
 
+```
 > 🔐 RustMailer offers a free 14-day trial with unlimited email accounts during the trial period. See License for details.
 > A valid license key is required for continued use after the trial.
 
