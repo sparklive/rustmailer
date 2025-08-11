@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img width="407" height="289" alt="image" src="https://github.com/user-attachments/assets/b12d22b2-b8db-4e4c-a89f-3cd99819cedd" />
+  <img src="https://github.com/user-attachments/assets/b12d22b2-b8db-4e4c-a89f-3cd99819cedd" width="200" height="142" alt="image" />
   <br>
   RustMailer
   <br>
