@@ -29,8 +29,19 @@ Typical use cases and industries include:
 
 RustMailer enables developers to focus on core application logic without building complex mail infrastructure from scratch.
 
-<img width="1160" height="645" alt="image" src="https://github.com/user-attachments/assets/3c1d238e-2e03-4dc7-aa31-68fa7047b5d5" />
+<img width="1060" height="545" alt="image" src="https://github.com/user-attachments/assets/3c1d238e-2e03-4dc7-aa31-68fa7047b5d5" />
 
+## 💡 Why RustMailer?
+
+While many programming languages provide IMAP and SMTP client libraries, building a reliable, scalable, and feature-rich mail synchronization and delivery system from scratch remains complex and time-consuming. 
+RustMailer abstracts these challenges by offering a unified, self-hosted middleware service that:
+
+- Handles multi-account IMAP polling and caching efficiently  
+- Provides robust SMTP sending capabilities with template support  
+- Manages event dispatch (webhooks, message queues) out of the box  
+- Simplifies integration across diverse application stacks regardless of language  
+
+This allows development teams to focus on core business logic, accelerating time-to-market and reducing maintenance overhead compared to assembling disparate mail client libraries individually.
 
 ## ✨ Features
 - 🌐 **Modern APIs** – Offers both gRPC and OpenAPI interfaces with multi-version API documentation.
