@@ -29,6 +29,9 @@ Typical use cases and industries include:
 
 RustMailer enables developers to focus on core application logic without building complex mail infrastructure from scratch.
 
+<img width="1222" height="654" alt="image" src="https://github.com/user-attachments/assets/e99b44bf-09a7-498d-bf28-a67cb7633200" />
+
+
 ## ✨ Features
 - 🌐 **Modern APIs** – Offers both gRPC and OpenAPI interfaces with multi-version API documentation.
 - 🚀 **High Performance & Cost-Efficient** – Written in Rust for safety and speed. Runs with low memory usage, no Redis or external dependencies required — ideal for production at minimal cost.
