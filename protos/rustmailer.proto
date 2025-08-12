@@ -965,6 +965,26 @@ message ByteResponse {
   bytes data = 1;
 }
 
+// Request message to create a reply draft email linked to an existing message thread.
+message AppendReplyToDraftRequest {
+    // The ID of the email account
+    uint64 account_id = 1;
+    // The name of the mailbox containing the original message.
+    // This is used to locate the source message that is being replied to.
+    string mailbox_name = 2;
+    // The UID of the message being replied to
+    uint32 uid = 3;
+    // Optional preview text for the reply email
+    optional string preview = 4;
+    // Optional plain text body of the reply email
+    optional string text = 5;
+    // Optional HTML body of the reply email
+    optional string html = 6;
+    // The draft folder path, e.g. "[Gmail]/Drafts"
+    string draft_folder_path = 7;
+}
+
+
 // MessageService provides APIs for interacting with email messages.
 service MessageService {
   // Moves messages from one mailbox to another.
@@ -991,6 +1011,8 @@ service MessageService {
   rpc MessageSearch(MessageSearchRequest) returns (PagedMessages);
   // Performs a unified search across mail accounts and messages.
   rpc UnifiedSearch(UnifiedSearchRequest) returns (PagedMessages);
+  // Creates a reply draft email linked to an existing message thread.
+  rpc AppendReplyToDraft(AppendReplyToDraftRequest) returns (Empty);
 }
 
 // Mta represents a Mail Transfer Agent configuration.

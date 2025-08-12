@@ -11,6 +11,7 @@ use crate::modules::common::auth::ClientContext;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::context::controller::SYNC_CONTROLLER;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::grpc::auth::require_account_access;
 use crate::modules::grpc::service::rustmailer_grpc::AccountService;
 use crate::modules::grpc::service::rustmailer_grpc::ListMinimalAccountsResponse;
 use crate::modules::grpc::service::rustmailer_grpc::{
@@ -32,32 +33,13 @@ pub struct RustMailerAccountService;
 
 impl AccountService for RustMailerAccountService {
     async fn get_account(&self, request: Request<AccountId>) -> Result<Response<Account>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        // Check account access
-        context.require_account_access(req.account_id)?;
-
+        let req = require_account_access(request, |r| r.account_id)?;
         let account = RustMailerAccount::get(req.account_id).await?;
         Ok(Response::new(account.into()))
     }
 
     async fn remove_account(&self, request: Request<AccountId>) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        // Check account access
-        context.require_account_access(req.account_id)?;
-
+        let req = require_account_access(request, |r| r.account_id)?;
         RustMailerAccount::delete(req.account_id).await?;
         Ok(Response::new(Empty::default()))
     }
@@ -98,16 +80,8 @@ impl AccountService for RustMailerAccountService {
         &self,
         request: Request<AccountUpdateRequest>,
     ) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
+        let req = require_account_access(request, |r| r.account_id)?;
         let account_id = req.account_id;
-        // Check account access
-        context.require_account_access(account_id)?;
         let request = RustMailerAccountUpdateRequest::try_from(req)
             .map_err(|e| raise_error!(e.to_string(), ErrorCode::InvalidParameter))?;
         request.validate_update_request()?;
@@ -142,11 +116,8 @@ impl AccountService for RustMailerAccountService {
 
         let all_accounts = RustMailerAccount::list_all().await?;
 
-        let allowed_ids: BTreeSet<u64> = accessible_accounts
-            .unwrap()
-            .iter()
-            .map(|a| a.id)
-            .collect();
+        let allowed_ids: BTreeSet<u64> =
+            accessible_accounts.unwrap().iter().map(|a| a.id).collect();
 
         let mut filtered_accounts: Vec<RustMailerAccount> = all_accounts
             .into_iter()
@@ -177,17 +148,7 @@ impl AccountService for RustMailerAccountService {
         &self,
         request: Request<AccountId>,
     ) -> Result<Response<AccountRunningState>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        // Check account access
-        context.require_account_access(req.account_id)?;
-
+        let req = require_account_access(request, |r| r.account_id)?;
         let result = RustMailerAccountRunningState::get(req.account_id).await?;
         let result = result.ok_or_else(|| {
             raise_error!(

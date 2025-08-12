@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::modules::common::auth::ClientContext;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::grpc::auth::{require_account_access, require_root};
 use crate::modules::grpc::service::rustmailer_grpc::{
     DeleteAccountTemplatesRequest, DeleteTemplateRequest, EmailTemplate,
     EmailTemplateCreateRequest, Empty, GetTemplateRequest, ListAccountTemplatesRequest,
@@ -106,14 +107,7 @@ impl TemplatesService for RustMailerTemplatesService {
         &self,
         request: Request<ListTemplatesRequest>,
     ) -> Result<Response<PagedEmailTemplate>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-        context.require_root()?;
+        let req = require_root(request)?;
         let result =
             RustMailerEmailTemplate::paginate_list(req.page, req.page_size, req.desc).await?;
         Ok(Response::new(result.into()))
@@ -123,15 +117,7 @@ impl TemplatesService for RustMailerTemplatesService {
         &self,
         request: Request<ListAccountTemplatesRequest>,
     ) -> Result<Response<PagedEmailTemplate>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        context.require_account_access(req.account_id)?;
+        let req = require_account_access(request, |r| r.account_id)?;
         let result = RustMailerEmailTemplate::paginate_list_account(
             req.account_id,
             req.page,
@@ -146,13 +132,7 @@ impl TemplatesService for RustMailerTemplatesService {
         &self,
         request: Request<DeleteAccountTemplatesRequest>,
     ) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-        context.require_account_access(req.account_id)?;
+        let req = require_account_access(request, |r| r.account_id)?;
         RustMailerEmailTemplate::remove_account_templates(req.account_id).await?;
         Ok(Response::new(Empty::default()))
     }
@@ -161,13 +141,7 @@ impl TemplatesService for RustMailerTemplatesService {
         &self,
         request: Request<TemplateSentTestRequest>,
     ) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-        context.require_account_access(req.account_id)?;
+        let req = require_account_access(request, |r| r.account_id)?;
         send_template_test_email(req.template_id, req.into()).await?;
         Ok(Response::new(Empty::default()))
     }

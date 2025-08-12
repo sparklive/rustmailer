@@ -18,6 +18,7 @@ pub mod full;
 pub mod list;
 pub mod mv;
 pub mod search;
+pub mod append;
 
 pub async fn get_minimal_meta(
     account_id: u64,

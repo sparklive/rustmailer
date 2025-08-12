@@ -68,9 +68,6 @@ pub struct ReplyEmailRequest {
     ///
     /// This optional field allows explicitly specifying Bcc recipients.
     pub bcc: Option<Vec<EmailAddress>>,
-    /// The sender's timezone (e.g., "Asia/Shanghai").
-    ///
-    /// This optional field may be used for formatting date/time in the reply body.
     /// Whether to include the original message in the reply body.
     ///
     /// If true, the original message content will be quoted and included in the reply.
@@ -159,7 +156,7 @@ impl EmailBuilder for ReplyEmailRequest {
         let message_id = generate_message_id();
         builder = self.apply_recipient_headers(builder, &envelope, &message_id)?;
         builder = self.apply_custom_headers(builder)?;
-        builder = self.apply_references(builder, &envelope)?;
+        builder = apply_references(builder, &envelope)?;
         builder = self.apply_content(builder, &envelope, account).await?;
         builder = self.apply_attachments(builder, account).await?;
 
@@ -224,26 +221,6 @@ impl ReplyEmailRequest {
             }),
             None => builder,
         })
-    }
-
-    fn apply_references(
-        &self,
-        builder: MessageBuilder<'static>,
-        envelope: &EmailEnvelopeV2,
-    ) -> RustMailerResult<MessageBuilder<'static>> {
-        let builder = if let Some(message_id) = &envelope.message_id {
-            builder.in_reply_to(message_id.clone())
-        } else {
-            builder
-        };
-
-        let mut references = envelope.references.clone().unwrap_or_default();
-        if let Some(message_id) = &envelope.message_id {
-            if !references.contains(message_id) {
-                references.push(message_id.clone());
-            }
-        }
-        Ok(builder.references(references))
     }
 
     async fn apply_content(
@@ -359,4 +336,23 @@ impl ReplyEmailRequest {
         }
         Ok(builder)
     }
+}
+
+pub fn apply_references(
+    builder: MessageBuilder<'static>,
+    envelope: &EmailEnvelopeV2,
+) -> RustMailerResult<MessageBuilder<'static>> {
+    let builder = if let Some(message_id) = &envelope.message_id {
+        builder.in_reply_to(message_id.clone())
+    } else {
+        builder
+    };
+
+    let mut references = envelope.references.clone().unwrap_or_default();
+    if let Some(message_id) = &envelope.message_id {
+        if !references.contains(message_id) {
+            references.push(message_id.clone());
+        }
+    }
+    Ok(builder.references(references))
 }

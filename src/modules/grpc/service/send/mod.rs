@@ -5,6 +5,7 @@
 use crate::modules::common::auth::ClientContext;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::grpc::auth::require_account_access;
 use crate::modules::rest::response::DataPage;
 use crate::modules::scheduler::model::TaskStatus;
 use crate::modules::smtp::queue::message::SendEmailTask as RustMailerQueuedEmailTask;
@@ -34,16 +35,7 @@ impl SendMailService for RustMailerSendMailService {
         &self,
         request: Request<SendNewMailRequest>,
     ) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        // Check account access
-        context.require_account_access(req.account_id)?;
+        let req = require_account_access(request, |r| r.account_id)?;
         let email_request: RustMailerSendEmailRequest = req
             .request
             .ok_or_else(|| {
@@ -63,16 +55,7 @@ impl SendMailService for RustMailerSendMailService {
         &self,
         request: Request<ReplyMailRequest>,
     ) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        // Check account access
-        context.require_account_access(req.account_id)?;
+        let req = require_account_access(request, |r| r.account_id)?;
         let email_request: RustMailerReplyEmailRequest = req
             .request
             .ok_or_else(|| {
@@ -91,16 +74,7 @@ impl SendMailService for RustMailerSendMailService {
         &self,
         request: Request<ForwardMailRequest>,
     ) -> Result<Response<Empty>, Status> {
-        let extensions = request.extensions().clone();
-        let req = request.into_inner();
-
-        // Get ClientContext from cloned extensions
-        let context = extensions.get::<Arc<ClientContext>>().ok_or_else(|| {
-            raise_error!("Missing ClientContext".into(), ErrorCode::InternalError)
-        })?;
-
-        // Check account access
-        context.require_account_access(req.account_id)?;
+        let req = require_account_access(request, |r| r.account_id)?;
         let email_request: RustMailerForwardEmailRequest = req
             .request
             .ok_or_else(|| {
@@ -160,11 +134,8 @@ impl SendMailService for RustMailerSendMailService {
             None => send_queue.list_all_email_tasks().await?,
         };
 
-        let allowed_ids: BTreeSet<u64> = accessible_accounts
-            .unwrap()
-            .iter()
-            .map(|a| a.id)
-            .collect();
+        let allowed_ids: BTreeSet<u64> =
+            accessible_accounts.unwrap().iter().map(|a| a.id).collect();
 
         let mut filtered_tasks: Vec<RustMailerQueuedEmailTask> = all_tasks
             .into_iter()

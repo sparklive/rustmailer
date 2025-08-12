@@ -12,6 +12,7 @@ use crate::modules::{
     grpc::service::rustmailer_grpc::{self, PagedMessages},
     imap::section::{EmailBodyPart, Encoding, ImapAttachment, Param, PartType, SegmentPath},
     message::{
+        append::AppendReplyToDraftRequest,
         attachment::AttachmentRequest,
         content::{MessageContent, MessageContentRequest, PlainText},
         copy::MailboxTransferRequest,
@@ -549,5 +550,18 @@ impl TryFrom<rustmailer_grpc::MessageSearchRequest> for MessageSearchRequest {
             search: value.search.ok_or("field 'search' Missing")?.try_into()?,
             mailbox: value.mailbox_name,
         })
+    }
+}
+
+impl From<rustmailer_grpc::AppendReplyToDraftRequest> for AppendReplyToDraftRequest {
+    fn from(value: rustmailer_grpc::AppendReplyToDraftRequest) -> Self {
+        Self {
+            mailbox_name: value.mailbox_name,
+            uid: value.uid,
+            preview: value.preview,
+            text: value.text,
+            html: value.html,
+            draft_folder_path: value.draft_folder_path,
+        }
     }
 }

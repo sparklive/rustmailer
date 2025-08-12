@@ -5,6 +5,7 @@
 use crate::current_datetime;
 use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::common::auth::ClientContext;
+use crate::modules::message::append::AppendReplyToDraftRequest;
 use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentRequest};
 use crate::modules::message::content::{
     retrieve_email_content, MessageContent, MessageContentRequest,
@@ -365,5 +366,32 @@ impl MessageApi {
             }
         }
         Ok(Json(request.search(page.0, page_size.0, desc).await?))
+    }
+
+    /// Creates a reply draft email for the specified account.
+    /// The server internally constructs the reply email, automatically linking it to the
+    /// original email thread by applying appropriate headers such as `References` and `In-Reply-To`.
+    ///
+    /// The newly created draft is appended into the specified draft mailbox.
+    #[oai(
+        path = "/append-reply-to-draft/:account_id",
+        method = "post",
+        operation_id = "append_reply_to_draft"
+    )]
+    async fn append_reply_to_draft(
+        &self,
+        /// The ID of the email account for which the draft is created.
+        account_id: Path<u64>,
+        /// Request body containing original message location and reply content.
+        payload: Json<AppendReplyToDraftRequest>,
+        /// Request context (authentication, authorization).
+        context: ClientContext,
+    ) -> ApiResult<()> {
+        let account_id = account_id.0;
+        // Verify that the client has permission to access the account.
+        context.require_account_access(account_id)?;
+        // Perform the draft creation and append operation.
+        payload.0.append_reply_to_draft(account_id).await?;
+        Ok(())
     }
 }

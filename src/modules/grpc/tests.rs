@@ -11,9 +11,9 @@ use crate::{
         common::rustls::RustMailerTls,
         context::Initialize,
         grpc::service::rustmailer_grpc::{
-            GetThreadMessagesRequest, ListMessagesRequest, ListThreadsRequest,
-            MessageServiceClient, TemplateSentTestRequest, TemplatesServiceClient,
-            UnifiedSearchRequest,
+            AppendReplyToDraftRequest, GetThreadMessagesRequest, ListMessagesRequest,
+            ListThreadsRequest, MessageServiceClient, TemplateSentTestRequest,
+            TemplatesServiceClient, UnifiedSearchRequest,
         },
     },
 };
@@ -169,4 +169,34 @@ async fn test5() {
     );
     let response = grpc_client.get_thread_messages(request).await.unwrap();
     println!("{:#?}", response.items);
+}
+
+#[tokio::test]
+async fn test6() {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = MessageServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = AppendReplyToDraftRequest {
+        account_id: 6637484689546669,
+        mailbox_name: "INBOX".into(),
+        uid: 395,
+        preview: None,
+        text: Some("hello world.".into()),
+        html: None,
+        draft_folder_path: "[Gmail]/Drafts".into(),
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    grpc_client.append_reply_to_draft(request).await.unwrap();
 }
