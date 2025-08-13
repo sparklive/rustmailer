@@ -187,7 +187,7 @@ const defaultValues: Account = {
   imap: {
     host: "",
     port: 993,
-    encryption: 'StartTls',
+    encryption: 'Ssl',
     auth: {
       auth_type: 'Password',
       password: undefined,
@@ -197,7 +197,7 @@ const defaultValues: Account = {
   smtp: {
     host: "",
     port: 465,
-    encryption: 'StartTls',
+    encryption: 'Ssl',
     auth: {
       auth_type: 'Password',
       password: undefined,
