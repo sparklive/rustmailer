@@ -270,6 +270,38 @@ export function ActionDialog({ currentRow, open, onOpenChange }: Props) {
             Click save when you&apos;re done.
           </DialogDescription>
         </DialogHeader>
+        <div className="flex items-center justify-start gap-2 mb-4">
+          <span className="text-sm text-muted-foreground mr-2">
+            Quick presets:
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              form.setValue("auth_url", "https://accounts.google.com/o/oauth2/v2/auth");
+              form.setValue("token_url", "https://oauth2.googleapis.com/token");
+              form.setValue("enabled", true);
+              form.setValue("scopes", [{ value: "https://mail.google.com/" }]);
+              form.setValue("extra_params", [{ key: "access_type", value: "offline" }, { key: "prompt", value: "consent" }])
+            }}
+          >
+            Gmail
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              form.setValue("auth_url", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
+              form.setValue("token_url", "https://login.microsoftonline.com/common/oauth2/v2.0/token");
+              form.setValue("enabled", true);
+              form.setValue("scopes", [{ value: "https://outlook.office.com/IMAP.AccessAsUser.All" }, { value: "https://outlook.office.com/SMTP.Send" }]);
+              form.setValue("extra_params", [{ key: "client_info", value: "1" }, { key: "prompt", value: "select_account" }])
+            }}
+          >
+            Outlook
+          </Button>
+        </div>
         <ScrollArea className='h-[40rem] w-full pr-4 -mr-4 py-1'>
           <Form {...form}>
             <form
@@ -391,7 +423,10 @@ export function ActionDialog({ currentRow, open, onOpenChange }: Props) {
                       />
                     </FormControl>
                     <FormDescription>
-                      The URL where users will be redirected after authorization. Must match the URL registered with the OAuth provider.
+                      The redirect URL after authorization. It must match the one registered with the OAuth provider.
+                      Use the format <code>http://[host]:[port]/oauth2/callback</code> (or <code>https://</code>),
+                      where <code>[host]</code> and <code>[port]</code> match your RustMailer deployment.
+                      The path <code>/oauth2/callback</code> is fixed.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
