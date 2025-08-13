@@ -2,7 +2,10 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::oauth2::{flow::OAuth2Flow, pending::OAuth2PendingEntity};
+use crate::modules::{
+    oauth2::{flow::OAuth2Flow, pending::OAuth2PendingEntity},
+    settings::cli::SETTINGS,
+};
 use poem::{
     handler,
     web::{Query, Redirect},
@@ -75,5 +78,8 @@ pub async fn oauth2_callback(
         error!("Failed to delete pending OAuth2 entity: {}", e);
     }
 
-    Ok(Redirect::temporary("/oauth2-result?success=true").into_response())
+    match &SETTINGS.rustmailer_oauth2_success_redirect {
+        Some(url) => Ok(Redirect::temporary(url).into_response()),
+        None => Ok(Redirect::temporary("/oauth2-result?success=true").into_response()),
+    }
 }

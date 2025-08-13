@@ -4,6 +4,7 @@
 
 use clap::{builder::ValueParser, Parser, ValueEnum};
 use std::{collections::HashSet, env, fmt, path::PathBuf, sync::LazyLock};
+use url::Url;
 
 #[cfg(not(test))]
 pub static SETTINGS: LazyLock<Settings> = LazyLock::new(Settings::parse);
@@ -373,6 +374,17 @@ pub struct Settings {
         value_parser = clap::value_parser!(u64).range(60..)
     )]
     pub rustmailer_metadata_snapshot_interval_secs: u64,
+
+    #[clap(
+        long,
+        env,
+        help = "URL to redirect users to after successful OAuth2 authorization",
+        value_parser = ValueParser::new(|s: &str| -> Result<String, String> {
+            Url::parse(s).map_err(|_| format!("Invalid URL for oauth2_success_redirect: {}", s))?;
+            Ok(s.to_string())
+        })
+    )]
+    pub rustmailer_oauth2_success_redirect: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, ValueEnum)]
@@ -441,6 +453,7 @@ impl Settings {
             rustmailer_email_tracking_url: "http://localhost:15630/email-track".to_string(),
             rustmailer_metadata_memory_mode_enabled: false,
             rustmailer_metadata_snapshot_interval_secs: 900,
+            rustmailer_oauth2_success_redirect: None,
         }
     }
 }
