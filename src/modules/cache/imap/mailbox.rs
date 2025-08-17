@@ -6,7 +6,7 @@ use crate::{
     decode_mailbox_name, encode_mailbox_name,
     modules::{
         database::{
-            async_find_impl, batch_delete_impl, batch_insert_impl, batch_upsert_impl,
+            async_find_impl, batch_delete_impl, batch_insert_impl, batch_upsert_impl, delete_impl,
             filter_by_secondary_key_impl, manager::DB_MANAGER,
         },
         error::{code::ErrorCode, RustMailerResult},
@@ -83,6 +83,16 @@ impl MailBox {
         })
         .await?;
         Ok(())
+    }
+
+    pub async fn delete(id: u64) -> RustMailerResult<()> {
+        delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+            rw.get()
+                .primary::<MailBox>(id)
+                .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                .ok_or_else(|| raise_error!("mailbox missing".into(), ErrorCode::InternalError))
+        })
+        .await
     }
 
     pub async fn list_all(account_id: u64) -> RustMailerResult<Vec<MailBox>> {

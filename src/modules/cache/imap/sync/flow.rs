@@ -50,7 +50,7 @@ use async_imap::types::Fetch;
 use mail_parser::{Message, MessageParser};
 use std::{collections::HashSet, sync::Arc, time::Instant};
 use tokio::sync::Semaphore;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 const ENVELOPE_BATCH_SIZE: u32 = 1000;
 const UID_FLAGS_BATCH_SIZE: u32 = 10000;
@@ -360,7 +360,8 @@ pub async fn compare_and_sync_mailbox(
             }
             mailboxes_to_update.push(remote_mailbox.clone());
         }
-        // commit(account).await?;
+        //The metadata of this mailbox must only be updated after a successful synchronization;
+        //otherwise, it may cause synchronization errors and result in missing emails in the local sync results.
         MailBox::batch_upsert(&mailboxes_to_update).await?;
     }
     debug!(
@@ -383,13 +384,24 @@ pub async fn compare_and_sync_mailbox(
     }
 
     if !missing_mailboxes.is_empty() {
+        MailBox::batch_insert(&missing_mailboxes).await?;
         for mailbox in &missing_mailboxes {
             if mailbox.exists > 0 {
-                fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, false).await?;
+                //fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, false).await?;
+                match fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, false).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!("Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.", account.id, &mailbox.name, e);
+                        if let Err(del_err) = MailBox::delete(mailbox.id).await {
+                            error!(
+                                "Account {}: Failed to delete mailbox '{}' after sync error: {}",
+                                account.id, &mailbox.name, del_err
+                            );
+                        }
+                    }
+                }
             }
         }
-        // commit(account).await?;
-        MailBox::batch_insert(&missing_mailboxes).await?;
     }
     Ok(())
 }

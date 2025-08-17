@@ -12,7 +12,7 @@ use crate::modules::{
     error::RustMailerResult,
 };
 use std::time::Instant;
-use tracing::info;
+use tracing::{error, info, warn};
 
 pub async fn rebuild_cache(
     account: &Account,
@@ -21,6 +21,7 @@ pub async fn rebuild_cache(
     let start_time = Instant::now();
     let mut total_inserted = 0;
 
+    MailBox::batch_insert(remote_mailboxes).await?;
     for mailbox in remote_mailboxes {
         if mailbox.exists == 0 {
             info!(
@@ -29,11 +30,27 @@ pub async fn rebuild_cache(
             );
             continue;
         }
-        total_inserted +=
-            fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, true).await?;
+        // total_inserted +=
+        //     fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, true).await?;
+        match fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, true).await {
+            Ok(inserted) => {
+                total_inserted += inserted;
+            }
+            Err(e) => {
+                warn!(
+                    "Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.",
+                    account.id, &mailbox.name, e
+                );
+                if let Err(del_err) = MailBox::delete(mailbox.id).await {
+                    error!(
+                        "Account {}: Failed to delete mailbox '{}' after sync error: {}",
+                        account.id, &mailbox.name, del_err
+                    );
+                }
+            }
+        }
     }
     // commit(account).await?;
-    MailBox::batch_insert(remote_mailboxes).await?;
 
     let elapsed_time = start_time.elapsed().as_secs();
     info!(
@@ -52,6 +69,9 @@ pub async fn rebuild_cache_since_date(
     let start_time = Instant::now();
     let mut total_inserted = 0;
     let date = date_since.since_date()?;
+
+    MailBox::batch_insert(remote_mailboxes).await?;
+
     for mailbox in remote_mailboxes {
         if mailbox.exists == 0 {
             info!(
@@ -60,17 +80,41 @@ pub async fn rebuild_cache_since_date(
             );
             continue;
         }
-        total_inserted += fetch_and_save_since_date(
+        // total_inserted += fetch_and_save_since_date(
+        //     account.id,
+        //     date.as_str(),
+        //     mailbox,
+        //     true,
+        //     account.minimal_sync,
+        // )
+        // .await?;
+
+        match fetch_and_save_since_date(
             account.id,
             date.as_str(),
             mailbox,
             true,
             account.minimal_sync,
         )
-        .await?;
+        .await
+        {
+            Ok(inserted) => {
+                total_inserted += inserted;
+            }
+            Err(e) => {
+                warn!(
+                    "Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.",
+                    account.id, &mailbox.name, e
+                );
+                if let Err(del_err) = MailBox::delete(mailbox.id).await {
+                    error!(
+                        "Account {}: Failed to delete mailbox '{}' after sync error: {}",
+                        account.id, &mailbox.name, del_err
+                    );
+                }
+            }
+        }
     }
-    // commit(account).await?;
-    MailBox::batch_insert(remote_mailboxes).await?;
 
     let elapsed_time = start_time.elapsed().as_secs();
     info!(
