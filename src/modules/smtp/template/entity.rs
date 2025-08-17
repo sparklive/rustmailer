@@ -28,7 +28,7 @@ const NOT_ASSIGNED: u64 = 0;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 #[native_model(id = 6, version = 1)]
-#[native_db(primary_key(pk -> String), secondary_key(account_id_key -> String))]
+#[native_db(primary_key(pk -> String), secondary_key(account_id_key -> u64))]
 pub struct EmailTemplate {
     /// Unique identifier for the template, used as a secondary key.
     #[secondary_key(unique)]
