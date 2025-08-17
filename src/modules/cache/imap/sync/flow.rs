@@ -774,6 +774,7 @@ async fn process_email_added_events(
 ) -> RustMailerResult<()> {
     for fetch in fetches {
         let envelope = extract_envelope(fetch, account.id, &remote.name)?;
+        let thread_id = envelope.compute_thread_id();
         let message_content = match envelope.body_meta {
             Some(sections) => {
                 let request = MessageContentRequest {
@@ -823,6 +824,7 @@ async fn process_email_added_events(
                             .attachments
                             .as_ref()
                             .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
+                        thread_id,
                     }),
                 ),
             ))

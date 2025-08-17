@@ -185,6 +185,7 @@ impl RustMailerEvent {
                     html: Some(String::from("<p>Welcome to use rustmailer!</p>")),
                 },
                 thread_name: Some("Meeting Thread".into()),
+                thread_id: id!(64),
                 reply_to: Some(vec![addr("reply@example.com")]),
                 to: Some(vec![addr("recipient@example.com")]),
                 attachments: Some(vec![Attachment {
