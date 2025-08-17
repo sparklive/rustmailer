@@ -6,7 +6,7 @@ use crate::modules::{
     grpc::service::rustmailer_grpc::{self, PagedOAuth2},
     oauth2::{
         entity::{OAuth2, OAuth2CreateRequest, OAuth2UpdateRequest},
-        token::OAuth2AccessToken,
+        token::{ExternalOAuth2Request, OAuth2AccessToken},
     },
     rest::response::DataPage,
 };
@@ -93,6 +93,15 @@ impl From<OAuth2AccessToken> for rustmailer_grpc::OAuth2AccessToken {
             refresh_token: value.refresh_token,
             created_at: value.created_at,
             updated_at: value.updated_at,
+        }
+    }
+}
+impl From<rustmailer_grpc::ExternalOAuth2Request> for ExternalOAuth2Request {
+    fn from(value: rustmailer_grpc::ExternalOAuth2Request) -> Self {
+        Self {
+            oauth2_id: value.oauth2_id,
+            access_token: value.access_token,
+            refresh_token: value.refresh_token,
         }
     }
 }

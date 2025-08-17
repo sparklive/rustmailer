@@ -1305,6 +1305,29 @@ message GetOAuth2TokensRequest {
   uint64 account_id = 1;
 }
 
+// Represents a request to configure or update an external OAuth2 token
+// for a given account in RustMailer.
+message ExternalOAuth2Request {
+  // The ID of the RustMailer account associated with this token.
+  uint64 account_id = 1;
+
+  // The ID of the OAuth2 configuration associated with this access token.
+  // Must reference an existing OAuth2 configuration in RustMailer.
+  // Required if a refresh_token is provided.
+  optional uint64 oauth2_id = 2;
+
+  // The OAuth2 access token used to authenticate requests to the provider.
+  // If provided without refresh_token, RustMailer will store it directly,
+  // but cannot refresh it automatically.
+  optional string access_token = 3;
+
+  // The OAuth2 refresh token used to obtain new access tokens.
+  // If provided, `oauth2_id` must also be set, and RustMailer will
+  // use the refresh token together with the stored client_secret to
+  // refresh the access token when needed.
+  optional string refresh_token = 4;
+}
+
 // OAuth2Service provides APIs for managing OAuth2 configurations and tokens.
 service OAuth2Service {
   // Retrieves a specific OAuth2 configuration.
@@ -1321,6 +1344,15 @@ service OAuth2Service {
   rpc CreateAuthorizeUrl(AuthorizeUrlRequest) returns (AuthorizeUrlResponse);
   // Retrieves OAuth2 access and refresh tokens for an account.
   rpc GetOAuth2Tokens(GetOAuth2TokensRequest) returns (OAuth2AccessToken);
+  // Upserts an external OAuth2 token for a specified account.
+  //
+  // If only an access_token is provided, RustMailer stores it directly.
+  // The caller must periodically refresh it by calling this method again.
+  //
+  // If both oauth2_id and refresh_token are provided, RustMailer assumes
+  // the OAuth2 flow is completed externally but will handle refreshing
+  // access tokens internally using the stored client_secret.
+  rpc UpsertExternalOAuth2Token(ExternalOAuth2Request) returns (Empty);
 }
 
 // MessageFormat specifies the format of an email template's content.

@@ -6,7 +6,7 @@ use crate::modules::common::auth::ClientContext;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::oauth2::entity::{OAuth2, OAuth2CreateRequest, OAuth2UpdateRequest};
 use crate::modules::oauth2::flow::{AuthorizeUrlRequest, OAuth2Flow};
-use crate::modules::oauth2::token::OAuth2AccessToken;
+use crate::modules::oauth2::token::{ExternalOAuth2Request, OAuth2AccessToken};
 use crate::modules::rest::api::ApiTags;
 use crate::modules::rest::response::DataPage;
 use crate::modules::rest::ApiResult;
@@ -175,5 +175,40 @@ impl OAuth2Api {
                 )
             },
         )?))
+    }
+
+    /// Configures an external OAuth2 token for a specified account.
+    ///
+    /// This endpoint allows two usage modes:
+    /// 1. If only an `access_token` is provided, RustMailer will store it directly.
+    ///    - In this mode, RustMailer **cannot refresh** the token, since it has no
+    ///      associated OAuth2 configuration or refresh token.
+    ///    - The caller is responsible for periodically updating the access token
+    ///      by calling this endpoint again.
+    /// 2. If both `oauth2_id` and `refresh_token` are provided, it means the external
+    ///    OAuth2 authorization flow has been completed outside RustMailer.
+    ///    - Since the OAuth2 configuration (including client_id and client_secret)
+    ///      is already stored in RustMailer, the service can use the refresh token
+    ///      to obtain new access tokens automatically.
+    ///
+    /// Note: The `oauth2_id` must reference a valid OAuth2 configuration
+    /// already created in RustMailer.
+    #[oai(
+        path = "/store-external-oauth2-token/:account_id",
+        method = "post",
+        operation_id = "store_external_oauth2_token"
+    )]
+    async fn store_external_oauth2_token(
+        &self,
+        account_id: Path<u64>,
+        request: Json<ExternalOAuth2Request>,
+        context: ClientContext,
+    ) -> ApiResult<()> {
+        let account = account_id.0;
+        // Check account access permissions
+        context.require_account_access(account)?;
+        OAuth2AccessToken::upsert_external_oauth_token(account, request.0).await?;
+
+        Ok(())
     }
 }

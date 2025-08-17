@@ -5,9 +5,9 @@
 use crate::modules::error::code::ErrorCode;
 use crate::modules::grpc::auth::{require_account_access, require_root};
 use crate::modules::grpc::service::rustmailer_grpc::{
-    AuthorizeUrlRequest, AuthorizeUrlResponse, DeleteOAuth2Request, Empty, GetOAuth2Request,
-    GetOAuth2TokensRequest, ListOAuth2Request, OAuth2, OAuth2AccessToken, OAuth2CreateRequest,
-    OAuth2Service, PagedOAuth2, UpdateOAuth2Request,
+    AuthorizeUrlRequest, AuthorizeUrlResponse, DeleteOAuth2Request, Empty, ExternalOAuth2Request,
+    GetOAuth2Request, GetOAuth2TokensRequest, ListOAuth2Request, OAuth2, OAuth2AccessToken,
+    OAuth2CreateRequest, OAuth2Service, PagedOAuth2, UpdateOAuth2Request,
 };
 use crate::modules::oauth2::{
     entity::OAuth2 as RustMailerOAuth2, flow::OAuth2Flow,
@@ -97,5 +97,15 @@ impl OAuth2Service for RustMailerOAuth2Service {
                 )
             })?;
         Ok(Response::new(result.into()))
+    }
+
+    async fn upsert_external_o_auth2_token(
+        &self,
+        request: Request<ExternalOAuth2Request>,
+    ) -> Result<Response<Empty>, Status> {
+        let req = require_account_access(request, |r| r.account_id)?;
+        RustMailerOAuth2AccessToken::upsert_external_oauth_token(req.account_id, req.into())
+            .await?;
+        Ok(Response::new(Empty::default()))
     }
 }

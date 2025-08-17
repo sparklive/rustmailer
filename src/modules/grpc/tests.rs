@@ -11,9 +11,9 @@ use crate::{
         common::rustls::RustMailerTls,
         context::Initialize,
         grpc::service::rustmailer_grpc::{
-            AppendReplyToDraftRequest, GetThreadMessagesRequest, ListMessagesRequest,
-            ListThreadsRequest, MessageServiceClient, TemplateSentTestRequest,
-            TemplatesServiceClient, UnifiedSearchRequest,
+            AppendReplyToDraftRequest, ExternalOAuth2Request, GetThreadMessagesRequest,
+            ListMessagesRequest, ListThreadsRequest, MessageServiceClient, OAuth2ServiceClient,
+            TemplateSentTestRequest, TemplatesServiceClient, UnifiedSearchRequest,
         },
     },
 };
@@ -199,4 +199,34 @@ async fn test6() {
         format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
     );
     grpc_client.append_reply_to_draft(request).await.unwrap();
+}
+
+#[tokio::test]
+async fn test7() {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = OAuth2ServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = ExternalOAuth2Request {
+        account_id: 211386635081531,
+        oauth2_id: None,
+        access_token: Some("ya29.a0AS3H6Nw6CPT0PaS5ma2P3LJlCYUQ4uA9SaSf7Wd8L6s86NU2p9VfoEXOWnwQUr0LbU6t0ZyYh2SoI7xbokfmJy3VUx39jUGvb31jXzPSsoE41lINxi2OBht0Oe6cjoMU8sebtNj8UFQUE_aFDgaL3YB1EbqTWZ4VGSG1q676mQaCgYKAWASARQSFQHGX2MihHST2SJe5KYZnvun2dohPg0177".into()),
+        refresh_token: None,
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    grpc_client
+        .upsert_external_o_auth2_token(request)
+        .await
+        .unwrap();
 }
