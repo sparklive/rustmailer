@@ -37,7 +37,7 @@ interface StepProps {
 }
 
 export default function Step4({ isEdit }: StepProps) {
-    const { control, getValues } = useFormContext<Account>();
+    const { control, getValues, setValue } = useFormContext<Account>();
     const current = getValues();
     const [rangeType, setRangeType] = useState<'none' | 'fixed' | 'relative'>(current.date_since ? (current.date_since.fixed ? 'fixed' : 'relative') : 'none')
 
@@ -96,7 +96,18 @@ export default function Step4({ isEdit }: StepProps) {
                 <RadioGroup
                     defaultValue={rangeType}
                     onValueChange={(value: 'fixed' | 'relative' | 'none') => {
-                        setRangeType(value)
+                        setRangeType(value);
+                        if (value === 'none') {
+                            setValue("date_since", undefined, { shouldValidate: true });
+                        }
+
+                        if (value === 'fixed') {
+                            setValue("date_since", { fixed: undefined }, { shouldValidate: true });
+                        }
+
+                        if (value === 'relative') {
+                            setValue("date_since", { relative: { value: undefined, unit: undefined } }, { shouldValidate: true });
+                        }
                     }}
                     className='flex flex-row space-x-4'
                 >

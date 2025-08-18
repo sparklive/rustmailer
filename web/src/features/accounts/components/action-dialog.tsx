@@ -74,21 +74,22 @@ const imapConfigSchema = (isEdit: boolean) =>
     use_proxy: z.number().optional(),
   });
 
-const unitSchema = z.union([
-  z.literal('Days'),
-  z.literal('Months'),
-  z.literal('Years'),
-]);
+// const unitSchema = z.union([
+//   z.literal('Days'),
+//   z.literal('Months'),
+//   z.literal('Years'),
+// ]);
 
 const relativeDateSchema = z.object({
-  unit: unitSchema.optional(),
-  value: z.number().int().min(1, { message: 'Relative date value must be at least 1' }).optional(),
+  unit: z.enum(["Days", "Months", "Years"], { message: "Please select a unit" }),
+  value: z.number({ message: 'Please enter a value' }).int().min(1, "Must be at least 1"),
 });
 
-const dateSelectionSchema = z.object({
-  fixed: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fixed date must be in the format YYYY-MM-DD' }).optional(),
-  relative: relativeDateSchema.optional(),
-});
+const dateSelectionSchema = z.union([
+  z.object({ fixed: z.string({ message: "Please select a date" }) },),
+  z.object({ relative: relativeDateSchema }),
+  z.undefined(),
+]);
 
 // Define static Account type to avoid z.infer issue with dynamic schema
 export type Account = {
@@ -348,9 +349,8 @@ export function AccountActionDialog({ currentRow, open, onOpenChange }: Props) {
     }
   };
 
-  async function handleAutoConfigure() {
+  async function handleContinue() {
     const isValid = await form.trigger(steps[currentStep].fields);
-
     if (!isValid) {
       return;
     }
@@ -495,9 +495,7 @@ export function AccountActionDialog({ currentRow, open, onOpenChange }: Props) {
             disabled={currentStep === LAST_STEP || currentStep === COMPLETE_STEP}
             type="button"
             className="flex-grow sm:flex-grow-0 rounded-md md:rounded-lg px-6 disabled:hidden text-sm"
-            onClick={() => {
-              handleAutoConfigure();
-            }}
+            onClick={handleContinue}
           >
             {autoConfigLoading ? (
               <>
