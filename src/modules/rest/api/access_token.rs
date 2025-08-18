@@ -6,6 +6,7 @@ use crate::modules::common::auth::ClientContext;
 use crate::modules::rest::api::ApiTags;
 use crate::modules::rest::ApiResult;
 use crate::modules::token::payload::AccessTokenUpdateRequest;
+use crate::modules::token::root::set_root_password;
 use crate::modules::{
     token::payload::AccessTokenCreateRequest,
     token::{root::reset_root_token, AccessToken},
@@ -48,9 +49,7 @@ impl AccessTokenApi {
         context: ClientContext,
     ) -> ApiResult<Json<Vec<AccessToken>>> {
         context.require_root()?;
-        Ok(Json(
-            AccessToken::list_account_tokens(account_id.0).await?,
-        ))
+        Ok(Json(AccessToken::list_account_tokens(account_id.0).await?))
     }
     /// Deletes a specific access token.
     ///
@@ -71,7 +70,7 @@ impl AccessTokenApi {
     }
 
     /// Creates a new access token.
-    /// 
+    ///
     /// Requires root privileges.
     #[oai(
         path = "/access-token",
@@ -89,7 +88,7 @@ impl AccessTokenApi {
     }
 
     /// Updates an existing access token.
-    /// 
+    ///
     /// Requires root privileges.
     #[oai(
         path = "/access-token/:token",
@@ -109,8 +108,8 @@ impl AccessTokenApi {
     }
 
     /// Regenerates the root access token.
-    /// 
-    /// Requires root privileges. 
+    ///
+    /// Requires root privileges.
     #[oai(
         path = "/reset-root-token",
         method = "post",
@@ -121,10 +120,31 @@ impl AccessTokenApi {
         Ok(PlainText(reset_root_token().await?))
     }
 
-    /// Authenticates a user with root credentials.
-    #[oai(path = "/login", method = "post", operation_id = "login")]
-    async fn login(&self, context: ClientContext) -> ApiResult<()> {
+    /// Reset the Root user's password.
+    ///
+    /// Only callable by an already authenticated Root user.
+    /// This endpoint updates the Root password to `password_str`
+    /// and regenerates the `root_token`, invalidating any previous token.
+    #[oai(
+        path = "/reset-root-password",
+        method = "post",
+        operation_id = "reset_root_password"
+    )]
+    async fn reset_root_password(
+        &self,
+        password_str: PlainText<String>,
+        context: ClientContext,
+    ) -> ApiResult<()> {
         context.require_root()?;
-        Ok(())
+        Ok(set_root_password(password_str.0.trim()).await?)
     }
+
+    // /// Login endpoint for the Root user.
+    // ///
+    // /// Accepts the Root password and returns the `root_token`
+    // /// which should be used in subsequent requests for authentication.
+    // #[oai(path = "/login", method = "post", operation_id = "login")]
+    // async fn login(&self, password_str: PlainText<String>) -> ApiResult<PlainText<String>> {
+    //     Ok(PlainText(check_root_password(password_str.0.trim())?))
+    // }
 }

@@ -31,7 +31,7 @@ impl SystemSetting {
         }
     }
     //overwrite
-    pub async fn save(&self) -> RustMailerResult<()> {
+    pub async fn set(&self) -> RustMailerResult<()> {
         upsert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
     }
 
@@ -48,8 +48,8 @@ impl SystemSetting {
         Ok(setting.map(|s| s.value))
     }
 
-    pub async fn save_value(key: &str, value: String) -> RustMailerResult<()> {
+    pub async fn set_value(key: &str, value: String) -> RustMailerResult<()> {
         let setting = Self::new(key.to_string(), value);
-        setting.save().await
+        setting.set().await
     }
 }

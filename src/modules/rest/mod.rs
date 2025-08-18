@@ -9,6 +9,7 @@ use crate::modules::error::code::ErrorCode;
 use crate::modules::error::handler::error_handler;
 use crate::modules::error::RustMailerResult;
 use crate::modules::metrics::endpoint::PrometheusEndpoint;
+use crate::modules::rest::public::login::login;
 use crate::modules::rest::public::status::get_status;
 use crate::modules::{settings::cli::SETTINGS, utils::shutdown::shutdown_signal};
 
@@ -20,10 +21,10 @@ use api::create_openapi_service;
 use assets::FrontEndAssets;
 use http::HeaderValue;
 use poem::endpoint::EmbeddedFilesEndpoint;
-use poem::get;
 use poem::listener::{Listener, TcpListener};
 use poem::middleware::{CatchPanic, Compression, SetHeader};
 use poem::{endpoint::EmbeddedFileEndpoint, middleware::Cors, EndpointExt, Route, Server};
+use poem::{get, post};
 use poem_openapi::ContactObject;
 use public::oauth2::oauth2_callback;
 use public::tracking::get_tracking_code;
@@ -113,6 +114,7 @@ pub async fn start_http_server() -> RustMailerResult<()> {
         .nest("/oauth2/callback", get(oauth2_callback))
         .at("/email-track/:id", get(get_tracking_code))
         .nest("/api/status", get(get_status))
+        .nest("/api/login", post(login))
         .nest_no_strip("/api/v1", open_api_route)
         .nest_no_strip(
             "/assets",

@@ -27,8 +27,6 @@ import { AxiosError } from 'axios'
 import { ToastAction } from '@/components/ui/toast'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/button'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-
 
 type UserAuthFormProps = HTMLAttributes<HTMLDivElement>
 
@@ -38,7 +36,7 @@ const formSchema = z.object({
   password: z
     .string()
     .min(1, { message: 'Please enter your password' })
-    .min(7, { message: 'Password must be at least 7 characters long' }),
+    .min(4, { message: 'Password must be at least 4 characters long' }),
 });
 
 export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
@@ -57,37 +55,38 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
   })
 
   const mutation = useMutation({
-    mutationFn: login,
+    mutationFn: (password: string) => login(password),
     retry: 0,
   });
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
-    setAccessToken(data.password)
 
-    try {
-      await mutation.mutateAsync();
-      navigate({ to: redirect })
-    } catch (error) {
-      if (error instanceof AxiosError && error.response && error.response.status === 401) {
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: "Invalid password. Please try again.",
-          action: <ToastAction altText="Try again">Try again</ToastAction>,
-        })
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Something went wrong",
-          description: (error as Error).message,
-          action: <ToastAction altText="Try again">Try again</ToastAction>,
-        })
+    mutation.mutate(data.password, {
+      onSuccess: (rootToken) => {
+        setAccessToken(rootToken);
+        setIsLoading(false);
+        navigate({ to: redirect });
+      },
+      onError: (error) => {
+        if (error instanceof AxiosError && error.response && error.response.status === 401) {
+          toast({
+            variant: "destructive",
+            title: "Login Failed",
+            description: "Invalid password. Please try again.",
+            action: <ToastAction altText="Try again">Try again</ToastAction>,
+          })
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Something went wrong",
+            description: (error as Error).message,
+            action: <ToastAction altText="Try again">Try again</ToastAction>,
+          })
+        }
+        setIsLoading(false)
       }
-    } finally {
-      setIsLoading(false)
-    }
-
+    });
   }
 
   return (
@@ -126,20 +125,6 @@ export function UserAuthForm({ className, ...props }: UserAuthFormProps) {
             <Button className='mt-2' loading={isLoading}>
               Login
             </Button>
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="forgot-password">
-                <AccordionTrigger className="text-sm font-medium text-muted-foreground hover:opacity-75">
-                  Forgot password?
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-1">
-                    <p className="text-sm">
-                      The root password is stored in the RustMailer server's data directory with filename 'root'.
-                    </p>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
           </div>
         </form>
       </Form>

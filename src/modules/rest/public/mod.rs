@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+pub mod login;
 pub mod oauth2;
 pub mod status;
 pub mod tracking;

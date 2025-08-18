@@ -7,13 +7,26 @@
 import axiosInstance from "@/api/axiosInstance";
 import { AccessToken } from "@/features/access-tokens/data/schema";
 
-export const login = async () => {
-    const response = await axiosInstance.post("/api/v1/login");
+export const login = async (password: string) => {
+    const response = await axiosInstance.post(`/api/login`, password, {
+        headers: {
+            "Content-Type": "text/plain",
+        },
+    });
     return response.data;
 };
 
 export const reset_root_token = async () => {
     const response = await axiosInstance.post("/api/v1/reset-root-token");
+    return response.data;
+};
+
+export const reset_root_password = async (password: string) => {
+    const response = await axiosInstance.post("/api/v1/reset-root-password", password, {
+        headers: {
+            "Content-Type": "text/plain",
+        },
+    });
     return response.data;
 };
 

@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::{
-    generate_token,
+    decrypt, encrypt, generate_token,
     modules::{
         error::{code::ErrorCode, RustMailerResult},
         settings::{dir::DATA_DIR_MANAGER, system::SystemSetting},
@@ -14,6 +14,8 @@ use std::fs::File;
 use std::io::Write;
 
 pub const ROOT_TOKEN: &str = "root-token";
+pub const ROOT_PASSWORD: &str = "root-password";
+pub const DEFAULT_ROOT_PASSWORD: &str = "root";
 pub const ROOT_TOKEN_FILE: &str = "root";
 
 async fn get_or_generate(
@@ -33,7 +35,7 @@ async fn get_or_generate(
     } else {
         // If no value exists, generate a new value
         let new_value = generate();
-        SystemSetting::save_value(key, new_value.clone()).await?;
+        SystemSetting::set_value(key, new_value.clone()).await?;
 
         // Write the new value to the file, if specified
         if let Some(filename) = save_file_name {
@@ -63,7 +65,7 @@ pub async fn reset_root_token() -> RustMailerResult<String> {
 
 async fn save_new_token(token: &str) -> RustMailerResult<()> {
     let setting = SystemSetting::new(ROOT_TOKEN.to_string(), token.to_string());
-    setting.save().await
+    setting.set().await
 }
 
 async fn save_to_file(content: &str, filename: &str) -> RustMailerResult<()> {
@@ -73,4 +75,36 @@ async fn save_to_file(content: &str, filename: &str) -> RustMailerResult<()> {
     writeln!(file, "{}", content)
         .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
     Ok(())
+}
+
+pub fn check_root_password(password: &str) -> RustMailerResult<String> {
+    let stored_encrypted_password = SystemSetting::get_existing_value(ROOT_PASSWORD)?;
+    let matched = match stored_encrypted_password {
+        Some(ref stored) => {
+            let decrypted = decrypt!(stored)?;
+            decrypted == password
+        }
+        None => DEFAULT_ROOT_PASSWORD == password,
+    };
+
+    if !matched {
+        return Err(raise_error!(
+            "Invalid password".into(),
+            ErrorCode::PermissionDenied
+        ));
+    }
+
+    let root_token = SystemSetting::get_existing_value(ROOT_TOKEN)?.ok_or_else(|| {
+        raise_error!(
+            "Root token not found — this should never happen".into(),
+            ErrorCode::InternalError
+        )
+    })?;
+
+    Ok(root_token)
+}
+
+pub async fn set_root_password(new_password: &str) -> RustMailerResult<()> {
+    let encrypted_password = encrypt!(new_password)?;
+    SystemSetting::set_value(ROOT_PASSWORD, encrypted_password).await
 }
