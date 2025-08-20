@@ -22,8 +22,9 @@ pub struct MTACreateRequest {
     pub server: SmtpServerConfig,
     /// Whether the MTA supports DSN (Delivery Status Notification).
     pub dsn_capable: bool,
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the MTA server via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the MTA server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 
@@ -37,8 +38,9 @@ pub struct MTAUpdateRequest {
     pub server: Option<SmtpServerConfig>,
     /// Optional updated DSN support flag.
     pub dsn_capable: Option<bool>,
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the MTA server via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the MTA server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 

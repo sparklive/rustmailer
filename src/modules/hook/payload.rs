@@ -27,8 +27,9 @@ pub struct EventhookCreateRequest {
     pub vrl_script: Option<String>,
     /// List of event types the hook is configured to monitor.
     pub watched_events: Vec<EventType>,
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the hook target via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the webhook server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 
@@ -46,8 +47,9 @@ pub struct EventhookUpdateRequest {
     pub vrl_script: Option<String>,
     /// List of event types the hook is configured to monitor.
     pub watched_events: Option<Vec<EventType>>,
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the hook target via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the webhook server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 

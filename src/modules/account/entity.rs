@@ -419,8 +419,9 @@ pub struct ImapConfig {
     pub encryption: Encryption,
     /// Authentication configuration
     pub auth: AuthConfig,
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the IMAP server via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the IMAP server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 
@@ -448,8 +449,9 @@ pub struct SmtpConfig {
     pub encryption: Encryption,
     /// Authentication configuration
     pub auth: AuthConfig,
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the Smtp server via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the SMTP server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 

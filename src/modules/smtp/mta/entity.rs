@@ -45,8 +45,9 @@ pub struct Mta {
     /// Timestamp (Unix epoch milliseconds) when the MTA was last accessed.
     pub last_access_at: i64,
 
-    /// Indicates whether to use a SOCKS5 proxy for establishing the connection.
-    /// When set to `true`, the client will attempt to connect to the MTA server via the configured proxy address.
+    /// Optional proxy ID for establishing the connection.
+    /// - If `None` or not provided, the client will connect directly to the MTA server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID.
     pub use_proxy: Option<u64>,
 }
 
