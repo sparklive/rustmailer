@@ -13,6 +13,7 @@ use crate::{
     raise_error,
 };
 use governor::clock::{Clock, QuantaClock};
+use http::Method;
 use poem::{
     web::{
         headers::{authorization::Bearer, Authorization, HeaderMapExt},
@@ -48,15 +49,21 @@ impl<E: Endpoint> Endpoint for ApiGuardEndpoint<E> {
     type Output = E::Output;
 
     async fn call(&self, mut req: Request) -> Result<Self::Output> {
-        CachedLicense::check_license_validity()
-            .await
-            .map_err(|error| match error {
-                RustMailerError::Generic {
-                    message,
-                    location: _,
-                    code,
-                } => create_api_error_response(&message, code),
-            })?;
+        let set_license = matches!(
+            (req.method(), req.uri().path()),
+            (&Method::POST, "/api/v1/license")
+        );
+        if !set_license {
+            CachedLicense::check_license_validity()
+                .await
+                .map_err(|error| match error {
+                    RustMailerError::Generic {
+                        message,
+                        location: _,
+                        code,
+                    } => create_api_error_response(&message, code),
+                })?;
+        }
         let context = authorize_access(&req, None).await?;
         req.set_data(Arc::new(context));
         self.ep.call(req).await
