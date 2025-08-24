@@ -25,6 +25,8 @@ pub mod manager;
 pub mod minimal;
 pub mod sync;
 pub mod task;
+#[cfg(test)]
+mod tests;
 pub mod thread;
 
 pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
