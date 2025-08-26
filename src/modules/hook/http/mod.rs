@@ -8,26 +8,38 @@ use crate::modules::settings::proxy::Proxy;
 use crate::raise_error;
 use crate::{modules::error::RustMailerResult, rustmailer_version};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 #[cfg(test)]
 mod tests;
+
+pub static HTTP_CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
+    let builder = HttpClient::base_builder();
+    let client = builder
+        .build()
+        .expect("Failed to build shared reqwest Client");
+    HttpClient::create(client)
+});
 
 pub struct HttpClient {
     client: reqwest::Client,
 }
 
 impl HttpClient {
-    #[cfg(test)]
     pub fn create(client: reqwest::Client) -> HttpClient {
         Self { client }
     }
 
-    pub async fn new(use_proxy: Option<u64>) -> RustMailerResult<HttpClient> {
-        let mut builder = reqwest::ClientBuilder::new()
+    fn base_builder() -> reqwest::ClientBuilder {
+        reqwest::ClientBuilder::new()
             .user_agent(rustmailer_version!())
-            .timeout(Duration::from_secs(10))
-            .connect_timeout(Duration::from_secs(10));
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+    }
+
+    pub async fn new(use_proxy: Option<u64>) -> RustMailerResult<HttpClient> {
+        let mut builder = Self::base_builder();
 
         if let Some(proxy_id) = use_proxy {
             let proxy = Proxy::get(proxy_id).await?;
@@ -67,10 +79,6 @@ impl HttpClient {
             HttpMethod::Post => self.client.post(url),
             HttpMethod::Put => self.client.put(url),
         };
-        request_builder = request_builder.header(
-            "User-Agent",
-            format!("RustMailer/{}", rustmailer_version!()),
-        );
 
         if let Some(headers) = task_info {
             for (key, value) in headers {
