@@ -142,7 +142,7 @@ impl AccountV2 {
             sync_folders: vec![],
             known_folders: BTreeSet::new(),
             full_sync_interval_min: request.full_sync_interval_min,
-            incremental_sync_interval_sec: request.incremental_sync_interval_sec.unwrap_or(60),
+            incremental_sync_interval_sec: request.incremental_sync_interval_sec,
             created_at: utc_now!(),
             updated_at: utc_now!(),
         })

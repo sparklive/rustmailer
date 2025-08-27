@@ -59,7 +59,7 @@ pub struct AccountCreateRequest {
     pub full_sync_interval_min: Option<i64>,
     /// Incremental sync interval (seconds), default 60s
     #[oai(validator(minimum(value = "10"), maximum(value = "3600")))]
-    pub incremental_sync_interval_sec: Option<i64>,
+    pub incremental_sync_interval_sec: i64,
 }
 
 impl AccountCreateRequest {
@@ -83,13 +83,6 @@ impl AccountCreateRequest {
             if self.full_sync_interval_min.is_none() {
                 return Err(raise_error!(
                     "Invalid input: 'full_sync_interval_min' must be provided.".into(),
-                    ErrorCode::InvalidParameter
-                ));
-            }
-
-            if self.incremental_sync_interval_sec.is_none() {
-                return Err(raise_error!(
-                    "Invalid input: 'incremental_sync_interval_sec' must be provided.".into(),
                     ErrorCode::InvalidParameter
                 ));
             }

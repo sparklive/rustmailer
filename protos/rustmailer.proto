@@ -170,7 +170,7 @@ message AccountCreateRequest {
   // Optional: The interval (in minutes) for a full synchronization pass.
   optional int64 full_sync_interval_min = 8;
   // Optional: The interval (in seconds) for incremental synchronization updates.
-  optional int64 incremental_sync_interval_sec = 9;
+  int64 incremental_sync_interval_sec = 9;
   // Method used to access and manage emails.
   MailerType mailer_type = 10;
 }
