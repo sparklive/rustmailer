@@ -10,7 +10,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import { AccountEntity, ImapConfig, SmtpConfig } from '../data/schema';
+import { AccountEntity, ImapConfig, MailerType, SmtpConfig } from '../data/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -344,7 +344,11 @@ export function AccountActionDialog({ currentRow, open, onOpenChange }: Props) {
       if (isEdit) {
         updateMutation.mutate(commonData);
       } else {
-        createMutation.mutate(commonData);
+        const payload = {
+          ...commonData,
+          mailer_type: MailerType.ImapSmtp
+        };
+        createMutation.mutate(payload);
       }
     },
     [isEdit, updateMutation, createMutation]
