@@ -104,9 +104,9 @@ message Account {
   // The unique identifier of the account.
   uint64 id = 1;
   // The IMAP server configuration for the account.
-  ImapConfig imap = 2;
+  optional ImapConfig imap = 2;
   // The SMTP server configuration for the account.
-  SmtpConfig smtp = 3;
+  optional SmtpConfig smtp = 3;
   // Indicates whether the account is enabled for synchronization.
   bool enabled = 4;
   // The email address of the account.
@@ -114,7 +114,7 @@ message Account {
   // Optional: A display name for the account.
   optional string name = 6;
   // If true, only minimal metadata will be synced initially (e.g., no full message bodies).
-  bool minimal_sync = 7;
+  optional bool minimal_sync = 7;
   // A list of capabilities supported by the account (e.g., "IMAP4REV1", "AUTH=PLAIN").
   repeated string capabilities = 8;
   // Optional: Indicates if the account is capable of Delivery Status Notifications (DSN).
@@ -126,13 +126,15 @@ message Account {
   // A list of known folders (e.g., "INBOX", "Sent Items").
   repeated string known_folders = 12;
   // The interval (in minutes) for a full synchronization pass.
-  int64 full_sync_interval_min = 13;
+  optional int64 full_sync_interval_min = 13;
   // The interval (in seconds) for incremental synchronization updates.
   int64 incremental_sync_interval_sec = 14;
   // The timestamp when the account was created.
   int64 created_at = 15;
   // The timestamp when the account was last updated.
   int64 updated_at = 16;
+  // Method used to access and manage emails.
+  MailerType mailer_type = 17;
 }
 
 // PagedAccount represents a paginated list of Account messages.
@@ -156,19 +158,21 @@ message AccountCreateRequest {
   // Optional: A display name for the new account.
   optional string name = 2;
   // The IMAP configuration for the new account.
-  ImapConfig imap = 3;
+  optional ImapConfig imap = 3;
   // The SMTP configuration for the new account.
-  SmtpConfig smtp = 4;
+  optional SmtpConfig smtp = 4;
   // Indicates whether the new account should be enabled immediately.
   bool enabled = 5;
   // Optional: The date from which to start syncing emails for this account.
   optional DateSince date_since = 6;
   // If true, only minimal metadata will be synced initially for the new account.
-  bool minimal_sync = 7;
+  optional bool minimal_sync = 7;
   // Optional: The interval (in minutes) for a full synchronization pass.
   optional int64 full_sync_interval_min = 8;
   // Optional: The interval (in seconds) for incremental synchronization updates.
   optional int64 incremental_sync_interval_sec = 9;
+  // Method used to access and manage emails.
+  MailerType mailer_type = 10;
 }
 
 // AccountUpdateRequest defines the parameters for updating an existing email account.
@@ -259,6 +263,14 @@ message MinimalAccount {
 message ListMinimalAccountsResponse {
   // A list of minimal account details.
   repeated MinimalAccount accounts = 1;
+}
+
+// Represents the method used to access/manage emails.
+enum MailerType {
+    // Default value: use IMAP/SMTP protocol
+    IMAP_SMTP = 0;
+    // Use Gmail API
+    GMAIL_API = 1;
 }
 
 // AccountService provides APIs for managing email accounts.

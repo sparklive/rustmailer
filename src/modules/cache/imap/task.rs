@@ -7,7 +7,7 @@ use crate::modules::cache::imap::sync::execute_account_sync;
 use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::scheduler::periodic::TaskHandle;
 use crate::modules::{
-    account::{dispatcher::STATUS_DISPATCHER, entity::Account},
+    account::{dispatcher::STATUS_DISPATCHER, v2::AccountV2},
     error::RustMailerResult,
     scheduler::periodic::PeriodicTask,
 };
@@ -40,7 +40,7 @@ impl AccountSyncTask {
         let task = move |param: Option<u64>| {
             let account_id = param.unwrap();
             Box::pin(async move {
-                let account = Account::get(account_id).await.ok();
+                let account = AccountV2::get(account_id).await.ok();
                 match account {
                     Some(account) => {
                         if !account.enabled {
@@ -54,7 +54,15 @@ impl AccountSyncTask {
                                 );
                             }
                         } else {
-                            if let AuthType::OAuth2 = account.imap.auth.auth_type {
+                            if let AuthType::OAuth2 = account
+                                .imap
+                                .as_ref()
+                                .expect(
+                                    "BUG: account.imap is None, but this should never happen here",
+                                )
+                                .auth
+                                .auth_type
+                            {
                                 if OAuth2AccessToken::get(account.id).await?.is_none() {
                                     if utc_now!() % 300_000 == 0 {
                                         warn!("Account {}: Sync aborted. OAuth2 authorization not completed. Please visit the rustmailer admin page to authorize this account.", account_id);

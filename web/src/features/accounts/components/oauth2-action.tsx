@@ -7,7 +7,7 @@
 import { Row } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import { useAccountContext } from '../context'
-import { AccountEntity } from '../data/schema'
+import { AccountEntity, MailerType } from '../data/schema'
 
 interface DataTableRowActionsProps {
   row: Row<AccountEntity>
@@ -16,12 +16,16 @@ interface DataTableRowActionsProps {
 export function OAuth2Action({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useAccountContext()
 
-  return row.original.imap.auth.auth_type === 'OAuth2' ? (
+  return (
+    (row.original.mailer_type === MailerType.ImapSmtp &&
+      row.original.imap?.auth.auth_type === 'OAuth2') ||
+    row.original.mailer_type === MailerType.GmailApi
+  ) ? (
     <Button variant='ghost' onClick={() => {
       setCurrentRow(row.original)
       setOpen('oauth2')
-    }}><span className="text-xs text-blue-500 cursor-pointer underline hover:text-blue-700">{row.original.imap.auth.auth_type}</span></Button>
+    }}><span className="text-xs text-blue-500 cursor-pointer underline hover:text-blue-700">OAuth2</span></Button>
   ) : (
-    <span className="text-xs cursor-pointer">{row.original.imap.auth.auth_type}</span>
+    <span className="text-xs cursor-pointer">Password</span>
   )
 }

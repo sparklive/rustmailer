@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 
 use crate::{
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         error::{code::ErrorCode, RustMailerResult},
         token::{AccessControl, AccessTokenScope},
     },
@@ -44,7 +44,7 @@ impl AccessTokenCreateRequest {
 
         let mut not_found = Vec::new();
         for account_id in &self.accounts {
-            if Account::find(*account_id).await?.is_none() {
+            if AccountV2::find(*account_id).await?.is_none() {
                 not_found.push(*account_id);
             }
         }
@@ -88,7 +88,7 @@ impl AccessTokenUpdateRequest {
 
             let mut not_found = Vec::new();
             for account_id in accounts {
-                if Account::find(*account_id).await?.is_none() {
+                if AccountV2::find(*account_id).await?.is_none() {
                     not_found.push(*account_id);
                 }
             }

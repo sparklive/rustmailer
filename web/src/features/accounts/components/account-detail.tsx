@@ -4,7 +4,7 @@
  * Unauthorized use or distribution is prohibited.
  */
 
-import { AccountEntity } from '../data/schema'
+import { AccountEntity, MailerType } from '../data/schema'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,12 +63,20 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                       <Checkbox checked={currentRow.enabled} disabled />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground">Mailer Type:</span>
+                      <span>{currentRow.mailer_type}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-muted-foreground">Minimal Sync:</span>
-                      <Checkbox checked={currentRow.minimal_sync} disabled />
+                      {currentRow.minimal_sync !== undefined ? (
+                        <Checkbox checked={currentRow.minimal_sync} disabled />
+                      ) : (
+                        <span className="text-muted-foreground">n/a</span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-muted-foreground">Full Sync Interval:</span>
-                      <span>every {currentRow.full_sync_interval_min} min</span>
+                      <span>{currentRow.full_sync_interval_min ? `every ${currentRow.full_sync_interval_min} min` : "n/a"}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-muted-foreground">Incremental Sync Interval:</span>
@@ -77,7 +85,7 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                     <div className="flex flex-col gap-2">
                       <span className="text-muted-foreground">Capabilities:</span>
                       <code className="rounded-md bg-muted/50 px-2 py-1 text-sm border overflow-x-auto inline-block">
-                        {currentRow.capabilities.join(', ')}
+                        {currentRow.capabilities ? currentRow.capabilities.join(', ') : "n/a"}
                       </code>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -97,7 +105,7 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
 
             {/* Server Configurations Tab */}
             <TabsContent value="server">
-              <div className="grid gap-4 mt-4 md:grid-cols-2">
+              {currentRow.mailer_type === MailerType.ImapSmtp ? <div className="grid gap-4 mt-4 md:grid-cols-2">
                 {/* IMAP Configuration Card */}
                 <Card>
                   <CardHeader>
@@ -107,19 +115,19 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Host:</span>
-                        <span>{currentRow.imap.host}</span>
+                        <span>{currentRow.imap?.host}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Port:</span>
-                        <span>{currentRow.imap.port}</span>
+                        <span>{currentRow.imap?.port}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Encryption:</span>
-                        <span>{currentRow.imap.encryption}</span>
+                        <span>{currentRow.imap?.encryption}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Auth:</span>
-                        {currentRow.imap.auth.auth_type === 'OAuth2' ? (
+                        {currentRow.imap?.auth.auth_type === 'OAuth2' ? (
                           <Badge variant="outline" className="bg-blue-100 text-blue-800">
                             OAuth2
                           </Badge>
@@ -131,7 +139,7 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Use Proxy:</span>
-                        <span>{currentRow.imap.use_proxy ? "true" : "false"}</span>
+                        <span>{currentRow.imap?.use_proxy ? "true" : "false"}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -146,19 +154,19 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Host:</span>
-                        <span>{currentRow.smtp.host}</span>
+                        <span>{currentRow.smtp?.host}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Port:</span>
-                        <span>{currentRow.smtp.port}</span>
+                        <span>{currentRow.smtp?.port}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Encryption:</span>
-                        <span>{currentRow.smtp.encryption}</span>
+                        <span>{currentRow.smtp?.encryption}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Auth:</span>
-                        {currentRow.smtp.auth.auth_type === 'OAuth2' ? (
+                        {currentRow.smtp?.auth.auth_type === 'OAuth2' ? (
                           <Badge variant="outline" className="bg-blue-100 text-blue-800">
                             OAuth2
                           </Badge>
@@ -170,12 +178,14 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-muted-foreground">Use Proxy:</span>
-                        <span>{currentRow.smtp.use_proxy ? "true" : "false"}</span>
+                        <span>{currentRow.smtp?.use_proxy ? "true" : "false"}</span>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </div> : <div className="mt-4 text-muted-foreground">
+                No IMAP/SMTP configuration required (using {currentRow.mailer_type}).
+              </div>}
             </TabsContent>
 
             {/* Sync Folders Tab */}

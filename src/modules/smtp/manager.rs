@@ -3,13 +3,14 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::entity::{AuthType, Encryption};
+use crate::modules::account::v2::AccountV2;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::error::RustMailerResult;
 use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::settings::proxy::Proxy;
 use crate::modules::smtp::client::RustMailSmtpClient;
 use crate::modules::smtp::mta::entity::Mta;
 use crate::modules::utils::net::parse_proxy_addr;
-use crate::modules::{account::entity::Account, error::RustMailerResult};
 use crate::{decrypt, raise_error};
 use mail_send::smtp::tls::build_tls_connector;
 use mail_send::smtp::AssertReply;
@@ -103,10 +104,16 @@ impl SmtpClientManager {
     }
 
     async fn build_client(account_id: u64) -> RustMailerResult<RustMailSmtpClient> {
-        let account = Account::get(account_id).await?;
-        let credentials = match &account.smtp.auth.auth_type {
+        let account = AccountV2::get(account_id).await?;
+
+        let smtp = account
+            .smtp
+            .as_ref()
+            .expect("BUG: account.smtp is None, but it should always be present here");
+
+        let credentials = match smtp.auth.auth_type {
             AuthType::Password => {
-                let password = account.smtp.auth.password.as_ref().ok_or_else(|| {
+                let password = smtp.auth.password.as_ref().ok_or_else(|| {
                     raise_error!(
                         "smtp auth type is Password, but password not set".into(),
                         ErrorCode::MissingConfiguration
@@ -129,20 +136,17 @@ impl SmtpClientManager {
         };
 
         let timeout = Duration::from_secs(30);
-        if let Some(proxy_id) = &account.smtp.use_proxy {
-            let proxy = Proxy::get(*proxy_id).await?;
+        if let Some(proxy_id) = smtp.use_proxy {
+            let proxy = Proxy::get(proxy_id).await?;
             let proxy = parse_proxy_addr(&proxy.url)?;
-            let socks_stream = Socks5Stream::connect(
-                proxy,
-                format!("{}:{}", &account.smtp.host, account.smtp.port),
-            )
-            .await
-            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+            let socks_stream = Socks5Stream::connect(proxy, format!("{}:{}", smtp.host, smtp.port))
+                .await
+                .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
 
             let tcp_stream = socks_stream.into_inner();
             return Self::connect(
-                account.smtp.encryption,
-                &account.smtp.host,
+                smtp.encryption.clone(),
+                &smtp.host,
                 timeout,
                 tcp_stream,
                 credentials,
@@ -151,11 +155,11 @@ impl SmtpClientManager {
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::SmtpConnectionFailed));
         }
 
-        let builder = SmtpClientBuilder::new(account.smtp.host, account.smtp.port)
+        let builder = SmtpClientBuilder::new(smtp.host.clone(), smtp.port)
             .credentials(credentials)
             .timeout(timeout);
 
-        let client = match account.smtp.encryption {
+        let client = match smtp.encryption {
             Encryption::Ssl => {
                 let client = builder.implicit_tls(true).connect().await.map_err(|e| {
                     raise_error!(format!("{:#?}", e), ErrorCode::SmtpConnectionFailed)

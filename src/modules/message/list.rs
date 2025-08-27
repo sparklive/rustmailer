@@ -5,8 +5,8 @@
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::entity::Account,
-        cache::imap::{envelope_v2::EmailEnvelopeV2, mailbox::MailBox, thread::EmailThread},
+        account::v2::AccountV2,
+        cache::imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV2},
         context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope,
         error::{code::ErrorCode, RustMailerResult},
@@ -24,9 +24,9 @@ pub async fn list_messages_in_mailbox(
     remote: bool,
     desc: bool,
 ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
-    let account = Account::check_account_active(account_id).await?;
+    let account = AccountV2::check_account_active(account_id).await?;
     validate_pagination_params(page, page_size)?;
-    let remote = remote || account.minimal_sync;
+    let remote = remote || account.minimal_sync();
 
     if remote {
         fetch_remote_messages(account_id, mailbox_name, page, page_size, desc).await
@@ -99,7 +99,7 @@ async fn process_fetches(
 }
 
 async fn fetch_local_messages(
-    account: &Account,
+    account: &AccountV2,
     mailbox_name: &str,
     page: u64,
     page_size: u64,
@@ -125,9 +125,9 @@ pub async fn list_threads_in_mailbox(
     page_size: u64,
     desc: bool,
 ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
-    let account = Account::check_account_active(account_id).await?;
+    let account = AccountV2::check_account_active(account_id).await?;
     validate_pagination_params(page, page_size)?;
-    if account.minimal_sync {
+    if account.minimal_sync() {
         return Err(raise_error!(
             format!(
                 "Account {} is in minimal sync mode. Listing threads in a mailbox is not supported. \
@@ -160,8 +160,8 @@ pub async fn get_thread_messages(
     mailbox_name: &str,
     thread_id: u64,
 ) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
-    let account = Account::check_account_active(account_id).await?;
-    if account.minimal_sync {
+    let account = AccountV2::check_account_active(account_id).await?;
+    if account.minimal_sync() {
         return Err(raise_error!(
             format!(
                 "Account {} is in minimal sync mode. Listing threads in a mailbox is not supported. \

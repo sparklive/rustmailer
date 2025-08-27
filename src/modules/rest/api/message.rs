@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::current_datetime;
-use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
+use crate::modules::cache::imap::v2::EmailEnvelopeV2;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::message::append::AppendReplyToDraftRequest;
 use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentRequest};

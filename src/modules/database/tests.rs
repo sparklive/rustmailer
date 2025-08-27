@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 use crate::{
     id,
     modules::{
-        account::entity::{Account, AccountKey},
+        account::{entity::AccountKey, v2::AccountV2},
         cache::imap::mailbox::MailBox,
         database::META_MODELS,
         hook::{
@@ -28,7 +28,7 @@ async fn test2() {
         println!("mailbox: {}", mailbox.id)
     }
 
-    let all = Account::minimal_list().await.unwrap();
+    let all = AccountV2::minimal_list().await.unwrap();
     for mailbox in all {
         println!("account:{}", mailbox.id)
     }
@@ -41,7 +41,7 @@ fn test3() {
         .unwrap();
     //database.compact().unwrap();
     let r_transaction = database.r_transaction().unwrap();
-    let entities: Vec<Account> = r_transaction
+    let entities: Vec<AccountV2> = r_transaction
         .scan()
         .secondary(AccountKey::id)
         .unwrap()
@@ -51,7 +51,7 @@ fn test3() {
         .unwrap();
     println!("{:#?}", entities);
 
-    let entities: Vec<Account> = r_transaction
+    let entities: Vec<AccountV2> = r_transaction
         .scan()
         .primary()
         .unwrap()
@@ -89,12 +89,12 @@ async fn test4() {
 
 #[tokio::test]
 async fn test5() {
-    let mut account = Account::default();
+    let mut account = AccountV2::default();
     let id = id!(64);
     account.id = id;
 
     account.save().await.unwrap();
-    let account = Account::get(id).await.unwrap();
+    let account = AccountV2::get(id).await.unwrap();
     println!("{:#?}", account);
 }
 

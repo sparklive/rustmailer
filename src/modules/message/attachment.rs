@@ -6,7 +6,7 @@ use crate::modules::error::code::ErrorCode;
 use crate::modules::message::get_minimal_meta;
 use crate::{
     encode_mailbox_name,
-    modules::account::entity::Account,
+    modules::account::v2::AccountV2,
     modules::cache::disk::DISK_CACHE,
     modules::context::executors::RUST_MAIL_CONTEXT,
     modules::error::RustMailerResult,
@@ -59,7 +59,7 @@ pub async fn retrieve_email_attachment(
     account_id: u64,
     request: AttachmentRequest,
 ) -> RustMailerResult<cacache::Reader> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
 
     if request.attachment.size >= MAX_ATTACHMENT_SIZE {
         return Err(raise_error!(

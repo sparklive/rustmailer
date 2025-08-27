@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::id;
-use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
+use crate::modules::cache::imap::v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;

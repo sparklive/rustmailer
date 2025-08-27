@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::entity::Account;
+use crate::modules::account::v2::AccountV2;
 use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, MailBox};
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::error::code::ErrorCode;
@@ -15,8 +15,8 @@ pub async fn get_account_mailboxes(
     account_id: u64,
     remote: bool,
 ) -> RustMailerResult<Vec<MailBox>> {
-    let account = Account::check_account_active(account_id).await?;
-    let remote = remote || account.minimal_sync;
+    let account = AccountV2::check_account_active(account_id).await?;
+    let remote = remote || account.minimal_sync();
     if remote {
         request_imap_all_mailbox_list(account_id).await
     } else {
@@ -25,7 +25,7 @@ pub async fn get_account_mailboxes(
 }
 
 pub async fn list_subscribed_mailboxes(account_id: u64) -> RustMailerResult<Vec<MailBox>> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
     request_imap_subscribed_mailbox_list(account_id).await
 }
 

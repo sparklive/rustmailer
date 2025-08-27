@@ -5,7 +5,7 @@
 use crate::modules::{
     cache::imap::{
         envelope::Received,
-        envelope_v2::EmailEnvelopeV2,
+        v2::EmailEnvelopeV2,
         mailbox::{EmailFlag, EnvelopeFlag},
     },
     common::Addr,

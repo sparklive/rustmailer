@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::modules::account::v2::AccountV2;
 use crate::modules::database::manager::DB_MANAGER;
 use crate::modules::database::{
     batch_delete_impl, delete_impl, paginate_query_primary_scan_all_impl,
@@ -13,10 +14,7 @@ use crate::modules::rest::response::DataPage;
 use crate::modules::smtp::template::payload::{TemplateCreateRequest, TemplateUpdateRequest};
 use crate::modules::token::AccountInfo;
 use crate::{id, raise_error};
-use crate::{
-    modules::account::entity::Account, modules::database::insert_impl,
-    modules::error::RustMailerResult, utc_now,
-};
+use crate::{modules::database::insert_impl, modules::error::RustMailerResult, utc_now};
 use handlebars::Handlebars;
 use itertools::Itertools;
 use native_db::*;
@@ -78,7 +76,7 @@ impl EmailTemplate {
 
     pub async fn new(value: TemplateCreateRequest) -> RustMailerResult<Self> {
         let account_info = if let Some(account_id) = value.account_id {
-            Account::get(account_id).await.map(|account| {
+            AccountV2::get(account_id).await.map(|account| {
                 Some(AccountInfo {
                     id: account_id,
                     email: account.email,
@@ -217,7 +215,7 @@ impl EmailTemplate {
     }
 
     async fn check_account_id(account_id: u64) -> RustMailerResult<()> {
-        let _ = Account::get(account_id).await?;
+        let _ = AccountV2::get(account_id).await?;
         Ok(())
     }
 

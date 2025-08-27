@@ -4,10 +4,11 @@
 
 use crate::modules::{
     account::{
-        entity::{Account, AuthConfig, AuthType, Encryption, ImapConfig, SmtpConfig},
+        entity::{AuthConfig, AuthType, Encryption, ImapConfig, MailerType, SmtpConfig},
         payload::{AccountCreateRequest, AccountUpdateRequest, MinimalAccount},
         since::{DateSince, RelativeDate, Unit},
         status::{AccountError, AccountRunningState},
+        v2::AccountV2,
     },
     grpc::service::rustmailer_grpc,
 };
@@ -208,25 +209,24 @@ impl From<DateSince> for rustmailer_grpc::DateSince {
     }
 }
 
-impl TryFrom<rustmailer_grpc::Account> for Account {
+impl TryFrom<rustmailer_grpc::Account> for AccountV2 {
     type Error = &'static str;
 
     fn try_from(value: rustmailer_grpc::Account) -> Result<Self, Self::Error> {
-        Ok(Account {
+        Ok(AccountV2 {
             id: value.id,
-            imap: value
-                .imap
-                .ok_or("IMAP configuration is required")?
-                .try_into()?,
-            smtp: value
-                .smtp
-                .ok_or("SMTP configuration is required")?
-                .try_into()?,
+            imap: value.imap.map(|imap| imap.try_into()).transpose()?,
+            smtp: value.smtp.map(|smtp| smtp.try_into()).transpose()?,
             enabled: value.enabled,
+            mailer_type: value.mailer_type.try_into()?,
             email: value.email,
             name: value.name,
             minimal_sync: value.minimal_sync,
-            capabilities: value.capabilities,
+            capabilities: if value.capabilities.is_empty() {
+                None
+            } else {
+                Some(value.capabilities)
+            },
             dsn_capable: value.dsn_capable,
             date_since: value.date_since.map(|ds| ds.try_into()).transpose()?,
             sync_folders: value.sync_folders,
@@ -239,17 +239,18 @@ impl TryFrom<rustmailer_grpc::Account> for Account {
     }
 }
 
-impl From<Account> for rustmailer_grpc::Account {
-    fn from(value: Account) -> Self {
+impl From<AccountV2> for rustmailer_grpc::Account {
+    fn from(value: AccountV2) -> Self {
         rustmailer_grpc::Account {
             id: value.id,
-            imap: Some(value.imap.into()),
-            smtp: Some(value.smtp.into()),
+            imap: value.imap.map(|imap| imap.into()),
+            smtp: value.smtp.map(|smtp| smtp.into()),
             enabled: value.enabled,
+            mailer_type: value.mailer_type.into(),
             email: value.email,
             name: value.name,
             minimal_sync: value.minimal_sync,
-            capabilities: value.capabilities,
+            capabilities: value.capabilities.unwrap_or_default(),
             dsn_capable: value.dsn_capable,
             date_since: value.date_since.map(Into::into),
             sync_folders: value.sync_folders,
@@ -269,15 +270,10 @@ impl TryFrom<rustmailer_grpc::AccountCreateRequest> for AccountCreateRequest {
         Ok(AccountCreateRequest {
             email: value.email,
             name: value.name,
-            imap: value
-                .imap
-                .ok_or("IMAP configuration is required")?
-                .try_into()?,
-            smtp: value
-                .smtp
-                .ok_or("SMTP configuration is required")?
-                .try_into()?,
+            imap: value.imap.map(|imap| imap.try_into()).transpose()?,
+            smtp: value.smtp.map(|smtp| smtp.try_into()).transpose()?,
             enabled: value.enabled,
+            mailer_type: value.mailer_type.try_into()?,
             date_since: value.date_since.map(|ds| ds.try_into()).transpose()?,
             minimal_sync: value.minimal_sync,
             full_sync_interval_min: value.full_sync_interval_min,
@@ -337,6 +333,27 @@ impl From<MinimalAccount> for rustmailer_grpc::MinimalAccount {
         Self {
             id: value.id,
             email: value.email,
+        }
+    }
+}
+
+impl TryFrom<i32> for MailerType {
+    type Error = &'static str;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(MailerType::ImapSmtp),
+            1 => Ok(MailerType::GmailApi),
+            _ => Err("Invalid value for Unit"),
+        }
+    }
+}
+
+impl From<MailerType> for i32 {
+    fn from(value: MailerType) -> Self {
+        match value {
+            MailerType::ImapSmtp => 0,
+            MailerType::GmailApi => 1,
         }
     }
 }

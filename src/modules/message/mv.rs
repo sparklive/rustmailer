@@ -4,7 +4,7 @@
 
 use crate::modules::message::copy::MailboxTransferRequest;
 use crate::{
-    encode_mailbox_name, modules::account::entity::Account,
+    encode_mailbox_name, modules::account::v2::AccountV2,
     modules::context::executors::RUST_MAIL_CONTEXT, modules::envelope::generate_uid_set,
     modules::error::RustMailerResult,
 };
@@ -14,7 +14,7 @@ pub async fn move_mailbox_messages(
     payload: &MailboxTransferRequest,
 ) -> RustMailerResult<()> {
     // Ensure the account exists before proceeding
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
 
     // Generate a set of UIDs from the payload
     let uid_set = generate_uid_set(payload.uids.clone());

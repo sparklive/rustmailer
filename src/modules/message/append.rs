@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
         smtp::request::{reply::apply_references, EmailHandler},
@@ -51,7 +51,7 @@ pub struct AppendReplyToDraftRequest {
 
 impl AppendReplyToDraftRequest {
     pub async fn append_reply_to_draft(&self, account_id: u64) -> RustMailerResult<()> {
-        let account = Account::check_account_active(account_id).await?;
+        let account = AccountV2::check_account_active(account_id).await?;
         let envelope = EmailHandler::get_envelope(&account, &self.mailbox_name, self.uid).await?;
         let from = Address::new_address(
             account.name.as_ref().map(|n| Cow::Owned(n.to_string())),

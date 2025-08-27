@@ -5,7 +5,6 @@
 use crate::modules::error::code::ErrorCode;
 use crate::modules::imap::session::SessionStream;
 use crate::{modules::error::RustMailerResult, raise_error};
-#[cfg(not(test))]
 use async_imap::types::Capability;
 use async_imap::{types::Capabilities, Session};
 
@@ -27,7 +26,7 @@ pub fn check_capabilities(capabilities: &Capabilities) -> RustMailerResult<()> {
     }
     Ok(())
 }
-#[cfg(not(test))]
+
 pub fn capability_to_string(capability: &Capability) -> String {
     match capability {
         Capability::Imap4rev1 => "IMAP4rev1".into(),

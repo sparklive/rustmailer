@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         cache::imap::mailbox::EnvelopeFlag,
         context::executors::RUST_MAIL_CONTEXT,
         envelope::generate_uid_set,
@@ -81,7 +81,7 @@ impl FlagAction {
 }
 
 pub async fn modify_flags(account_id: u64, request: FlagMessageRequest) -> RustMailerResult<()> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
     request.validate()?;
 
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;

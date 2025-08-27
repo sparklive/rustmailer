@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    account::{entity::Account, status::AccountRunningState},
+    account::{status::AccountRunningState, v2::AccountV2},
     cache::imap::{mailbox::MailBox, manager::EnvelopeFlagsManager},
     error::RustMailerResult,
     hook::{
@@ -29,7 +29,7 @@ pub mod sync_type;
 
 static SYNC_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-pub async fn execute_account_sync(account: &Account) -> RustMailerResult<()> {
+pub async fn execute_account_sync(account: &AccountV2) -> RustMailerResult<()> {
     let start_time = Instant::now();
     let account_id = account.id;
 

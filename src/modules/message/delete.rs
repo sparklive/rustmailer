@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::encode_mailbox_name;
-use crate::modules::account::entity::Account;
+use crate::modules::account::v2::AccountV2;
 use crate::modules::cache::imap::mailbox::{AttributeEnum, MailBox};
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::{envelope::generate_uid_set, error::RustMailerResult};
@@ -25,7 +25,7 @@ pub async fn move_to_trash_or_delete_messages_directly(
     account_id: u64,
     request: &MessageDeleteRequest,
 ) -> RustMailerResult<()> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
     let uid_set = generate_uid_set(request.uids.clone());
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
 

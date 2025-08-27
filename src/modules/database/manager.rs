@@ -2,7 +2,8 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
+use crate::modules::account::v2::AccountV2;
+use crate::modules::cache::imap::v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::ENVELOPE_MODELS;
 use crate::modules::context::Initialize;
 use crate::modules::error::{code::ErrorCode, RustMailerError};
@@ -20,7 +21,7 @@ use tracing::{info, warn};
 pub static DB_MANAGER: LazyLock<DatabaseManager> = LazyLock::new(DatabaseManager::new);
 
 use crate::modules::{
-    account::{entity::Account, status::AccountRunningState},
+    account::status::AccountRunningState,
     autoconfig::CachedMailSettings,
     cache::disk::CacheItem,
     database::{batch_insert_impl, list_all_impl},
@@ -85,6 +86,15 @@ impl DatabaseManager {
             ) //default 128MB
             .create(&META_MODELS, DATA_DIR_MANAGER.meta_db.clone())
             .map_err(Self::handle_database_error)?;
+
+        let rw = database
+            .rw_transaction()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+        rw.migrate::<AccountV2>()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+        rw.commit()
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+
         database
             .compact()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
@@ -127,7 +137,7 @@ impl DatabaseManager {
         spawn_migration_task!(SystemSetting);
         spawn_migration_task!(License);
         spawn_migration_task!(CachedMailSettings);
-        spawn_migration_task!(Account);
+        spawn_migration_task!(AccountV2);
         spawn_migration_task!(EmailTemplate);
         spawn_migration_task!(Mta);
         spawn_migration_task!(OAuth2);

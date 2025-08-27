@@ -4,8 +4,9 @@
 
 use std::collections::BTreeSet;
 
-use crate::modules::account::entity::{Account, ImapConfig, SmtpConfig};
+use crate::modules::account::entity::{ImapConfig, MailerType, SmtpConfig};
 use crate::modules::account::since::DateSince;
+use crate::modules::account::v2::AccountV2;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerResult;
 use crate::modules::token::AccountInfo;
@@ -24,15 +25,17 @@ pub struct AccountCreateRequest {
     /// Display name for the account (optional)
     pub name: Option<String>,
     /// IMAP server configuration
-    pub imap: ImapConfig,
+    pub imap: Option<ImapConfig>,
     /// SMTP server configuration
-    pub smtp: SmtpConfig,
+    pub smtp: Option<SmtpConfig>,
     /// Represents the account activation status.
     ///
     /// If this value is `false`, all account-related resources will be unavailable
     /// and any attempts to access them should return an error indicating the account
     /// is inactive.
     pub enabled: bool,
+    /// Method used to access and manage emails.
+    pub mailer_type: MailerType,
     /// Controls initial synchronization time range
     ///
     /// When dealing with large mailboxes, this restricts scanning to:
@@ -50,7 +53,7 @@ pub struct AccountCreateRequest {
     /// Recommended for:
     /// - Extremely resource-constrained environments
     /// - Accounts where only new message notification is needed
-    pub minimal_sync: bool,
+    pub minimal_sync: Option<bool>,
     /// Full sync interval (minutes), default 30m
     #[oai(validator(minimum(value = "10"), maximum(value = "10080")))]
     pub full_sync_interval_min: Option<i64>,
@@ -60,13 +63,38 @@ pub struct AccountCreateRequest {
 }
 
 impl AccountCreateRequest {
-    pub fn create_entity(self) -> RustMailerResult<Account> {
+    pub fn create_entity(self) -> RustMailerResult<AccountV2> {
         if let Some(date_since) = self.date_since.as_ref() {
             date_since.validate()?;
         }
+        if matches!(self.mailer_type, MailerType::ImapSmtp) {
+            if self.imap.is_none() || self.smtp.is_none() {
+                return Err(raise_error!(
+                    "Invalid input: Both 'imap' and 'smtp' must be provided.".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+            Self::validate_request(
+                &self.imap.clone().unwrap(),
+                &self.smtp.clone().unwrap(),
+                &self.email,
+            )?;
 
-        Self::validate_request(&self.imap, &self.smtp, &self.email)?;
-        Ok(Account::create(self)?)
+            if self.full_sync_interval_min.is_none() {
+                return Err(raise_error!(
+                    "Invalid input: 'full_sync_interval_min' must be provided.".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+
+            if self.incremental_sync_interval_sec.is_none() {
+                return Err(raise_error!(
+                    "Invalid input: 'incremental_sync_interval_sec' must be provided.".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+        }
+        Ok(AccountV2::create(self)?)
     }
 
     fn validate_request(imap: &ImapConfig, smtp: &SmtpConfig, email: &str) -> RustMailerResult<()> {

@@ -7,7 +7,7 @@ use crate::modules::error::code::ErrorCode;
 use crate::raise_error;
 use crate::{
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         context::controller::SYNC_CONTROLLER,
         error::RustMailerResult,
         imap::{executor::ImapExecutor, pool::build_imap_pool},
@@ -115,8 +115,8 @@ impl EmailClientExecutors {
     }
 
     pub async fn start_account_syncers(&self) -> RustMailerResult<()> {
-        let accounts = Account::list_all().await?;
-        let active_accounts: Vec<Account> = accounts.into_iter().filter(|a| a.enabled).collect();
+        let accounts = AccountV2::list_all().await?;
+        let active_accounts: Vec<AccountV2> = accounts.into_iter().filter(|a| a.enabled).collect();
 
         if active_accounts.is_empty() {
             info!("No active accounts found for IMAP initialization.");

@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use crate::{
     decode_mailbox_name,
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         cache::imap::mailbox::{AttributeEnum, MailBox},
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
@@ -26,7 +26,7 @@ use crate::{
 use async_imap::types::Name;
 use tracing::{info, warn};
 
-pub async fn get_sync_folders(account: &Account) -> RustMailerResult<Vec<MailBox>> {
+pub async fn get_sync_folders(account: &AccountV2) -> RustMailerResult<Vec<MailBox>> {
     let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
     let names = executor.list_all_mailboxes().await?;
     if names.is_empty() {
@@ -45,7 +45,7 @@ pub async fn get_sync_folders(account: &Account) -> RustMailerResult<Vec<MailBox
         mailboxes.iter().map(|(m, _)| m.name.clone()).collect(),
     )
     .await?;
-    let account = Account::get(account.id).await?;
+    let account = AccountV2::get(account.id).await?;
     let subscribed = &account.sync_folders;
     let is_noselect = |mailbox: &MailBox| {
         mailbox
@@ -83,7 +83,7 @@ pub async fn get_sync_folders(account: &Account) -> RustMailerResult<Vec<MailBox
                 .iter()
                 .map(|n| decode_mailbox_name!(n.name().to_string()))
                 .collect();
-            Account::update_sync_folders(account.id, sync_folders).await?;
+            AccountV2::update_sync_folders(account.id, sync_folders).await?;
         } else {
             warn!(
                 "Account {}: No subscribed mailboxes found. This is unexpected — IMAP server should at least provide INBOX.",
@@ -99,12 +99,12 @@ pub async fn get_sync_folders(account: &Account) -> RustMailerResult<Vec<MailBox
 }
 
 pub async fn detect_mailbox_changes(
-    account: &Account,
+    account: &AccountV2,
     all_names: BTreeSet<String>,
 ) -> RustMailerResult<()> {
     if account.known_folders.is_empty() {
         // First time sync: just save without comparing
-        Account::update_known_folders(account.id, all_names).await?;
+        AccountV2::update_known_folders(account.id, all_names).await?;
         return Ok(());
     }
 
@@ -136,7 +136,7 @@ pub async fn detect_mailbox_changes(
             // Note: When all subscribed folders are deleted (remaining_sync_folders empty),
             // the system's default behavior is to automatically fall back to syncing
             // only the default folders (INBOX and Sent) in subsequent operations
-            Account::update_sync_folders(account.id, remaining_sync_folders).await?;
+            AccountV2::update_sync_folders(account.id, remaining_sync_folders).await?;
         }
 
         info!(
@@ -187,7 +187,7 @@ pub async fn detect_mailbox_changes(
 
     // Update known folders only if there were changes
     if has_changes {
-        Account::update_known_folders(account.id, all_names).await?;
+        AccountV2::update_known_folders(account.id, all_names).await?;
     }
     Ok(())
 }

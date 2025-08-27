@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         error::{code::ErrorCode, RustMailerResult},
         settings::cli::SETTINGS,
         smtp::{
@@ -197,7 +197,7 @@ impl EmailBuilder for SendEmailRequest {
 
     async fn build(&self, account_id: u64) -> RustMailerResult<()> {
         self.validate().await?;
-        let account = &Account::get(account_id).await?;
+        let account = &AccountV2::get(account_id).await?;
         let from = self.from.clone().map(Into::into).unwrap_or_else(|| {
             Address::new_address(
                 account.name.as_ref().map(|n| Cow::Owned(n.to_string())),
@@ -330,7 +330,7 @@ impl SendEmailRequest {
         &self,
         mut builder: MessageBuilder<'static>,
         recipient: &Recipient,
-        account: &Account,
+        account: &AccountV2,
         tracker: Option<EmailTracker>,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         if let Some(attachments) = &self.attachments {
@@ -432,7 +432,7 @@ impl SendEmailRequest {
     async fn apply_mail_attachments(
         mut builder: MessageBuilder<'static>,
         attachments: &[MailAttachment],
-        account: &Account,
+        account: &AccountV2,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         for attachment in attachments {
             let content = attachment.get_content(account).await?;

@@ -2,9 +2,12 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::{encode_mailbox_name, modules::{
-    account::entity::Account, context::executors::RUST_MAIL_CONTEXT, error::RustMailerResult,
-}};
+use crate::{
+    encode_mailbox_name,
+    modules::{
+        account::v2::AccountV2, context::executors::RUST_MAIL_CONTEXT, error::RustMailerResult,
+    },
+};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
 
@@ -22,9 +25,12 @@ pub async fn rename_mailbox(
     account_id: u64,
     payload: MailboxRenameRequest,
 ) -> RustMailerResult<()> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     executor
-        .rename_mailbox(encode_mailbox_name!(&payload.current_name).as_str(), encode_mailbox_name!(&payload.new_name).as_str())
+        .rename_mailbox(
+            encode_mailbox_name!(&payload.current_name).as_str(),
+            encode_mailbox_name!(&payload.new_name).as_str(),
+        )
         .await
 }

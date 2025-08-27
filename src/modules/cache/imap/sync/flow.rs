@@ -4,12 +4,10 @@
 
 use crate::{
     modules::{
-        account::{entity::Account, since::DateSince, status::AccountRunningState},
+        account::{since::DateSince, status::AccountRunningState, v2::AccountV2},
         bounce::parser::{extract_bounce_report, BounceReport},
         cache::imap::{
-            diff,
-            envelope_v2::EmailEnvelopeV2,
-            find_deleted_mailboxes, find_flag_updates, find_intersecting_mailboxes,
+            diff, find_deleted_mailboxes, find_flag_updates, find_intersecting_mailboxes,
             find_missing_mailboxes, find_missing_remote_uids,
             mailbox::{EnvelopeFlag, MailBox},
             manager::EnvelopeFlagsManager,
@@ -18,6 +16,7 @@ use crate::{
                 rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
                 sync_type::SyncType,
             },
+            v2::EmailEnvelopeV2,
         },
         common::AddrVec,
         context::executors::RUST_MAIL_CONTEXT,
@@ -138,7 +137,7 @@ pub async fn fetch_and_save_since_date(
 }
 
 pub async fn fetch_and_save_full_mailbox(
-    account: &Account,
+    account: &AccountV2,
     mailbox: &MailBox,
     total: u32,
     initial: bool,
@@ -148,7 +147,7 @@ pub async fn fetch_and_save_full_mailbox(
     let mut inserted_count = 0;
 
     let account_id = account.id;
-    let minimal_sync = account.minimal_sync;
+    let minimal_sync = account.minimal_sync();
 
     if initial {
         AccountRunningState::set_initial_current_syncing_folder(
@@ -298,7 +297,7 @@ pub fn compress_uid_list(nums: Vec<u32>) -> String {
 }
 
 pub async fn compare_and_sync_mailbox(
-    account: &Account,
+    account: &AccountV2,
     remote_mailboxes: &[MailBox],
     local_mailboxes: &[MailBox],
     sync_type: &SyncType,
@@ -407,7 +406,7 @@ pub async fn compare_and_sync_mailbox(
 }
 
 async fn cleanup_deleted_mailboxes(
-    account: &Account,
+    account: &AccountV2,
     deleted_mailboxes: &[MailBox],
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
@@ -424,7 +423,7 @@ async fn cleanup_deleted_mailboxes(
 }
 /// Sync recent 200 envelopes's flags
 async fn sync_recent_envelope_flags(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
     uid_next: u32,
@@ -457,7 +456,7 @@ async fn sync_recent_envelope_flags(
 
 //only check new emails and sync
 async fn perform_incremental_sync(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
     sync_count: usize,
@@ -491,10 +490,10 @@ async fn perform_incremental_sync(
                     .fetch_uid_list(
                         max_uid + 1,
                         &remote_mailbox.encoded_name(),
-                        account.minimal_sync,
+                        account.minimal_sync(),
                     )
                     .await?;
-                let uid_list = parse_fetch_metadata(fetches, !account.minimal_sync)?;
+                let uid_list = parse_fetch_metadata(fetches, !account.minimal_sync())?;
 
                 // This is just a precaution in case the server's behavior deviates from expectations.
                 let uid_list = uid_list
@@ -522,7 +521,7 @@ async fn perform_incremental_sync(
                             date_since.since_date()?.as_str(),
                             remote_mailbox,
                             false,
-                            account.minimal_sync,
+                            account.minimal_sync(),
                         )
                         .await?;
                     }
@@ -544,7 +543,7 @@ async fn perform_incremental_sync(
 }
 //
 async fn perform_full_sync(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
 ) -> RustMailerResult<()> {
@@ -666,7 +665,7 @@ async fn diff_uids_and_flags(
 }
 
 async fn cleanup_missing_remote_emails(
-    account: &Account,
+    account: &AccountV2,
     mailbox_id: u64,
     mailbox_name: &str,
     local_uid_flags_index: &AHashMap<u32, u64>,
@@ -687,7 +686,7 @@ async fn cleanup_missing_remote_emails(
 }
 
 pub async fn fetch_and_store_new_envelopes_by_uid_list(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox_id: u64,
     remote: &MailBox,
     uid_list: Vec<(u32, u64)>,
@@ -718,7 +717,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
     info!("Account {}: Mailbox '{}' has {} new message UID(s) to fetch metadata. Starting download...", account.id, &remote.name, len);
 
     // Process minimal sync case first
-    if account.minimal_sync {
+    if account.minimal_sync() {
         let envelopes: Vec<MinimalEnvelope> = uid_list
             .clone()
             .into_iter()
@@ -768,7 +767,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
 }
 
 async fn process_email_added_events(
-    account: &Account,
+    account: &AccountV2,
     remote: &MailBox,
     fetches: &[Fetch],
 ) -> RustMailerResult<()> {
@@ -834,13 +833,13 @@ async fn process_email_added_events(
 }
 
 async fn handle_minimal_sync_or_metadata_fetch(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox_id: u64,
     remote: &MailBox,
     uid_list: Vec<(u32, u64)>,
     len: usize,
 ) -> RustMailerResult<()> {
-    if account.minimal_sync {
+    if account.minimal_sync() {
         let envelopes: Vec<MinimalEnvelope> = uid_list
             .into_iter()
             .map(|(uid, flags_hash)| MinimalEnvelope {
@@ -877,7 +876,7 @@ async fn handle_minimal_sync_or_metadata_fetch(
 }
 
 async fn process_bounce_reports(
-    account: &Account,
+    account: &AccountV2,
     remote: &MailBox,
     fetches: &[Fetch],
 ) -> RustMailerResult<()> {
@@ -925,7 +924,7 @@ async fn process_bounce_reports(
 }
 
 async fn submit_bounce_event(
-    account: &Account,
+    account: &AccountV2,
     remote: &MailBox,
     uid: u32,
     fetch: &Fetch,
@@ -960,7 +959,7 @@ async fn submit_bounce_event(
 }
 
 async fn submit_feedback_report_event(
-    account: &Account,
+    account: &AccountV2,
     remote: &MailBox,
     uid: u32,
     fetch: &Fetch,

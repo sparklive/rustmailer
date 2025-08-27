@@ -8,8 +8,8 @@ use crate::{
     calculate_hash,
     modules::{
         cache::imap::{
-            address::AddressEntity, envelope::EmailEnvelope, envelope_v2::EmailEnvelopeV2,
-            minimal::MinimalEnvelope, thread::EmailThread,
+            address::AddressEntity, envelope::EmailEnvelope, minimal::MinimalEnvelope,
+            thread::EmailThread, v2::EmailEnvelopeV2,
         },
         database::ModelsAdapter,
     },
@@ -19,7 +19,6 @@ use mailbox::{EmailFlag, EnvelopeFlag, MailBox};
 use native_db::Models;
 pub mod address;
 pub mod envelope;
-pub mod envelope_v2;
 pub mod mailbox;
 pub mod manager;
 pub mod minimal;
@@ -28,6 +27,7 @@ pub mod task;
 #[cfg(test)]
 mod tests;
 pub mod thread;
+pub mod v2;
 
 pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
     let mut adapter = ModelsAdapter::new();

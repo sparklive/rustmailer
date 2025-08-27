@@ -3,6 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::status::AccountRunningState;
+use crate::modules::account::v2::AccountV2;
 use crate::modules::autoconfig::CachedMailSettings;
 use crate::modules::cache::disk::CacheItem;
 use crate::modules::error::RustMailerResult;
@@ -59,6 +60,7 @@ impl ModelsAdapter {
         self.register_model::<License>();
         self.register_model::<CachedMailSettings>();
         self.register_model::<Account>();
+        self.register_model::<AccountV2>();
         self.register_model::<EmailTemplate>();
         self.register_model::<Mta>();
         self.register_model::<OAuth2>();

@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::entity::Account,
+        account::v2::AccountV2,
         cache::disk::DISK_CACHE,
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
@@ -35,7 +35,7 @@ pub async fn retrieve_full_email(
     mailbox: String,
     uid: u32,
 ) -> RustMailerResult<cacache::Reader> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
     let meta = get_minimal_meta(account_id, &mailbox, uid).await?;
     if meta.size > MAX_EMAIL_TOTAL_SIZE {
         return Err(raise_error!(format!(

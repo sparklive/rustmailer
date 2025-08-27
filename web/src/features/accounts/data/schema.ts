@@ -14,7 +14,7 @@ interface AuthConfig {
   password?: string;
 }
 
-interface SmtpConfig {
+export interface SmtpConfig {
   host: string;
   port: number; // integer, 0-65535
   encryption: Encryption;
@@ -22,7 +22,7 @@ interface SmtpConfig {
   use_proxy?: number;
 }
 
-interface ImapConfig {
+export interface ImapConfig {
   host: string;
   port: number; // integer, 0-65535
   encryption: Encryption;
@@ -42,18 +42,28 @@ interface DateSelection {
 
 export interface AccountEntity {
   id: number;
-  imap: ImapConfig;
-  smtp: SmtpConfig;
+  imap?: ImapConfig;
+  smtp?: SmtpConfig;
   enabled: boolean;
+  mailer_type: MailerType,
   deleted: boolean;
   name?: string,
   email: string;
-  minimal_sync: boolean;
-  capabilities: string[];
+  minimal_sync?: boolean;
+  capabilities?: string[];
   date_since?: DateSelection;
   sync_folders?: string[];
-  full_sync_interval_min: number;
+  full_sync_interval_min?: number;
   incremental_sync_interval_sec: number;
   created_at: number;
   updated_at: number;
+}
+
+
+// Represents the method used to access/manage emails
+export enum MailerType {
+  /** Use IMAP/SMTP protocol */
+  ImapSmtp = "ImapSmtp",
+  /** Use Gmail API */
+  GmailApi = "GmailApi",
 }

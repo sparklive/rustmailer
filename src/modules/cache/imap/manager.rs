@@ -9,13 +9,13 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 use tracing::warn;
 
-use crate::modules::account::entity::Account;
+use crate::modules::account::v2::AccountV2;
 use crate::modules::cache::imap::address::AddressEntity;
-use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;
 use crate::modules::cache::imap::thread::EmailThread;
+use crate::modules::cache::imap::v2::EmailEnvelopeV2;
 use crate::modules::context::Initialize;
 use crate::modules::error::RustMailerResult;
 use crate::modules::hook::channel::{Event, EVENT_CHANNEL};
@@ -36,7 +36,7 @@ pub struct EnvelopeFlagsManager;
 
 impl EnvelopeFlagsManager {
     pub async fn load_state() -> RustMailerResult<()> {
-        let all_accounts = Account::list_all().await?;
+        let all_accounts = AccountV2::list_all().await?;
 
         stream::iter(all_accounts)
             .filter(|account| futures::future::ready(account.enabled))
@@ -132,13 +132,13 @@ impl EnvelopeFlagsManager {
     }
 
     pub async fn update_envelope_flags(
-        account: &Account,
+        account: &AccountV2,
         mailbox_id: u64,
         data: Vec<(u32, Vec<EnvelopeFlag>)>,
     ) -> RustMailerResult<()> {
         RUSTMAILER_MAIL_FLAG_CHANGE_TOTAL.inc_by(data.len() as u64);
         for (uid, flags) in data {
-            if !account.minimal_sync
+            if !account.minimal_sync()
                 && EventHookTask::event_watched(account.id, EventType::EmailFlagsChanged).await?
             {
                 if let Some(current) = EmailEnvelopeV2::find(account.id, mailbox_id, uid).await? {
@@ -170,7 +170,7 @@ impl EnvelopeFlagsManager {
             }
 
             let flags_hash = flags_to_hash(&flags);
-            if !account.minimal_sync {
+            if !account.minimal_sync() {
                 EmailEnvelopeV2::update_flags(account.id, mailbox_id, uid, &flags, flags_hash)
                     .await?;
             }

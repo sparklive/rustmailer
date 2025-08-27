@@ -11,7 +11,7 @@ use tracing::{error, info};
 
 use crate::{
     modules::{
-        cache::imap::{envelope_v2::EmailEnvelopeV2, manager::EnvelopeFlagsManager},
+        cache::imap::{v2::EmailEnvelopeV2, manager::EnvelopeFlagsManager},
         database::{
             batch_delete_impl, batch_insert_impl, delete_impl, filter_by_secondary_key_impl,
             manager::DB_MANAGER, update_impl,

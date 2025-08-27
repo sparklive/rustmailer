@@ -2,13 +2,13 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::modules::account::v2::AccountV2;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::imap::section::Encoding;
 use crate::modules::message::attachment::inline_attachment_diskcache_key;
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::entity::Account,
         cache::disk::DISK_CACHE,
         context::executors::RUST_MAIL_CONTEXT,
         error::RustMailerResult,
@@ -283,7 +283,7 @@ pub async fn retrieve_email_content(
     request: MessageContentRequest,
     skip_cache: bool,
 ) -> RustMailerResult<MessageContent> {
-    Account::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id).await?;
 
     let mut plain: Option<PlainText> = None;
     let mut html: Option<String> = None;

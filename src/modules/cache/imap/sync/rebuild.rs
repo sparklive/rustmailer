@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    account::{entity::Account, since::DateSince},
+    account::{since::DateSince, v2::AccountV2},
     cache::imap::{
         mailbox::MailBox,
         manager::EnvelopeFlagsManager,
@@ -15,7 +15,7 @@ use std::time::Instant;
 use tracing::{error, info, warn};
 
 pub async fn rebuild_cache(
-    account: &Account,
+    account: &AccountV2,
     remote_mailboxes: &[MailBox],
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
@@ -62,7 +62,7 @@ pub async fn rebuild_cache(
 }
 
 pub async fn rebuild_cache_since_date(
-    account: &Account,
+    account: &AccountV2,
     remote_mailboxes: &[MailBox],
     date_since: &DateSince,
 ) -> RustMailerResult<()> {
@@ -80,21 +80,13 @@ pub async fn rebuild_cache_since_date(
             );
             continue;
         }
-        // total_inserted += fetch_and_save_since_date(
-        //     account.id,
-        //     date.as_str(),
-        //     mailbox,
-        //     true,
-        //     account.minimal_sync,
-        // )
-        // .await?;
 
         match fetch_and_save_since_date(
             account.id,
             date.as_str(),
             mailbox,
             true,
-            account.minimal_sync,
+            account.minimal_sync(),
         )
         .await
         {
@@ -126,7 +118,7 @@ pub async fn rebuild_cache_since_date(
 }
 
 pub async fn should_rebuild_cache(
-    account: &Account,
+    account: &AccountV2,
     mailbox_count: usize,
     local_envelope_count: usize,
 ) -> RustMailerResult<bool> {
@@ -147,7 +139,7 @@ pub async fn should_rebuild_cache(
 }
 
 pub async fn rebuild_mailbox_cache(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
 ) -> RustMailerResult<()> {
@@ -171,7 +163,7 @@ pub async fn rebuild_mailbox_cache(
 }
 
 pub async fn rebuild_mailbox_cache_since_date(
-    account: &Account,
+    account: &AccountV2,
     local_mailbox_id: u64,
     date_since: &DateSince,
     remote: &MailBox,
@@ -191,7 +183,7 @@ pub async fn rebuild_mailbox_cache_since_date(
         date_since.since_date()?.as_str(),
         remote,
         false,
-        account.minimal_sync,
+        account.minimal_sync(),
     )
     .await?;
     info!(

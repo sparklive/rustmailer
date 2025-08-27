@@ -4,11 +4,14 @@
 
 use crate::{
     modules::{
-        account::{entity::Account, status::AccountRunningState},
+        account::{status::AccountRunningState, v2::AccountV2},
         error::RustMailerResult,
     },
     utc_now,
 };
+
+/// Default interval (in minutes) for full synchronization.
+pub const DEFAULT_FULL_SYNC_INTERVAL_MIN: i64 = 30;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SyncType {
@@ -20,14 +23,16 @@ pub enum SyncType {
     SkipSync,
 }
 
-pub async fn determine_sync_type(account: &Account) -> RustMailerResult<SyncType> {
+pub async fn determine_sync_type(account: &AccountV2) -> RustMailerResult<SyncType> {
     Ok(match AccountRunningState::get(account.id).await? {
         Some(info) => {
             let now = utc_now!();
             if is_time_for_full_sync(
                 now,
                 info.last_full_sync_start,
-                account.full_sync_interval_min,
+                account
+                    .full_sync_interval_min
+                    .unwrap_or(DEFAULT_FULL_SYNC_INTERVAL_MIN),
             ) {
                 AccountRunningState::set_full_sync_start(account.id).await?;
                 SyncType::FullSync

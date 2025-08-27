@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::entity::Account;
+use crate::modules::account::v2::AccountV2;
 use crate::modules::context::Initialize;
 use crate::modules::database::manager::DB_MANAGER;
 use crate::modules::database::{async_find_impl, upsert_impl};
@@ -174,7 +174,7 @@ impl License {
         let license_str = license_str.into();
         let license = match current_license {
             Some(license) => {
-                let count = Account::count().await?;
+                let count = AccountV2::count().await?;
                 if let Some(max_accounts) = license_content.max_accounts {
                     if count > max_accounts as usize {
                         return Err(raise_error!(format!(

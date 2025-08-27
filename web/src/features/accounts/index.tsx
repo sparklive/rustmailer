@@ -17,7 +17,7 @@ import AccountProvider, {
 } from './context'
 import { Plus } from 'lucide-react'
 import Logo from '@/assets/logo.svg'
-import { AccountEntity } from './data/schema'
+import { AccountEntity, MailerType } from './data/schema'
 import { AccountDetailDrawer } from './components/account-detail'
 import { list_accounts } from '@/api/account/api'
 import { TableSkeleton } from '@/components/table-skeleton'
@@ -141,10 +141,14 @@ export default function Accounts() {
             onOpenChange={() => setOpen('detail')}
             currentRow={currentRow}
           />
-          {currentRow.imap.auth.auth_type === 'OAuth2' && <OAuth2TokensDialog open={open === 'oauth2'}
+          {(
+            (currentRow.mailer_type === MailerType.ImapSmtp &&
+              currentRow.imap?.auth.auth_type === 'OAuth2') ||
+            currentRow.mailer_type === MailerType.GmailApi
+          ) && <OAuth2TokensDialog open={open === 'oauth2'}
             onOpenChange={() => setOpen('oauth2')}
             currentRow={currentRow}
-          />}
+            />}
         </>
       )}
     </AccountProvider>

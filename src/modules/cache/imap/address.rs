@@ -14,7 +14,7 @@ use tracing::info;
 use crate::{
     id,
     modules::{
-        cache::imap::envelope_v2::EmailEnvelopeV2,
+        cache::imap::v2::EmailEnvelopeV2,
         database::{batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER},
         error::{code::ErrorCode, RustMailerResult},
         utils::envelope_hash,

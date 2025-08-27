@@ -10,7 +10,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import { AccountEntity } from '../data/schema';
+import { AccountEntity, ImapConfig, SmtpConfig } from '../data/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -212,9 +212,26 @@ const defaultValues: Account = {
   incremental_sync_interval_sec: 30,
 };
 
+const emptyImap: ImapConfig = {
+  host: "",
+  port: 0,
+  encryption: "None",
+  auth: { auth_type: "Password", password: undefined },
+  use_proxy: undefined,
+};
+
+const emptySmtp: SmtpConfig = {
+  host: "",
+  port: 0,
+  encryption: "None",
+  auth: { auth_type: "Password", password: undefined },
+  use_proxy: undefined,
+};
+
+
 const mapCurrentRowToFormValues = (currentRow: AccountEntity): Account => {
-  const imap = { ...currentRow.imap };
-  const smtp = { ...currentRow.smtp };
+  const imap = { ...(currentRow.imap ?? emptyImap) };
+  const smtp = { ...(currentRow.smtp ?? emptySmtp) };
 
   // Handle password and use_proxy conversion
   imap.auth = { ...imap.auth, password: undefined };
@@ -233,9 +250,9 @@ const mapCurrentRowToFormValues = (currentRow: AccountEntity): Account => {
     imap,
     smtp,
     enabled: currentRow.enabled,
-    minimal_sync: currentRow.minimal_sync,
+    minimal_sync: currentRow.minimal_sync ?? false,
     date_since: currentRow.date_since ?? undefined,
-    full_sync_interval_min: currentRow.full_sync_interval_min,
+    full_sync_interval_min: currentRow.full_sync_interval_min ?? 60,
     incremental_sync_interval_sec: currentRow.incremental_sync_interval_sec,
   };
 

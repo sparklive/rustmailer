@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     modules::{
-        cache::imap::envelope_v2::EmailEnvelopeV2,
+        cache::imap::v2::EmailEnvelopeV2,
         database::{
             batch_delete_impl, delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
         },

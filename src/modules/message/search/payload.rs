@@ -3,8 +3,8 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::cache::imap::address::AddressEntity;
-use crate::modules::cache::imap::envelope_v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
+use crate::modules::cache::imap::v2::EmailEnvelopeV2;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::database::Paginated;
 use crate::modules::error::code::ErrorCode;
@@ -12,7 +12,7 @@ use crate::modules::message::search::cache::IMAP_SEARCH_CACHE;
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::entity::Account, context::executors::RUST_MAIL_CONTEXT,
+        account::v2::AccountV2, context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope, error::RustMailerResult, rest::response::DataPage,
     },
     raise_error,
@@ -437,13 +437,13 @@ impl MessageSearchRequest {
         page_size: u64,
         desc: bool,
     ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
-        let account = Account::check_account_active(account_id).await?;
+        let account = AccountV2::check_account_active(account_id).await?;
         self.search_remote(&account, page, page_size, desc).await
     }
 
     async fn search_remote(
         &self,
-        account: &Account,
+        account: &AccountV2,
         page: u64,
         page_size: u64,
         desc: bool,
