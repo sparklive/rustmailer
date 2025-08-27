@@ -40,6 +40,9 @@ export function OAuth2TokensDialog({ currentRow, open, onOpenChange }: Props) {
   const { data: oauth2Tokens, isLoading } = useQuery({
     queryKey: ['oauth2-tokens', currentRow.id],
     queryFn: () => get_oauth2_tokens(currentRow.id),
+    retry: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
 

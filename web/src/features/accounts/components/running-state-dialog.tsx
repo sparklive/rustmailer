@@ -32,7 +32,9 @@ export function RunningStateDialog({ currentRow, open, onOpenChange }: Props) {
   const { data: state, isLoading } = useQuery({
     queryKey: ['running-state', currentRow.id],
     queryFn: () => account_state(currentRow.id),
-    refetchInterval: 5000, // 每5秒自动刷新数据
+    retry: 0,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5000,
   })
 
   // Helper function to calculate duration
@@ -299,6 +301,13 @@ export function RunningStateDialog({ currentRow, open, onOpenChange }: Props) {
                 </div>
               </ScrollArea>
             </div>
+          </div>
+        )}
+
+        {!isLoading && !state && (
+          <div className="h-full flex flex-col justify-center items-center py-8">
+            <p className="text-sm text-muted-foreground">No active state available</p>
+            <p className="text-xs text-muted-foreground">Account synchronization may not have started yet</p>
           </div>
         )}
 
