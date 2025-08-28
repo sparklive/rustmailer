@@ -74,11 +74,6 @@ const imapConfigSchema = (isEdit: boolean) =>
     use_proxy: z.number().optional(),
   });
 
-// const unitSchema = z.union([
-//   z.literal('Days'),
-//   z.literal('Months'),
-//   z.literal('Years'),
-// ]);
 
 const relativeDateSchema = z.object({
   unit: z.enum(["Days", "Months", "Years"], { message: "Please select a unit" }),

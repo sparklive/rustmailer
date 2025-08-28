@@ -513,7 +513,7 @@ export function TemplateActionDialog({ currentRow, open, onOpenChange }: Props) 
                   Creating...
                 </>
               ) : (
-                "Save"
+                "Creat"
               )
             )}
           </Button>

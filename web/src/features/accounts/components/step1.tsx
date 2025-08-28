@@ -37,7 +37,7 @@ export default function Step1({ isEdit }: StepProps) {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center justify-between">
-                                Email Address
+                                Email Address:
                             </FormLabel>
                             <FormControl>
                                 <Input placeholder="e.g john.doe@example.com" readOnly={isEdit} {...field} />
@@ -57,11 +57,12 @@ export default function Step1({ isEdit }: StepProps) {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center justify-between">
-                                Name
+                                Name:
                             </FormLabel>
                             <FormControl>
                                 <Input placeholder="e.g john.doe" {...field} />
                             </FormControl>
+                            <FormDescription>Optional</FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

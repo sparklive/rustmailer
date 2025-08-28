@@ -78,7 +78,8 @@ export default function Step4({ isEdit }: StepProps) {
                     control={control}
                     name='enabled'
                     render={({ field }) => (
-                        <FormItem className='flex flex-row items-center gap-x-2'>
+                        <FormItem className='flex flex-col items-start gap-y-1'>
+                            <FormLabel>Enabled:</FormLabel>
                             <FormControl>
                                 <Checkbox
                                     className='mt-2'
@@ -86,7 +87,9 @@ export default function Step4({ isEdit }: StepProps) {
                                     onCheckedChange={field.onChange}
                                 />
                             </FormControl>
-                            <FormLabel>Enabled</FormLabel>
+                            <FormDescription>
+                                Determines whether this account is active. If disabled, related syncs and queries will not run.
+                            </FormDescription>
                         </FormItem>
                     )}
                 />
@@ -215,7 +218,8 @@ export default function Step4({ isEdit }: StepProps) {
                     control={control}
                     name='minimal_sync'
                     render={({ field }) => (
-                        <FormItem className='flex flex-row items-center gap-x-2'>
+                        <FormItem className='flex flex-col items-start gap-y-1'>
+                            <FormLabel>Minimal Sync:</FormLabel>
                             <FormControl>
                                 <Checkbox
                                     className='mt-2'
@@ -224,7 +228,6 @@ export default function Step4({ isEdit }: StepProps) {
                                     disabled={isEdit}
                                 />
                             </FormControl>
-                            <FormLabel>Minimal Sync</FormLabel>
                             <FormDescription>
                                 {isEdit ? (
                                     "This setting cannot be modified after account creation."

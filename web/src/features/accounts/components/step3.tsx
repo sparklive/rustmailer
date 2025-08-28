@@ -46,7 +46,7 @@ export default function Step3({ isEdit }: StepProps) {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center justify-between">
-                                SMTP Host
+                                SMTP Host:
                             </FormLabel>
                             <FormControl>
                                 <Input placeholder="e.g smtp.example.com" {...field} />
@@ -61,7 +61,7 @@ export default function Step3({ isEdit }: StepProps) {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center justify-between">
-                                SMTP Port
+                                SMTP Port:
                             </FormLabel>
                             <FormControl>
                                 <Input type="number" placeholder="e.g 465" {...field} onChange={(e) => field.onChange(parseInt(e.target.value, 10))} />
@@ -75,7 +75,7 @@ export default function Step3({ isEdit }: StepProps) {
                     name="smtp.encryption"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>IMAP Auth Method</FormLabel>
+                            <FormLabel>IMAP Auth Method:</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
@@ -100,7 +100,7 @@ export default function Step3({ isEdit }: StepProps) {
                     name="smtp.auth.auth_type"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>SMTP Auth Method</FormLabel>
+                            <FormLabel>SMTP Auth Method:</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
@@ -126,7 +126,7 @@ export default function Step3({ isEdit }: StepProps) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel className="flex items-center justify-between">
-                                    SMTP Password
+                                    SMTP Password:
                                 </FormLabel>
                                 <FormControl>
                                     <PasswordInput placeholder={isEdit ? "Leave empty to keep current password" : "Enter your password"} {...field} />
@@ -146,7 +146,7 @@ export default function Step3({ isEdit }: StepProps) {
                     name='smtp.use_proxy'
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="flex items-center justify-between">Use Proxy(optional)</FormLabel>
+                            <FormLabel className="flex items-center justify-between">Use Proxy(optional):</FormLabel>
                             <FormControl>
                                 <Select
                                     onValueChange={(val) => field.onChange(Number(val))}
