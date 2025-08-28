@@ -26,6 +26,8 @@ import { OAuth2TokensDialog } from './components/oauth2-tokens'
 import { RunningStateDialog } from './components/running-state-dialog'
 import { FixedHeader } from '@/components/layout/fixed-header'
 import { SyncFoldersDialog } from './components/sync-folders'
+import { GmailApiAccountDialog } from './components/gmail-account-dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 export default function Accounts() {
   // Dialog states
@@ -53,9 +55,22 @@ export default function Accounts() {
             </p>
           </div>
           <div className='flex gap-2'>
-            <Button className='space-x-1' onClick={() => setOpen('add')}>
-              <span>Add</span> <Plus size={18} />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="space-x-1">
+                  <span>Add</span>
+                  <Plus size={18} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setOpen("imap-smtp-add")}>
+                  IMAP / SMTP
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setOpen("gmail-api-add")}>
+                  Gmail API
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className='-mx-4 flex-1 overflow-auto px-4 py-1 flex-row lg:space-x-12 space-y-0'>
@@ -73,9 +88,10 @@ export default function Accounts() {
                 <p className="mb-4 mt-2 text-sm text-muted-foreground">
                   You haven't added any Account configurations yet. Add one to start using Account features.
                 </p>
-                <Button onClick={() => setOpen('add')}>
-                  Add Configuration
-                </Button>
+                <div className="flex gap-4">
+                  <Button onClick={() => setOpen("imap-smtp-add")}>Add IMAP/SMTP Configuration</Button>
+                  <Button onClick={() => setOpen("gmail-api-add")}>Add Gmail API Configuration</Button>
+                </div>
               </div>
             </div>
           )}
@@ -83,18 +99,36 @@ export default function Accounts() {
       </Main>
 
       <AccountActionDialog
-        key='account-add'
-        open={open === 'add'}
-        onOpenChange={() => setOpen('add')}
+        key='imap-smtp-account-add'
+        open={open === 'imap-smtp-add'}
+        onOpenChange={() => setOpen('imap-smtp-add')}
+      />
+
+      <GmailApiAccountDialog
+        key='gmail-api-account-add'
+        open={open === 'gmail-api-add'}
+        onOpenChange={() => setOpen('gmail-api-add')}
       />
 
       {currentRow && (
         <>
           <AccountActionDialog
-            key={`account-edit-${currentRow.id}`}
-            open={open === 'edit'}
+            key={`imap-smtp-account-edit-${currentRow.id}`}
+            open={open === 'imap-smtp-edit'}
             onOpenChange={() => {
-              setOpen('edit')
+              setOpen('imap-smtp-edit')
+              setTimeout(() => {
+                setCurrentRow(null)
+              }, 500)
+            }}
+            currentRow={currentRow}
+          />
+
+          <GmailApiAccountDialog
+            key={`gmail-api-account-edit-${currentRow.id}`}
+            open={open === 'gmail-api-edit'}
+            onOpenChange={() => {
+              setOpen('gmail-api-edit')
               setTimeout(() => {
                 setCurrentRow(null)
               }, 500)
