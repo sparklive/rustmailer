@@ -200,9 +200,10 @@ http://localhost:15630
 > ⚠️ The root access session expires after 5 days and requires re-authentication.
 
 From 1.4.0, By default, the Web UI uses username/password authentication:
+```
 Default username: root
 Default password: root
-
+```
 After logging in, the user can change the default password through the Web UI.
 <img width="1523" height="677" alt="image" src="https://github.com/user-attachments/assets/a5832f0f-30c2-4c12-beff-5425f7f3b6ab" />
 
