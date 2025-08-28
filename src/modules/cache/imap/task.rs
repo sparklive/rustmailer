@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::entity::AuthType;
+use crate::modules::account::entity::{AuthType, MailerType};
 use crate::modules::cache::imap::sync::execute_account_sync;
 use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::scheduler::periodic::TaskHandle;
@@ -54,7 +54,8 @@ impl AccountSyncTask {
                                 );
                             }
                         } else {
-                            if let AuthType::OAuth2 = account
+                            if matches!(account.mailer_type, MailerType::ImapSmtp) {
+                                if let AuthType::OAuth2 = account
                                 .imap
                                 .as_ref()
                                 .expect(
@@ -70,17 +71,18 @@ impl AccountSyncTask {
                                     return Ok(());
                                 }
                             }
-                            if let Err(e) = execute_account_sync(&account).await {
-                                STATUS_DISPATCHER
-                                    .append_error(
-                                        account_id,
-                                        format!("error in account sync task: {:#?}", e),
+                                if let Err(e) = execute_account_sync(&account).await {
+                                    STATUS_DISPATCHER
+                                        .append_error(
+                                            account_id,
+                                            format!("error in account sync task: {:#?}", e),
+                                        )
+                                        .await;
+                                    error!(
+                                        "Failed to synchronize mailbox data for '{}': {:?}",
+                                        account_id, e
                                     )
-                                    .await;
-                                error!(
-                                    "Failed to synchronize mailbox data for '{}': {:?}",
-                                    account_id, e
-                                )
+                                }
                             }
                         }
                     }
