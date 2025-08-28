@@ -183,9 +183,10 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                     </div>
                   </CardContent>
                 </Card>
-              </div> : <div className="mt-4 text-muted-foreground">
+              </div> : <div className="mt-48 text-center text-muted-foreground">
                 No IMAP/SMTP configuration required (using {currentRow.mailer_type}).
-              </div>}
+              </div>
+              }
             </TabsContent>
 
             {/* Sync Folders Tab */}

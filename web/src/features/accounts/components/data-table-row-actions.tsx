@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAccountContext } from '../context'
-import { AccountEntity } from '../data/schema'
+import { AccountEntity, MailerType } from '../data/schema'
 import { Mailbox, MessageSquareMore } from 'lucide-react'
 
 interface DataTableRowActionsProps {
@@ -42,7 +42,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <DropdownMenuItem
             onClick={() => {
               setCurrentRow(row.original)
-              setOpen('edit')
+              switch (row.original.mailer_type) {
+                case MailerType.ImapSmtp:
+                  setOpen("imap-smtp-edit");
+                  break;
+                case MailerType.GmailApi:
+                  setOpen("gmail-api-edit");
+                  break;
+              }
             }}
           >
             Edit
