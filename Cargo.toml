@@ -1,6 +1,6 @@
 [package]
 name = "rustmailer"
-version = "1.4.1"
+version = "1.5.0"
 edition = "2021"
 
 [[bin]]
@@ -20,8 +20,8 @@ codegen-units = 1
 
 [dependencies]
 chrono = "0.4.41"
-clap = { version = "4.5.45", features = ["derive", "env"] }
-mimalloc = "0.1.47"
+clap = { version = "4.5.46", features = ["derive", "env"] }
+mimalloc = "0.1.48"
 native_db = "0.8.2"
 redb = "2.6.2"
 itertools = "0.14.0"

@@ -29,7 +29,7 @@ pub mod sync_type;
 
 static SYNC_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-pub async fn execute_account_sync(account: &AccountV2) -> RustMailerResult<()> {
+pub async fn execute_imap_sync(account: &AccountV2) -> RustMailerResult<()> {
     let start_time = Instant::now();
     let account_id = account.id;
 

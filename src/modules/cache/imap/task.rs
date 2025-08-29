@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::entity::{AuthType, MailerType};
-use crate::modules::cache::imap::sync::execute_account_sync;
+use crate::modules::cache::imap::sync::execute_imap_sync;
 use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::scheduler::periodic::TaskHandle;
 use crate::modules::{
@@ -71,7 +71,7 @@ impl AccountSyncTask {
                                     return Ok(());
                                 }
                             }
-                                if let Err(e) = execute_account_sync(&account).await {
+                                if let Err(e) = execute_imap_sync(&account).await {
                                     STATUS_DISPATCHER
                                         .append_error(
                                             account_id,

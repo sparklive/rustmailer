@@ -310,6 +310,13 @@ pub async fn compare_and_sync_mailbox(
         let mut mailboxes_to_update = Vec::with_capacity(existing_mailboxes.len());
         for (local_mailbox, remote_mailbox) in &existing_mailboxes {
             if local_mailbox.uid_validity != remote_mailbox.uid_validity {
+                if remote_mailbox.uid_validity.is_none() {
+                    warn!(
+                        "Account {}: Mailbox '{}' has invalid uid_validity (None). Skipping sync for this mailbox.",
+                        account_id, local_mailbox.name
+                    );
+                    continue;
+                }
                 info!(
                     "Account {}: Mailbox '{}' detected with changed uid_validity (local: {:#?}, remote: {:#?}). \
                     The mailbox data may be invalid, resetting its envelopes and rebuilding the cache.",
