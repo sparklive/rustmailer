@@ -11,7 +11,7 @@ use std::time::Duration;
 use tracing::{debug, error, info};
 
 const TASK_INTERVAL: Duration = Duration::from_secs(60); // Interval set to 1 minute
-const FIFTEEN_MINUTES: Duration = Duration::from_secs(15 * 60);
+const FIFTEEN_MINUTES: Duration = Duration::from_secs(45 * 60);
 ///This task cleans up expired OAuth2 pending authorizations that haven't been completed by users in a timely manner.
 pub struct OAuth2RefreshTask;
 
