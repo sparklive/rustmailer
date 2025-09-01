@@ -1,0 +1,205 @@
+// Copyright © 2025 rustmailer.com
+// Licensed under RustMailer License Agreement v1.0
+// Unauthorized copying, modification, or distribution is prohibited.
+
+use poem_grpc::{ClientConfig, CompressionEncoding};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use serde_json::Value;
+use std::time::Duration;
+
+use crate::{
+    modules::{
+        cache::{
+            imap::v2::EmailEnvelopeV3,
+            vendor::gmail::{
+                model::{
+                    history::HistoryList,
+                    messages::{MessageList, MessageMeta},
+                },
+                sync::envelope::GmailEnvelope,
+            },
+        },
+        common::{rustls::RustMailerTls, Addr},
+        context::Initialize,
+        grpc::service::rustmailer_grpc::{GetOAuth2TokensRequest, OAuth2ServiceClient},
+    },
+    rustmailer_version,
+};
+
+async fn access_token() -> String {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = OAuth2ServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = GetOAuth2TokensRequest {
+        account_id: 7397694139904449,
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    let result = grpc_client.get_o_auth2_tokens(request).await.unwrap();
+    result.access_token.clone().unwrap()
+}
+
+#[tokio::test]
+async fn test1() {
+    let access_token = access_token().await;
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=10&pageToken=08792416985640480557";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/198e590baf688394?format=metadata";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=10";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+    let res = client
+        .get(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let pretty = serde_json::to_string_pretty(&body).unwrap();
+        println!("Response = {}", pretty);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test2() {
+    let access_token = access_token().await;
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&q=after:2025/08/28&maxResults=20";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+    let res = client
+        .get(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let detail: MessageList = serde_json::from_value(body).unwrap();
+        println!("Response = {:#?}", detail);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test3() {
+    let access_token = access_token().await;
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/198f6735682a3870?format=metadata&metadataHeaders=Message-Id&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Bcc&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Mime-Version&metadataHeaders=Reply-To&metadataHeaders=In-Reply-To&metadataHeaders=References";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+    let res = client
+        .get(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let detail: MessageMeta = serde_json::from_value(body).unwrap();
+        let envelope: GmailEnvelope = detail.try_into().unwrap();
+        println!("Response = {:#?}", envelope);
+        let envelope: EmailEnvelopeV3 = envelope.into();
+        println!("Response = {:#?}", envelope);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test4() {
+    let access_token = access_token().await;
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=42032&labelId=INBOX&maxResults=20";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+    let res = client
+        .get(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let json = serde_json::to_string_pretty(&body).unwrap();
+        println!("Response = {}", json);
+        let list: HistoryList = serde_json::from_value(body).unwrap();
+        println!("Response = {:#?}", list);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test5() {
+    let examples = [
+        "Quinn Eckart <jira@lifebuoy.atlassian.net>",
+        "justemail@example.com",
+        "<only@example.com>",
+    ];
+
+    for s in examples {
+        let addr = Addr::parse(s);
+        println!("{:?}", addr);
+    }
+}

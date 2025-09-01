@@ -135,6 +135,10 @@ message Account {
   int64 updated_at = 16;
   // Method used to access and manage emails.
   MailerType mailer_type = 17;
+  // Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+  // - If `None` or not provided, the client will connect directly to the API server.
+  // - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+  optional uint64 use_proxy = 18; 
 }
 
 // PagedAccount represents a paginated list of Account messages.
@@ -173,6 +177,10 @@ message AccountCreateRequest {
   int64 incremental_sync_interval_sec = 9;
   // Method used to access and manage emails.
   MailerType mailer_type = 10;
+  // Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+  // - If `None` or not provided, the client will connect directly to the API server.
+  // - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+  optional uint64 use_proxy = 11;
 }
 
 // AccountUpdateRequest defines the parameters for updating an existing email account.
@@ -195,6 +203,10 @@ message AccountUpdateRequest {
   optional int64 full_sync_interval_min = 8;
   // Optional: Update the interval (in seconds) for incremental synchronization updates.
   optional int64 incremental_sync_interval_sec = 9;
+  // Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+  // - If `None` or not provided, the client will connect directly to the API server.
+  // - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+  optional uint64 use_proxy = 10;
 }
 
 // AccountError represents an error encountered during account processing.
@@ -338,7 +350,7 @@ service AutoConfigService {
 // MailBox represents a mail folder on an IMAP server.
 message MailBox {
   // The unique hash of the mailbox, serving as a primary key.
-  uint64 mailbox_hash = 1;
+  uint64 mailbox_id = 1;
   // The hash of the account to which this mailbox belongs, serving as a secondary key.
   uint64 account_hash = 2;
   // The unique name of the mailbox (e.g., "INBOX", "Sent Items").
@@ -696,6 +708,17 @@ message EmailEnvelope {
   // The identifier of the thread this email belongs to.
   // This is computed based on `in_reply_to` / `references` / `message_id`.
   uint64 thread_id = 26;
+  // The `mid` field is reserved for potential integration with other backend models.
+  // For instance, it can be used to store the email index or ID from external services like the Gmail API.
+  // This ID could be used for reference or identification purposes in scenarios where an external service
+  // provides an identifier for the email in question.
+  // This field is optional, meaning that it may be `None` if no external service identifier is available.
+  optional string mid = 27;
+  // A list of labels applied to the message.
+  // Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").
+  // This field reflects the current labels associated with the email. 
+  // Note: This field is populated only for Gmail API accounts. For other account types, it will be empty.
+  repeated string label_ids = 28;
 }
 
 // FetchMessageContentRequest is used to fetch specific content sections of an email message.

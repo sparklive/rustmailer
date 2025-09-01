@@ -329,7 +329,6 @@ pub fn json_value_to_prost_value(json_value: serde_json::Value) -> prost_types::
     prost_types::Value { kind }
 }
 
-
 /// Generates a 64-bit hash from a string, ensuring the output is within JavaScript's safe integer range (0 to 2^53 - 1).
 pub fn hash(s: &str) -> u64 {
     let mut cursor = Vec::new();
@@ -360,4 +359,16 @@ pub fn envelope_hash(account_id: u64, mailbox_id: u64, uid: u32) -> u64 {
     let mut cursor = std::io::Cursor::new(buffer);
     let hash = murmur3::murmur3_x64_128(&mut cursor, 0).unwrap();
     hash as u64
+}
+
+/// Generate a 64-bit hash for a GmailEnvelope using account_id, mailbox_id, and gmail api message id.
+/// The `id` string is hashed to produce a consistent u64 value.
+pub fn envelope_hash_from_id(account_id: u64, mailbox_id: u64, id: &str) -> u64 {
+    let mut buffer = Vec::with_capacity(8 + 8 + id.len());
+    buffer.extend_from_slice(&account_id.to_be_bytes());
+    buffer.extend_from_slice(&mailbox_id.to_be_bytes());
+    buffer.extend_from_slice(id.as_bytes());
+    let mut cursor = std::io::Cursor::new(buffer);
+    let hash128 = murmur3::murmur3_x64_128(&mut cursor, 0).unwrap();
+    hash128 as u64
 }

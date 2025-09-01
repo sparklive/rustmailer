@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::{status::AccountRunningState, v2::AccountV2},
+        account::{entity::MailerType, status::AccountRunningState, v2::AccountV2},
         error::RustMailerResult,
     },
     utc_now,
@@ -27,24 +27,38 @@ pub async fn determine_sync_type(account: &AccountV2) -> RustMailerResult<SyncTy
     Ok(match AccountRunningState::get(account.id).await? {
         Some(info) => {
             let now = utc_now!();
-            if is_time_for_full_sync(
-                now,
-                info.last_full_sync_start,
-                account
-                    .full_sync_interval_min
-                    .unwrap_or(DEFAULT_FULL_SYNC_INTERVAL_MIN),
-            ) {
-                AccountRunningState::set_full_sync_start(account.id).await?;
-                SyncType::FullSync
-            } else if is_time_for_incremental_sync(
+            let incremental_sync = is_time_for_incremental_sync(
                 now,
                 info.last_incremental_sync_start,
                 account.incremental_sync_interval_sec,
-            ) {
-                AccountRunningState::set_incremental_sync_start(account.id).await?;
-                SyncType::IncrementalSync
-            } else {
-                SyncType::SkipSync
+            );
+
+            match account.mailer_type {
+                MailerType::ImapSmtp => {
+                    if is_time_for_full_sync(
+                        now,
+                        info.last_full_sync_start,
+                        account
+                            .full_sync_interval_min
+                            .unwrap_or(DEFAULT_FULL_SYNC_INTERVAL_MIN),
+                    ) {
+                        AccountRunningState::set_full_sync_start(account.id).await?;
+                        SyncType::FullSync
+                    } else if incremental_sync {
+                        AccountRunningState::set_incremental_sync_start(account.id).await?;
+                        SyncType::IncrementalSync
+                    } else {
+                        SyncType::SkipSync
+                    }
+                }
+                MailerType::GmailApi => {
+                    if incremental_sync {
+                        AccountRunningState::set_incremental_sync_start(account.id).await?;
+                        SyncType::IncrementalSync
+                    } else {
+                        SyncType::SkipSync
+                    }
+                }
             }
         }
         None => {

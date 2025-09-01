@@ -18,6 +18,7 @@ use crate::{
             since::DateSince,
             status::AccountRunningState,
         },
+        cache::imap::mailbox::MailBox,
         database::{insert_impl, list_all_impl},
         error::RustMailerResult,
     },
@@ -28,7 +29,6 @@ use crate::id;
 use crate::modules::account::payload::AccountCreateRequest;
 use crate::modules::account::payload::AccountUpdateRequest;
 use crate::modules::account::payload::MinimalAccount;
-use crate::modules::cache::imap::mailbox::MailBox;
 use crate::modules::cache::imap::manager::EnvelopeFlagsManager;
 use crate::modules::cache::imap::task::IMAP_TASKS;
 use crate::modules::context::controller::SYNC_CONTROLLER;
@@ -109,6 +109,10 @@ pub struct AccountV2 {
     pub created_at: i64,
     /// Last update timestamp (UNIX epoch milliseconds)
     pub updated_at: i64,
+    /// Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+    /// - If `None` or not provided, the client will connect directly to the API server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+    pub use_proxy: Option<u64>,
 }
 
 impl AccountV2 {
@@ -145,6 +149,7 @@ impl AccountV2 {
             incremental_sync_interval_sec: request.incremental_sync_interval_sec,
             created_at: utc_now!(),
             updated_at: utc_now!(),
+            use_proxy: request.use_proxy,
         })
     }
 
@@ -411,6 +416,11 @@ impl AccountV2 {
         if let Some(mailboxes) = request.sync_folders {
             new.sync_folders = mailboxes;
         }
+
+        if let Some(use_proxy) = request.use_proxy {
+            new.use_proxy = Some(use_proxy);
+        }
+
         if let Some(full_sync_interval_min) = &request.full_sync_interval_min {
             new.full_sync_interval_min = Some(*full_sync_interval_min);
         }
@@ -469,6 +479,7 @@ impl From<Account> for AccountV2 {
             known_folders: value.known_folders,
             created_at: value.created_at,
             updated_at: value.updated_at,
+            use_proxy: None,
         }
     }
 }

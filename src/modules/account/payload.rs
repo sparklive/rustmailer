@@ -60,6 +60,10 @@ pub struct AccountCreateRequest {
     /// Incremental sync interval (seconds), default 60s
     #[oai(validator(minimum(value = "10"), maximum(value = "3600")))]
     pub incremental_sync_interval_sec: i64,
+    /// Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+    /// - If `None` or not provided, the client will connect directly to the API server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+    pub use_proxy: Option<u64>,
 }
 
 impl AccountCreateRequest {
@@ -139,6 +143,10 @@ pub struct AccountUpdateRequest {
     /// Incremental sync interval (seconds)
     #[oai(validator(minimum(value = "10"), maximum(value = "3600")))]
     pub incremental_sync_interval_sec: Option<i64>,
+    /// Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+    /// - If `None` or not provided, the client will connect directly to the API server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+    pub use_proxy: Option<u64>,
 }
 
 impl AccountUpdateRequest {

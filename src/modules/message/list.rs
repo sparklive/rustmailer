@@ -6,7 +6,7 @@ use crate::{
     encode_mailbox_name,
     modules::{
         account::v2::AccountV2,
-        cache::imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV2},
+        cache::imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV3},
         context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope,
         error::{code::ErrorCode, RustMailerResult},
@@ -23,7 +23,7 @@ pub async fn list_messages_in_mailbox(
     page_size: u64,
     remote: bool,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
     let account = AccountV2::check_account_active(account_id).await?;
     validate_pagination_params(page, page_size)?;
     let remote = remote || account.minimal_sync();
@@ -57,7 +57,7 @@ async fn fetch_remote_messages(
     page: u64,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
     let excutor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     let (mut fetches, total_items) = excutor
         .retrieve_metadata_paginated(
@@ -89,7 +89,7 @@ async fn process_fetches(
     fetches: Vec<Fetch>,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
+) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
     let mut envelopes = Vec::with_capacity(fetches.len());
     for fetch in fetches {
         let envelope = extract_envelope(&fetch, account_id, mailbox_name)?;
@@ -104,10 +104,10 @@ async fn fetch_local_messages(
     page: u64,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
     match MailBox::get(account.id, mailbox_name).await {
         Ok(mailbox) => {
-            EmailEnvelopeV2::list_messages_in_mailbox(mailbox.id, page, page_size, desc).await
+            EmailEnvelopeV3::list_messages_in_mailbox(mailbox.id, page, page_size, desc).await
         }
         Err(_) => Err(raise_error!(
             "This mailbox might not be included in the synchronized mailbox list of the account. \
@@ -124,7 +124,7 @@ pub async fn list_threads_in_mailbox(
     page: u64,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
     let account = AccountV2::check_account_active(account_id).await?;
     validate_pagination_params(page, page_size)?;
     if account.minimal_sync() {
@@ -159,7 +159,7 @@ pub async fn get_thread_messages(
     account_id: u64,
     mailbox_name: &str,
     thread_id: u64,
-) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
+) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
     let account = AccountV2::check_account_active(account_id).await?;
     if account.minimal_sync() {
         return Err(raise_error!(
@@ -174,7 +174,7 @@ pub async fn get_thread_messages(
     }
 
     match MailBox::get(account.id, mailbox_name).await {
-        Ok(mailbox) => EmailEnvelopeV2::get_thread(account_id, mailbox.id, thread_id).await,
+        Ok(mailbox) => EmailEnvelopeV3::get_thread(account_id, mailbox.id, thread_id).await,
         Err(_) => Err(raise_error!(
             format!(
                 "Mailbox '{}' not found in the synchronized mailbox list for account {}. \

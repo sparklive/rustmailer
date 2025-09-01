@@ -235,6 +235,7 @@ impl TryFrom<rustmailer_grpc::Account> for AccountV2 {
             incremental_sync_interval_sec: value.incremental_sync_interval_sec,
             created_at: value.created_at,
             updated_at: value.updated_at,
+            use_proxy: value.use_proxy,
         })
     }
 }
@@ -259,6 +260,7 @@ impl From<AccountV2> for rustmailer_grpc::Account {
             incremental_sync_interval_sec: value.incremental_sync_interval_sec,
             created_at: value.created_at,
             updated_at: value.updated_at,
+            use_proxy: value.use_proxy,
         }
     }
 }
@@ -278,6 +280,7 @@ impl TryFrom<rustmailer_grpc::AccountCreateRequest> for AccountCreateRequest {
             minimal_sync: value.minimal_sync,
             full_sync_interval_min: value.full_sync_interval_min,
             incremental_sync_interval_sec: value.incremental_sync_interval_sec,
+            use_proxy: value.use_proxy,
         })
     }
 }
@@ -295,6 +298,7 @@ impl TryFrom<rustmailer_grpc::AccountUpdateRequest> for AccountUpdateRequest {
             incremental_sync_interval_sec: value.incremental_sync_interval_sec,
             imap: value.imap.map(|imap| imap.try_into()).transpose()?,
             smtp: value.smtp.map(|smtp| smtp.try_into()).transpose()?,
+            use_proxy: value.use_proxy,
         })
     }
 }

@@ -15,7 +15,7 @@ use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;
 use crate::modules::cache::imap::thread::EmailThread;
-use crate::modules::cache::imap::v2::EmailEnvelopeV2;
+use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use crate::modules::context::Initialize;
 use crate::modules::error::RustMailerResult;
 use crate::modules::hook::channel::{Event, EVENT_CHANNEL};
@@ -75,7 +75,7 @@ impl EnvelopeFlagsManager {
 
     pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
         FLAGS_STATE_MAP.remove(&account_id);
-        EmailEnvelopeV2::clean_account(account_id).await?;
+        EmailEnvelopeV3::clean_account(account_id).await?;
         MinimalEnvelope::clean_account(account_id).await?;
         AddressEntity::clean_account(account_id).await?;
         EmailThread::clean_account(account_id).await
@@ -99,7 +99,7 @@ impl EnvelopeFlagsManager {
                 FLAGS_STATE_MAP.remove(&account_id);
             }
         }
-        EmailEnvelopeV2::clean_envelopes(account_id, mailbox_id, to_delete_uid).await?;
+        EmailEnvelopeV3::clean_envelopes(account_id, mailbox_id, to_delete_uid).await?;
         MinimalEnvelope::clean_envelopes(account_id, mailbox_id, to_delete_uid).await?;
         AddressEntity::clean_envelopes(account_id, mailbox_id, to_delete_uid).await?;
         EmailThread::clean_envelopes(account_id, mailbox_id, to_delete_uid).await
@@ -110,7 +110,7 @@ impl EnvelopeFlagsManager {
         if let Some(mailbox_map) = FLAGS_STATE_MAP.get(&account_id) {
             mailbox_map.remove(&mailbox_id);
         }
-        EmailEnvelopeV2::clean_mailbox_envelopes(account_id, mailbox_id).await?;
+        EmailEnvelopeV3::clean_mailbox_envelopes(account_id, mailbox_id).await?;
         MinimalEnvelope::clean_mailbox_envelopes(account_id, mailbox_id).await?;
         AddressEntity::clean_mailbox_envelopes(account_id, mailbox_id).await?;
         EmailThread::clean_mailbox_envelopes(account_id, mailbox_id).await
@@ -141,7 +141,7 @@ impl EnvelopeFlagsManager {
             if !account.minimal_sync()
                 && EventHookTask::event_watched(account.id, EventType::EmailFlagsChanged).await?
             {
-                if let Some(current) = EmailEnvelopeV2::find(account.id, mailbox_id, uid).await? {
+                if let Some(current) = EmailEnvelopeV3::find(account.id, mailbox_id, uid).await? {
                     let (added, removed) = Self::diff_envelope_flags(&current.flags, &flags);
                     EVENT_CHANNEL
                         .queue(Event::new(
@@ -171,7 +171,7 @@ impl EnvelopeFlagsManager {
 
             let flags_hash = flags_to_hash(&flags);
             if !account.minimal_sync() {
-                EmailEnvelopeV2::update_flags(account.id, mailbox_id, uid, &flags, flags_hash)
+                EmailEnvelopeV3::update_flags(account.id, mailbox_id, uid, &flags, flags_hash)
                     .await?;
             }
             MinimalEnvelope::update_flags(account.id, mailbox_id, uid, flags_hash).await?;

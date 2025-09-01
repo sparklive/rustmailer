@@ -7,9 +7,18 @@ use std::sync::LazyLock;
 use crate::{
     calculate_hash,
     modules::{
-        cache::imap::{
-            address::AddressEntity, envelope::EmailEnvelope, minimal::MinimalEnvelope,
-            thread::EmailThread, v2::EmailEnvelopeV2,
+        cache::{
+            imap::{
+                address::AddressEntity,
+                envelope::EmailEnvelope,
+                minimal::MinimalEnvelope,
+                thread::EmailThread,
+                v2::{EmailEnvelopeV2, EmailEnvelopeV3},
+            },
+            vendor::gmail::sync::{
+                envelope::GmailEnvelope,
+                labels::{GmailCheckPoint, GmailLabels},
+            },
         },
         database::ModelsAdapter,
     },
@@ -33,10 +42,14 @@ pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
     let mut adapter = ModelsAdapter::new();
     adapter.register_model::<EmailEnvelope>();
     adapter.register_model::<EmailEnvelopeV2>();
+    adapter.register_model::<EmailEnvelopeV3>();
     adapter.register_model::<MailBox>();
     adapter.register_model::<MinimalEnvelope>();
     adapter.register_model::<AddressEntity>();
     adapter.register_model::<EmailThread>();
+    adapter.register_model::<GmailEnvelope>();
+    adapter.register_model::<GmailLabels>();
+    adapter.register_model::<GmailCheckPoint>();
     adapter.models
 });
 

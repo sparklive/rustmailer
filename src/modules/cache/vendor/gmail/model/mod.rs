@@ -2,6 +2,6 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-pub mod disk;
-pub mod imap;
-pub mod vendor;
+pub mod history;
+pub mod labels;
+pub mod messages;

@@ -28,28 +28,22 @@ impl From<RustMailerError> for Status {
             | ErrorCode::ExceedsLimitation
             | ErrorCode::EmlFileParseError
             | ErrorCode::MissingContentLength => Code::InvalidArgument,
-
             ErrorCode::PermissionDenied => Code::PermissionDenied,
-
             ErrorCode::AccountDisabled
             | ErrorCode::LicenseAccountLimitReached
             | ErrorCode::LicenseExpired
             | ErrorCode::InvalidLicense
             | ErrorCode::OAuth2ItemDisabled => Code::PermissionDenied,
-
             ErrorCode::ResourceNotFound => Code::NotFound,
-
             ErrorCode::RequestTimeout => Code::DeadlineExceeded,
-
             ErrorCode::AlreadyExists => Code::AlreadyExists,
-
             ErrorCode::PayloadTooLarge => Code::ResourceExhausted,
-
             ErrorCode::TooManyRequest => Code::ResourceExhausted,
-
             ErrorCode::InternalError
             | ErrorCode::AutoconfigFetchFailed
             | ErrorCode::ImapCommandFailed
+            | ErrorCode::GmailApiCallFailed
+            | ErrorCode::GmailApiInvalidHistoryId
             | ErrorCode::ImapUnexpectedResult
             | ErrorCode::HttpResponseError
             | ErrorCode::NatsRequestFailed

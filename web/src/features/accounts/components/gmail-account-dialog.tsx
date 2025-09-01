@@ -46,6 +46,7 @@ const accountSchema = () =>
     name: z.string().optional(),
     email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
     enabled: z.boolean(),
+    minimal_sync: z.boolean(),
     date_since: dateSelectionSchema.optional(),
     incremental_sync_interval_sec: z.number({ invalid_type_error: 'Incremental sync interval must be a number' }).int().min(1, { message: 'Incremental sync interval must be at least 1 second' }),
   });
@@ -55,6 +56,7 @@ export type GmailApiAccount = {
   name?: string;
   email: string;
   enabled: boolean;
+  minimal_sync: boolean;
   date_since?: {
     fixed?: string;
     relative?: {
@@ -80,6 +82,7 @@ const defaultValues: GmailApiAccount = {
   enabled: true,
   date_since: undefined,
   incremental_sync_interval_sec: 30,
+  minimal_sync: false
 };
 
 
@@ -88,6 +91,7 @@ const mapCurrentRowToFormValues = (currentRow: AccountEntity): GmailApiAccount =
     name: currentRow.name === null ? '' : currentRow.name,
     email: currentRow.email,
     enabled: currentRow.enabled,
+    minimal_sync: currentRow.minimal_sync ?? false,
     date_since: currentRow.date_since ?? undefined,
     incremental_sync_interval_sec: currentRow.incremental_sync_interval_sec,
   };
@@ -160,6 +164,7 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
         name: data.name,
         enabled: data.enabled,
         date_since: data.date_since,
+        minimal_sync: data.minimal_sync,
         incremental_sync_interval_sec: data.incremental_sync_interval_sec,
       };
       if (isEdit) {
@@ -190,7 +195,7 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
             Click save when you're done.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className='h-[32rem] w-full pr-4 -mr-4 py-1'>
+        <ScrollArea className='h-[40rem] w-full pr-4 -mr-4 py-1'>
           <Form {...form}>
             <form
               id='gmail-api-account-form'
@@ -242,6 +247,9 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
                     <FormControl>
                       <Input type="number" placeholder="e.g 300" {...field} onChange={(e) => field.onChange(parseInt(e.target.value, 10))} />
                     </FormControl>
+                    <FormDescription>
+                      Set the interval (in seconds) for calling the Gmail History API for incremental sync. This determines how frequently updates are fetched for new or modified emails.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -260,6 +268,30 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
                     </FormControl>
                     <FormDescription>
                       Determines whether this account is active. If disabled, related syncs and queries will not run.
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='minimal_sync'
+                render={({ field }) => (
+                  <FormItem className='flex flex-col items-start gap-y-1'>
+                    <FormLabel>Minimal Sync:</FormLabel>
+                    <FormControl>
+                      <Checkbox
+                        className='mt-2'
+                        checked={field.value}
+                        onCheckedChange={isEdit ? undefined : field.onChange}
+                        disabled={isEdit}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {isEdit ? (
+                        "This setting cannot be modified after account creation."
+                      ) : (
+                        "When enabled, Gmail metadata will not be cached locally, ensuring higher synchronization efficiency by syncing only essential basic metadata fields."
+                      )}
                     </FormDescription>
                   </FormItem>
                 )}

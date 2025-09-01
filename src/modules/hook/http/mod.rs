@@ -2,6 +2,9 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use dashmap::DashMap;
+use http::header::{AUTHORIZATION, CONTENT_TYPE};
+
 use crate::modules::error::code::ErrorCode;
 use crate::modules::hook::entity::HttpMethod;
 use crate::modules::settings::proxy::Proxy;
@@ -14,13 +17,8 @@ use std::time::Duration;
 #[cfg(test)]
 mod tests;
 
-pub static HTTP_CLIENT: LazyLock<HttpClient> = LazyLock::new(|| {
-    let builder = HttpClient::base_builder();
-    let client = builder
-        .build()
-        .expect("Failed to build shared reqwest Client");
-    HttpClient::create(client)
-});
+// This will cache clients per proxy configuration.
+static HTTP_CLIENTS_CACHE: LazyLock<DashMap<u64, reqwest::Client>> = LazyLock::new(DashMap::new);
 
 pub struct HttpClient {
     client: reqwest::Client,
@@ -39,9 +37,16 @@ impl HttpClient {
     }
 
     pub async fn new(use_proxy: Option<u64>) -> RustMailerResult<HttpClient> {
+        // Use proxy_id or 0 as the key for the cache
+        let proxy_id = use_proxy.unwrap_or(0);
+        // First, check if the HttpClient is already cached
+        if let Some(client) = HTTP_CLIENTS_CACHE.get(&proxy_id) {
+            return Ok(HttpClient::create(client.clone())); // Client is already cloneable, so clone the Arc here
+        }
+        // If not found in the cache, build a new HttpClient
         let mut builder = Self::base_builder();
-
-        if let Some(proxy_id) = use_proxy {
+        if proxy_id != 0 {
+            // Only set the proxy if we have a valid proxy_id
             let proxy = Proxy::get(proxy_id).await?;
             let proxy_obj = reqwest::Proxy::all(&proxy.url).map_err(|e| {
                 raise_error!(
@@ -56,15 +61,16 @@ impl HttpClient {
                 .redirect(reqwest::redirect::Policy::none())
                 .proxy(proxy_obj);
         }
-
+        // Build the HttpClient
         let client = builder.build().map_err(|e| {
             raise_error!(
                 format!("Failed to build HTTP client: {:#?}", e),
                 ErrorCode::InternalError
             )
         })?;
-
-        Ok(Self { client })
+        // Cache the newly created HttpClient
+        HTTP_CLIENTS_CACHE.insert(proxy_id, client.clone());
+        Ok(HttpClient::create(client))
     }
 
     pub async fn send_json_request(
@@ -100,5 +106,57 @@ impl HttpClient {
             .await
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
         Ok(response)
+    }
+
+    /// Wrapper around the Gmail API `GET` request to fetch data.
+    pub async fn get(&self, url: &str, access_token: &str) -> RustMailerResult<serde_json::Value> {
+        let res = self
+            .client
+            .get(url)
+            .header(AUTHORIZATION, format!("Bearer {}", access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await
+            .map_err(|e| {
+                raise_error!(
+                    format!("Request failed for URL {}: {:#?}", url, e),
+                    ErrorCode::InternalError
+                )
+            })?;
+
+        if res.status().is_success() {
+            let json: serde_json::Value = res.json().await.map_err(|e| {
+                raise_error!(
+                    format!("Failed to parse response from URL {}: {:#?}", url, e),
+                    ErrorCode::InternalError
+                )
+            })?;
+            Ok(json)
+        } else {
+            let status = res.status();
+            let text = res.text().await.map_err(|e| {
+                raise_error!(
+                    format!("Failed to read error response from URL {}: {:#?}", url, e),
+                    ErrorCode::InternalError
+                )
+            })?;
+            if status.is_client_error() {
+                return Err(raise_error!(
+                    format!(
+                        "Gmail API returned client error (status {}) for {}: historyId may be invalid or expired. Response: {}",
+                        status, url, text
+                    ),
+                    ErrorCode::GmailApiInvalidHistoryId
+                ));
+            }
+            // Return the error with status and response text for more context
+            Err(raise_error!(
+                format!(
+                    "Gmail API call to {} failed with status {}: {}",
+                    url, status, text
+                ),
+                ErrorCode::GmailApiCallFailed
+            ))
+        }
     }
 }

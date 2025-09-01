@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     modules::{
-        cache::imap::v2::EmailEnvelopeV2,
+        cache::imap::v2::EmailEnvelopeV3,
         database::{
             batch_delete_impl, delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
         },
@@ -139,7 +139,7 @@ impl EmailThread {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
         let threads = paginate_secondary_scan_impl::<EmailThread>(
             DB_MANAGER.envelope_db(),
             Some(page),
@@ -151,7 +151,7 @@ impl EmailThread {
         .await?;
 
         let fetch_tasks = threads.items.into_iter().map(|thread| async move {
-            EmailEnvelopeV2::get(thread.envelope_id)
+            EmailEnvelopeV3::get(thread.envelope_id)
                 .await?
                 .ok_or_else(|| {
                     raise_error!(
@@ -161,7 +161,7 @@ impl EmailThread {
                 })
         });
 
-        let results: RustMailerResult<Vec<EmailEnvelopeV2>> =
+        let results: RustMailerResult<Vec<EmailEnvelopeV3>> =
             join_all(fetch_tasks).await.into_iter().collect();
 
         let envelopes = results?;

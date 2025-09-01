@@ -6,7 +6,7 @@ use crate::{
     modules::error::{code::ErrorCode, RustMailerResult},
     raise_error,
 };
-use chrono::{Datelike, Days, Local, Months, NaiveDate, Utc};
+use chrono::{Datelike, Days, Local, Months, NaiveDate, TimeZone, Utc};
 use poem_openapi::{Enum, Object};
 use serde::{Deserialize, Serialize};
 
@@ -101,7 +101,7 @@ impl RelativeDate {
         Ok(())
     }
 
-    pub fn calculate_date(&self) -> RustMailerResult<String> {
+    fn compute_date(&self) -> RustMailerResult<chrono::DateTime<Local>> {
         if self.value == 0 {
             return Err(raise_error!(
                 "Value must be greater than 0".into(),
@@ -125,8 +125,6 @@ impl RelativeDate {
         })?;
 
         let naive_date = date.date_naive();
-
-        // Check if the date is before 1970
         if naive_date.year() < 1970 {
             return Err(raise_error!(
                 format!(
@@ -137,7 +135,17 @@ impl RelativeDate {
             ));
         }
 
+        Ok(date)
+    }
+
+    pub fn calculate_date(&self) -> RustMailerResult<String> {
+        let date = self.compute_date()?;
         Ok(date.format("%d-%b-%Y").to_string())
+    }
+
+    pub fn calculate_gmail_date(&self) -> RustMailerResult<String> {
+        let date = self.compute_date()?;
+        Ok(date.format("/%Y/%m/%d").to_string())
     }
 }
 
@@ -218,6 +226,20 @@ impl DateSince {
         Ok(date.format("%d-%b-%Y").to_string())
     }
 
+    pub fn format_for_gmail(&self, fixed: &str) -> RustMailerResult<String> {
+        let date = NaiveDate::parse_from_str(fixed, "%Y-%m-%d").map_err(|_| {
+            raise_error!(
+                format!(
+                "Invalid date format. Expected 'YYYY-MM-DD'. Example: '2024-11-19'. Provided: '{}'",
+                fixed
+            ),
+                ErrorCode::InvalidParameter
+            )
+        })?;
+
+        Ok(date.format("/%Y/%m/%d").to_string())
+    }
+
     pub fn since_date(&self) -> RustMailerResult<String> {
         // Handle the case where only one of `fixed` or `relative` is provided
         if let Some(r) = &self.relative {
@@ -228,6 +250,19 @@ impl DateSince {
             self.format_user_date(f)
         } else {
             // If neither is provided, return an error
+            Err(raise_error!(
+                "You must provide either a 'fixed' or 'relative' date.".to_string(),
+                ErrorCode::InvalidParameter
+            ))
+        }
+    }
+
+    pub fn since_gmail_date(&self) -> RustMailerResult<String> {
+        if let Some(r) = &self.relative {
+            r.calculate_gmail_date()
+        } else if let Some(f) = &self.fixed {
+            self.format_for_gmail(f)
+        } else {
             Err(raise_error!(
                 "You must provide either a 'fixed' or 'relative' date.".to_string(),
                 ErrorCode::InvalidParameter

@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::v2::AccountV2;
-use crate::modules::cache::imap::v2::EmailEnvelopeV2;
+use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use crate::modules::cache::imap::ENVELOPE_MODELS;
 use crate::modules::context::Initialize;
 use crate::modules::error::{code::ErrorCode, RustMailerError};
@@ -230,7 +230,7 @@ impl DatabaseManager {
         let rw = database
             .rw_transaction()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-        rw.migrate::<EmailEnvelopeV2>()
+        rw.migrate::<EmailEnvelopeV3>()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
         rw.commit()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;

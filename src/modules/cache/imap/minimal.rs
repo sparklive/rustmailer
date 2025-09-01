@@ -11,7 +11,7 @@ use tracing::{error, info};
 
 use crate::{
     modules::{
-        cache::imap::{v2::EmailEnvelopeV2, manager::EnvelopeFlagsManager},
+        cache::imap::{manager::EnvelopeFlagsManager, v2::EmailEnvelopeV3},
         database::{
             batch_delete_impl, batch_insert_impl, delete_impl, filter_by_secondary_key_impl,
             manager::DB_MANAGER, update_impl,
@@ -94,7 +94,7 @@ impl MinimalEnvelope {
         }
 
         info!(
-            "Finished deleting envelopes for mailbox_hash={} account_id={} total_deleted={} in {:?}",
+            "Finished deleting envelopes for mailbox_id={} account_id={} total_deleted={} in {:?}",
             mailbox_id,
             account_id,
             total_deleted,
@@ -105,11 +105,11 @@ impl MinimalEnvelope {
 
     pub async fn clean_envelopes(
         account_id: u64,
-        mailbox_hash: u64,
+        mailbox_id: u64,
         to_delete_uid: &[u32],
     ) -> RustMailerResult<()> {
         for uid in to_delete_uid {
-            let key = envelope_hash(account_id, mailbox_hash, *uid);
+            let key = envelope_hash(account_id, mailbox_id, *uid);
             delete_impl(DB_MANAGER.envelope_db(), move |rw| {
                 rw.get()
                     .primary::<MinimalEnvelope>(key)
@@ -152,7 +152,7 @@ impl MinimalEnvelope {
         .await
         .map_err(|e| {
             error!(
-                "Failed to update flags: account_id={}, mailbox_hash={}, uid={}, error={:?}",
+                "Failed to update flags: account_id={}, mailbox_id={}, uid={}, error={:?}",
                 account_id, mailbox_id, uid, e
             );
             e
@@ -196,8 +196,8 @@ impl MinimalEnvelope {
     }
 }
 
-impl From<&EmailEnvelopeV2> for MinimalEnvelope {
-    fn from(value: &EmailEnvelopeV2) -> Self {
+impl From<&EmailEnvelopeV3> for MinimalEnvelope {
+    fn from(value: &EmailEnvelopeV3) -> Self {
         Self {
             account_id: value.account_id,
             mailbox_id: value.mailbox_id,

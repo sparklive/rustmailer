@@ -11,20 +11,21 @@ use poem::error::ResponseError;
 use poem::Body;
 use poem::{http::StatusCode, Error, Response};
 use poem_openapi::Object;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::ops::Deref;
 use tracing::error;
 
 pub mod auth;
+pub mod error;
 pub mod log;
 pub mod paginated;
 pub mod rustls;
+pub mod signal;
 pub mod timeout;
 pub mod tls;
 pub mod validator;
-pub mod error;
-pub mod signal;
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Object)]
 pub struct Addr {
@@ -34,6 +35,38 @@ pub struct Addr {
     /// The optional email address (e.g., "john.doe@example.com").
     /// If `None`, the address is unavailable, though typically at least one of `name` or `address` is provided.
     pub address: Option<String>,
+}
+
+impl Addr {
+    pub fn parse(s: &str) -> Self {
+        let re = Regex::new(r#"(?:(?P<name>.*)\s*)?<(?P<email>[^<>]+)>"#).unwrap();
+        if let Some(caps) = re.captures(s) {
+            let name: Option<String> = caps.name("name").map(|m| m.as_str().trim().into());
+            let email: Option<String> = caps.name("email").map(|m| m.as_str().trim().into());
+            Addr {
+                name: if let Some(n) = name {
+                    if n.is_empty() {
+                        None
+                    } else {
+                        Some(n)
+                    }
+                } else {
+                    None
+                },
+                address: email,
+            }
+        } else {
+            let s_trimmed = s.trim();
+            Addr {
+                name: None,
+                address: if s_trimmed.is_empty() {
+                    None
+                } else {
+                    Some(s_trimmed.into())
+                },
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Addr {

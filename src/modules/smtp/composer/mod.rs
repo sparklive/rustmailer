@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::v2::EmailEnvelopeV2;
+use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use scraper::{Html, Selector};
 use time::{macros::format_description, OffsetDateTime};
 use time_tz::timezones;
@@ -50,7 +50,7 @@ impl BodyComposer {
     pub fn generate_html(
         original_html: &str,
         reply_content: &str,
-        envelope: &EmailEnvelopeV2,
+        envelope: &EmailEnvelopeV3,
         timezone_name: &str,
         reply: bool,
     ) -> String {
@@ -161,7 +161,7 @@ impl BodyComposer {
     pub fn generate_text(
         original_text: &str,
         reply_content: &str,
-        envelope: &EmailEnvelopeV2,
+        envelope: &EmailEnvelopeV3,
         timezone_name: &str,
         reply: bool,
     ) -> String {
@@ -229,8 +229,8 @@ mod tests {
         id,
         modules::{
             cache::imap::{
-                v2::EmailEnvelopeV2,
                 mailbox::{EmailFlag, EnvelopeFlag},
+                v2::EmailEnvelopeV3,
             },
             common::Addr,
         },
@@ -289,7 +289,7 @@ mod tests {
 
         let reply_content = "Thanks for your message!";
 
-        let envelope = EmailEnvelopeV2 {
+        let envelope = EmailEnvelopeV3 {
             account_id: 0,
             mailbox_id: 0,
             mailbox_name: "inbox_001".to_string(),
@@ -330,6 +330,8 @@ mod tests {
             attachments: None,
             body_meta: None,
             received: None,
+            mid: None,
+            label_ids: vec![],
         };
 
         let result = BodyComposer::generate_html(
@@ -347,7 +349,7 @@ mod tests {
         let original_text = "Hello,\nThis is a test email.\nRegards,\nJohn";
         let reply_content = "Hi John,\nThanks for your email!";
 
-        let envelope = EmailEnvelopeV2 {
+        let envelope = EmailEnvelopeV3 {
             from: Some(Addr {
                 name: Some("John Doe".to_string()),
                 address: Some("john@example.com".to_string()),
@@ -377,6 +379,8 @@ mod tests {
             attachments: None,
             body_meta: None,
             received: None,
+            mid: None,
+            label_ids: vec![],
         };
 
         let result = BodyComposer::generate_text(

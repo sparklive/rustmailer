@@ -3,10 +3,10 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::id;
-use crate::modules::cache::imap::v2::EmailEnvelopeV2;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;
+use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use crate::modules::common::AddrVec;
 use crate::modules::envelope::MinimalEnvelopeMeta;
 use crate::modules::error::code::ErrorCode;
@@ -22,7 +22,7 @@ pub fn extract_envelope(
     fetch: &Fetch,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<EmailEnvelopeV2> {
+) -> RustMailerResult<EmailEnvelopeV3> {
     let attachments: Option<Vec<crate::modules::imap::section::ImapAttachment>> =
         SectionExtractor::new(fetch.bodystructure().ok_or_else(|| {
             raise_error!(
@@ -67,7 +67,7 @@ pub fn extract_envelope(
         )
     })?;
 
-    let envelope = EmailEnvelopeV2 {
+    let envelope = EmailEnvelopeV3 {
         account_id,
         mailbox_id: mailbox_id(account_id, mailbox_name),
         mailbox_name: mailbox_name.into(),
@@ -100,6 +100,8 @@ pub fn extract_envelope(
         attachments,
         body_meta: body,
         received: message.received().map(Into::into),
+        mid: None,
+        label_ids: vec![],
     };
 
     Ok(envelope)
@@ -125,7 +127,7 @@ pub fn extract_rich_envelopes(
     fetches: &Vec<Fetch>,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
+) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
     let mut envelopes = Vec::with_capacity(fetches.len());
     for fetch in fetches {
         let envelope = extract_envelope(fetch, account_id, mailbox_name)?;

@@ -138,6 +138,125 @@ impl EmailEnvelopeV2 {
     pub fn create_envelope_id(&self) -> u64 {
         envelope_hash(self.account_id, self.mailbox_id, self.uid)
     }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
+#[native_model(id = 1, version = 3, from = EmailEnvelopeV2)]
+#[native_db(primary_key(pk -> String), secondary_key(create_envelope_id -> u64, unique))]
+pub struct EmailEnvelopeV3 {
+    /// The ID of the account owning the email.
+    #[secondary_key]
+    pub account_id: u64,
+    /// The unique identifier of the mailbox where the email is stored (e.g., `MailBox::id`).
+    /// Used for indexing to avoid updating indexes when mailboxes are renamed.
+    #[secondary_key]
+    pub mailbox_id: u64,
+    /// The decoded, human-readable name of the mailbox (e.g., "INBOX", "Sent").
+    pub mailbox_name: String,
+    /// The unique identifier (IMAP UID) of the email within the mailbox.
+    pub uid: u32,
+    /// The date and time the email was received by the server, as a Unix timestamp in milliseconds.
+    /// If `None`, the internal date is unavailable.
+    pub internal_date: Option<i64>,
+    /// The size of the email in bytes.
+    pub size: u32,
+    /// The flags associated with the email (e.g., `\Seen`, `\Answered`, `\Flagged`).
+    /// Represented as a list of `EnvelopeFlag` for standard or custom flags.
+    pub flags: Vec<EnvelopeFlag>,
+    /// A hash of the email's flags for efficient comparison or indexing.
+    pub flags_hash: u64,
+    /// The blind carbon copy (BCC) recipient(s) of the email, if any.
+    pub bcc: Option<Vec<Addr>>,
+    /// The carbon copy (CC) recipient(s) of the email, if any.
+    pub cc: Option<Vec<Addr>>,
+    /// The date the email was sent, as a Unix timestamp in milliseconds, if available.
+    pub date: Option<i64>,
+    /// The sender's address, including name and email, if available.
+    pub from: Option<Addr>,
+    /// The message ID of the email to which this email is a reply, if applicable.
+    pub in_reply_to: Option<String>,
+    /// The actual sender's address, if different from the `from` field.
+    pub sender: Option<Addr>,
+    /// The return address for undeliverable emails, if specified.
+    pub return_address: Option<String>,
+    /// The unique message ID of the email, typically used for threading.
+    pub message_id: Option<String>,
+    /// The subject of the email, if available.
+    pub subject: Option<String>,
+    /// The name of the thread this email belongs to, if applicable.
+    pub thread_name: Option<String>,
+    /// The identifier of the thread this email belongs to.
+    /// This is computed based on `in_reply_to` / `references` / `message_id`.
+    #[secondary_key]
+    pub thread_id: u64,
+    /// The MIME version of the email (e.g., "1.0"), if specified.
+    pub mime_version: Option<String>,
+    /// A list of message IDs referenced by this email, used for threading.
+    pub references: Option<Vec<String>>,
+    /// The address(es) to which replies should be sent, if specified.
+    pub reply_to: Option<Vec<Addr>>,
+    /// The primary recipient(s) of the email, if any.
+    pub to: Option<Vec<Addr>>,
+    /// A list of attachments included in the email, if any.
+    ///
+    /// Each `ImapAttachment` item contains metadata including the part ID and MIME type,
+    /// which indicates the exact location of the attachment in the raw message structure.
+    /// This allows the backend to directly fetch specific attachments without retrieving
+    /// the entire message content.
+    ///
+    /// This is particularly useful for accounts configured with minimal sync, where full
+    /// message bodies are not cached locally. By including this data in the API response,
+    /// the client can request to download only the required attachment via a follow-up
+    /// API call, improving both efficiency and user experience.
+    ///
+    /// Developers do not need to understand the internal IMAP part structure — this
+    /// metadata provides a clean abstraction for fetching specific attachments.
+    pub attachments: Option<Vec<ImapAttachment>>,
+    /// Metadata for the email's body parts (e.g., plain text, HTML), if available.
+    ///
+    /// Each `EmailBodyPart` contains detailed metadata (such as part ID, content type,
+    /// and charset) describing a portion of the email body. This enables precise access
+    /// to body content, such as plain text or HTML sections, without downloading the full
+    /// raw message from the server.
+    ///
+    /// This is especially helpful for lightweight clients or minimized-sync accounts that
+    /// do not cache full email content. The frontend can pass this metadata back to the
+    /// server to retrieve only the desired portion of the message (e.g., the HTML body),
+    /// which significantly reduces bandwidth and latency.
+    ///
+    /// By abstracting the complexity of MIME part navigation, developers can efficiently
+    /// retrieve specific parts of an email without handling the low-level IMAP structure.
+    pub body_meta: Option<Vec<EmailBodyPart>>,
+    /// Details about how the email was received, if available.
+    pub received: Option<Received>,
+    /// The `mid` field is reserved for potential integration with other backend models.
+    /// For instance, it can be used to store the email index or ID from external services like the Gmail API.
+    /// This ID could be used for reference or identification purposes in scenarios where an external service
+    /// provides an identifier for the email in question.
+    ///
+    /// This field is optional, meaning that it may be `None` if no external service identifier is available.
+    pub mid: Option<String>,
+    /// A list of labels applied to the message.
+    ///
+    /// Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").
+    /// This field reflects the current labels associated with the email.
+    ///
+    /// Note: This field is populated only for Gmail API accounts. For other account types, it will be empty.
+    pub label_ids: Vec<String>,
+}
+
+impl EmailEnvelopeV3 {
+    pub fn pk(&self) -> String {
+        format!(
+            "{}_{}",
+            self.internal_date.unwrap_or(utc_now!()),
+            envelope_hash(self.account_id, self.mailbox_id, self.uid)
+        )
+    }
+
+    pub fn create_envelope_id(&self) -> u64 {
+        envelope_hash(self.account_id, self.mailbox_id, self.uid)
+    }
 
     pub fn compute_thread_id(&self) -> u64 {
         if self.in_reply_to.is_some() && self.references.as_ref().map_or(false, |r| !r.is_empty()) {
@@ -153,10 +272,10 @@ impl EmailEnvelopeV2 {
         account_id: u64,
         mailbox_id: u64,
         uid: u32,
-    ) -> RustMailerResult<Option<EmailEnvelopeV2>> {
+    ) -> RustMailerResult<Option<EmailEnvelopeV3>> {
         secondary_find_impl(
             DB_MANAGER.envelope_db(),
-            EmailEnvelopeV2Key::create_envelope_id,
+            EmailEnvelopeV3Key::create_envelope_id,
             envelope_hash(account_id, mailbox_id, uid),
         )
         .await
@@ -166,10 +285,10 @@ impl EmailEnvelopeV2 {
         account_id: u64,
         mailbox_id: u64,
         thread_id: u64,
-    ) -> RustMailerResult<Vec<EmailEnvelopeV2>> {
-        let envelopes = filter_by_secondary_key_impl::<EmailEnvelopeV2>(
+    ) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
+        let envelopes = filter_by_secondary_key_impl::<EmailEnvelopeV3>(
             DB_MANAGER.envelope_db(),
-            EmailEnvelopeV2Key::thread_id,
+            EmailEnvelopeV3Key::thread_id,
             thread_id,
         )
         .await?;
@@ -193,16 +312,16 @@ impl EmailEnvelopeV2 {
         Ok(result)
     }
 
-    pub async fn get(envelope_id: u64) -> RustMailerResult<Option<EmailEnvelopeV2>> {
+    pub async fn get(envelope_id: u64) -> RustMailerResult<Option<EmailEnvelopeV3>> {
         secondary_find_impl(
             DB_MANAGER.envelope_db(),
-            EmailEnvelopeV2Key::create_envelope_id,
+            EmailEnvelopeV3Key::create_envelope_id,
             envelope_id,
         )
         .await
     }
 
-    pub async fn save_envelopes(envelopes: Vec<EmailEnvelopeV2>) -> RustMailerResult<()> {
+    pub async fn save_envelopes(envelopes: Vec<EmailEnvelopeV3>) -> RustMailerResult<()> {
         with_transaction(DB_MANAGER.envelope_db(), move |rw| {
             for mut e in envelopes {
                 // --- Preprocessing ---
@@ -226,7 +345,7 @@ impl EmailEnvelopeV2 {
                 );
 
                 // --- Store full & minimal envelope ---
-                rw.insert::<EmailEnvelopeV2>(e)
+                rw.insert::<EmailEnvelopeV3>(e)
                     .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?;
                 rw.insert::<MinimalEnvelope>(minimal)
                     .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?;
@@ -272,13 +391,13 @@ impl EmailEnvelopeV2 {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV2>> {
+    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
         paginate_secondary_scan_impl(
             DB_MANAGER.envelope_db(),
             Some(page),
             Some(page_size),
             Some(desc),
-            EmailEnvelopeV2Key::mailbox_id,
+            EmailEnvelopeV3Key::mailbox_id,
             mailbox_id,
         )
         .await
@@ -298,8 +417,8 @@ impl EmailEnvelopeV2 {
             DB_MANAGER.envelope_db(),
             move |rw| {
                 rw.get()
-                    .secondary::<EmailEnvelopeV2>(
-                        EmailEnvelopeV2Key::create_envelope_id,
+                    .secondary::<EmailEnvelopeV3>(
+                        EmailEnvelopeV3Key::create_envelope_id,
                         envelope_hash(account_id, mailbox_id, uid),
                     )
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
@@ -320,7 +439,7 @@ impl EmailEnvelopeV2 {
         .await
         .map_err(|e| {
             error!(
-                "Failed to update flags: account_id={}, mailbox_hash={}, uid={}, error={:?}",
+                "Failed to update flags: account_id={}, mailbox_id={}, uid={}, error={:?}",
                 account_id, mailbox_id, uid, e
             );
             e
@@ -335,15 +454,15 @@ impl EmailEnvelopeV2 {
         let start_time = Instant::now();
         loop {
             let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                let to_delete: Vec<EmailEnvelopeV2> = rw
+                let to_delete: Vec<EmailEnvelopeV3> = rw
                     .scan()
-                    .secondary(EmailEnvelopeV2Key::mailbox_id)
+                    .secondary(EmailEnvelopeV3Key::mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .take(BATCH_SIZE)
                     .filter_map(Result::ok) // filter only Ok values
-                    .filter(|e: &EmailEnvelopeV2| e.account_id == account_id)
+                    .filter(|e: &EmailEnvelopeV3| e.account_id == account_id)
                     .collect();
                 Ok(to_delete)
             })
@@ -356,7 +475,7 @@ impl EmailEnvelopeV2 {
         }
 
         info!(
-            "Finished deleting envelopes for mailbox_hash={} account_id={} total_deleted={} in {:?}",
+            "Finished deleting envelopes for mailbox_id={} account_id={} total_deleted={} in {:?}",
             mailbox_id,
             account_id,
             total_deleted,
@@ -374,7 +493,7 @@ impl EmailEnvelopeV2 {
             let key = envelope_hash(account_id, mailbox_id, *uid);
             delete_impl(DB_MANAGER.envelope_db(), move |rw| {
                 rw.get()
-                    .secondary::<EmailEnvelopeV2>(EmailEnvelopeV2Key::create_envelope_id, key)
+                    .secondary::<EmailEnvelopeV3>(EmailEnvelopeV3Key::create_envelope_id, key)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .ok_or_else(|| {
                         raise_error!("envelope missing".into(), ErrorCode::InternalError)
@@ -391,9 +510,9 @@ impl EmailEnvelopeV2 {
         let start_time = Instant::now();
         loop {
             let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                let to_delete: Vec<EmailEnvelopeV2> = rw
+                let to_delete: Vec<EmailEnvelopeV3> = rw
                     .scan()
-                    .secondary(EmailEnvelopeV2Key::account_id)
+                    .secondary(EmailEnvelopeV3Key::account_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(account_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
@@ -474,6 +593,74 @@ impl From<EmailEnvelopeV2> for EmailEnvelope {
             message_id: value.message_id,
             subject: value.subject,
             thread_name: value.thread_name,
+            mime_version: value.mime_version,
+            references: value.references,
+            reply_to: value.reply_to,
+            to: value.to,
+            attachments: value.attachments,
+            body_meta: value.body_meta,
+            received: value.received,
+        }
+    }
+}
+
+impl From<EmailEnvelopeV2> for EmailEnvelopeV3 {
+    fn from(value: EmailEnvelopeV2) -> Self {
+        Self {
+            account_id: value.account_id,
+            mailbox_id: value.mailbox_id,
+            mailbox_name: value.mailbox_name,
+            uid: value.uid,
+            internal_date: value.internal_date,
+            size: value.size,
+            flags: value.flags,
+            flags_hash: value.flags_hash,
+            bcc: value.bcc,
+            cc: value.cc,
+            date: value.date,
+            from: value.from,
+            in_reply_to: value.in_reply_to,
+            sender: value.sender,
+            return_address: value.return_address,
+            message_id: value.message_id,
+            subject: value.subject,
+            thread_name: value.thread_name,
+            thread_id: value.thread_id,
+            mime_version: value.mime_version,
+            references: value.references,
+            reply_to: value.reply_to,
+            to: value.to,
+            attachments: value.attachments,
+            body_meta: value.body_meta,
+            received: value.received,
+            mid: None,
+            label_ids: vec![],
+        }
+    }
+}
+
+impl From<EmailEnvelopeV3> for EmailEnvelopeV2 {
+    fn from(value: EmailEnvelopeV3) -> Self {
+        Self {
+            account_id: value.account_id,
+            mailbox_id: value.mailbox_id,
+            mailbox_name: value.mailbox_name,
+            uid: value.uid,
+            internal_date: value.internal_date,
+            size: value.size,
+            flags: value.flags,
+            flags_hash: value.flags_hash,
+            bcc: value.bcc,
+            cc: value.cc,
+            date: value.date,
+            from: value.from,
+            in_reply_to: value.in_reply_to,
+            sender: value.sender,
+            return_address: value.return_address,
+            message_id: value.message_id,
+            subject: value.subject,
+            thread_name: value.thread_name,
+            thread_id: value.thread_id,
             mime_version: value.mime_version,
             references: value.references,
             reply_to: value.reply_to,

@@ -7,7 +7,6 @@ use std::time::Instant;
 
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerError;
-use crate::modules::hook::http::HTTP_CLIENT;
 use crate::modules::hook::vrl::payload::VrlScriptTestRequest;
 use crate::modules::hook::vrl::resolve_vrl_input;
 use crate::modules::hook::{entity::EventHooks, http::HttpClient};
@@ -256,12 +255,7 @@ async fn send_event(
             let payload = process_payload(event, event_hook.vrl_script).await?;
 
             if payload != serde_json::Value::Null {
-                let client = if event_hook.use_proxy.is_some() {
-                    &HttpClient::new(event_hook.use_proxy).await?
-                } else {
-                    &HTTP_CLIENT
-                };
-
+                let client = HttpClient::new(event_hook.use_proxy).await?;
                 let response = client
                     .send_json_request(
                         task,

@@ -122,11 +122,11 @@ pub async fn should_rebuild_cache(
     mailbox_count: usize,
     local_envelope_count: usize,
 ) -> RustMailerResult<bool> {
-    // If both remote mailboxes and local envelopes exist, no rebuild is needed.
+    // If both local mailboxes and local envelopes exist, no rebuild is needed.
     if mailbox_count > 0 && local_envelope_count > 0 {
         return Ok(false);
     }
-    // If there are remote mailboxes but no local envelopes, clear the mailboxes.
+    // If there are local mailboxes but no local envelopes, clear the mailboxes.
     if mailbox_count > 0 {
         let mailboxes = MailBox::list_all(account.id).await?;
         MailBox::batch_delete(mailboxes).await?;
@@ -134,7 +134,7 @@ pub async fn should_rebuild_cache(
     if local_envelope_count > 0 {
         EnvelopeFlagsManager::clean_account(account.id).await?
     }
-    // If either remote mailboxes or local envelopes were missing, cache rebuild is required.
+    // If either local mailboxes or local envelopes were missing, cache rebuild is required.
     Ok(true)
 }
 

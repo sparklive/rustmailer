@@ -2,14 +2,16 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, EmailFlag, EnvelopeFlag};
+use crate::modules::cache::imap::mailbox::{
+    Attribute, AttributeEnum, EmailFlag, EnvelopeFlag, MailBox,
+};
+use crate::modules::grpc::service::rustmailer_grpc;
 use crate::modules::mailbox::rename::MailboxRenameRequest;
-use crate::modules::{cache::imap::mailbox::MailBox, grpc::service::rustmailer_grpc};
 
 impl From<MailBox> for rustmailer_grpc::MailBox {
     fn from(value: MailBox) -> Self {
         Self {
-            mailbox_hash: value.id,
+            mailbox_id: value.id,
             account_hash: value.account_id,
             name: value.name,
             delimiter: value.delimiter,
