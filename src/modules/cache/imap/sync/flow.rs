@@ -16,7 +16,7 @@ use crate::{
                 rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
                 sync_type::SyncType,
             },
-            v2::EmailEnvelopeV2,
+            v2::EmailEnvelopeV3,
         },
         common::AddrVec,
         context::executors::RUST_MAIL_CONTEXT,
@@ -87,7 +87,7 @@ pub async fn fetch_and_save_since_date(
 
     for (index, batch) in uid_batches.into_iter().enumerate() {
         let encoded_name = mailbox.encoded_name();
-        let mailbox_hash = mailbox.id;
+        let mailbox_id = mailbox.id;
         let mailbox_name = mailbox.name.clone();
         match semaphore.clone().acquire_owned().await {
             Ok(permit) => {
@@ -109,12 +109,12 @@ pub async fn fetch_and_save_since_date(
 
                         if minimal_sync {
                             let envelopes =
-                                extract_minimal_envelopes(fetches, account_id, mailbox_hash)?;
+                                extract_minimal_envelopes(fetches, account_id, mailbox_id)?;
                             MinimalEnvelope::batch_insert(envelopes).await?;
                         } else {
                             let envelopes =
                                 extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
-                            EmailEnvelopeV2::save_envelopes(envelopes).await?;
+                            EmailEnvelopeV3::save_envelopes(envelopes).await?;
                         };
                         Ok(())
                     });
@@ -135,7 +135,7 @@ pub async fn fetch_and_save_since_date(
 
     Ok(len)
 }
-
+//wukong
 pub async fn fetch_and_save_full_mailbox(
     account: &AccountV2,
     mailbox: &MailBox,
@@ -193,7 +193,7 @@ pub async fn fetch_and_save_full_mailbox(
                         } else {
                             let envelopes =
                                 extract_rich_envelopes(&fetches, account_id, &mailbox_name)?;
-                            EmailEnvelopeV2::save_envelopes(envelopes).await?;
+                            EmailEnvelopeV3::save_envelopes(envelopes).await?;
                         };
                         info!("Batch insertion completed for mailbox: {}, current page: {}, inserted count: {}", &mailbox_name, page, count);
                         Ok(count)
@@ -388,23 +388,42 @@ pub async fn compare_and_sync_mailbox(
         );
         cleanup_deleted_mailboxes(account, &deleted_mailboxes).await?;
     }
-
+    // Newly added mailboxes should also verify if a time range is set
     if !missing_mailboxes.is_empty() {
         MailBox::batch_insert(&missing_mailboxes).await?;
         for mailbox in &missing_mailboxes {
             if mailbox.exists > 0 {
-                //fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, false).await?;
-                match fetch_and_save_full_mailbox(account, mailbox, mailbox.exists, false).await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        warn!("Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.", account.id, &mailbox.name, e);
-                        if let Err(del_err) = MailBox::delete(mailbox.id).await {
-                            error!(
+                match &account.date_since {
+                    Some(date_since) => {
+                        match rebuild_mailbox_cache_since_date(
+                            account, mailbox.id, date_since, &mailbox,
+                        )
+                        .await
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.", account.id, &mailbox.name, e);
+                                if let Err(del_err) = MailBox::delete(mailbox.id).await {
+                                    error!(
                                 "Account {}: Failed to delete mailbox '{}' after sync error: {}",
                                 account.id, &mailbox.name, del_err
                             );
+                                }
+                            }
                         }
                     }
+                    None => match rebuild_mailbox_cache(account, &mailbox, &mailbox).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            warn!("Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.", account.id, &mailbox.name, e);
+                            if let Err(del_err) = MailBox::delete(mailbox.id).await {
+                                error!(
+                                "Account {}: Failed to delete mailbox '{}' after sync error: {}",
+                                account.id, &mailbox.name, del_err
+                            );
+                            }
+                        }
+                    },
                 }
             }
         }
@@ -752,7 +771,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
 
         // Store rich documents if not in minimal sync mode
         let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
-        EmailEnvelopeV2::save_envelopes(envelopes).await?;
+        EmailEnvelopeV3::save_envelopes(envelopes).await?;
 
         // Process bounce reports if needed
         if is_bounce_watched {
@@ -871,7 +890,7 @@ async fn handle_minimal_sync_or_metadata_fetch(
                 .uid_fetch_meta(&batch, &remote.encoded_name(), false)
                 .await?;
             let envelopes = extract_rich_envelopes(&fetches, account.id, &remote.name)?;
-            EmailEnvelopeV2::save_envelopes(envelopes).await?;
+            EmailEnvelopeV3::save_envelopes(envelopes).await?;
         }
 
         info!(
