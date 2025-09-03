@@ -12,8 +12,8 @@ use crate::{
         },
         common::Addr,
         database::{
-            batch_delete_impl, delete_impl, manager::DB_MANAGER, secondary_find_impl, upsert_impl,
-            with_transaction,
+            batch_delete_impl, delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
+            secondary_find_impl, upsert_impl, with_transaction,
         },
         error::{code::ErrorCode, RustMailerResult},
         utils::envelope_hash_from_id,
@@ -152,6 +152,39 @@ impl GmailEnvelope {
             envelope_hash_from_id(account_id, label_id, mid),
         )
         .await
+    }
+
+    pub async fn get(envelope_id: u64) -> RustMailerResult<Option<GmailEnvelope>> {
+        secondary_find_impl(
+            DB_MANAGER.envelope_db(),
+            GmailEnvelopeKey::create_envelope_id,
+            envelope_id,
+        )
+        .await
+    }
+
+    pub async fn get_thread(
+        account_id: u64,
+        mailbox_id: u64,
+        thread_id: u64,
+    ) -> RustMailerResult<Vec<GmailEnvelope>> {
+        let envelopes = filter_by_secondary_key_impl::<GmailEnvelope>(
+            DB_MANAGER.envelope_db(),
+            GmailEnvelopeKey::thread_id,
+            thread_id,
+        )
+        .await?;
+
+        let mut result = Vec::with_capacity(envelopes.len());
+        for e in envelopes {
+            if e.account_id == account_id && e.label_id == mailbox_id {
+                result.push(e);
+            }
+        }
+        // Sort by internal_date in descending order
+        result.sort_by(|a, b| b.internal_date.cmp(&a.internal_date));
+
+        Ok(result)
     }
 
     pub async fn upsert(envelope: GmailEnvelope) -> RustMailerResult<()> {

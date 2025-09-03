@@ -2,7 +2,6 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-
 use futures::future::join_all;
 use itertools::Itertools;
 use native_db::*;
@@ -12,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     modules::{
-        cache::imap::v2::EmailEnvelopeV3,
+        cache::{imap::v2::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
         database::{
             batch_delete_impl, delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
         },
@@ -165,6 +164,46 @@ impl EmailThread {
             join_all(fetch_tasks).await.into_iter().collect();
 
         let envelopes = results?;
+        Ok(DataPage {
+            current_page: threads.page,
+            page_size: threads.page_size,
+            total_items: threads.total_items,
+            items: envelopes,
+            total_pages: threads.total_pages,
+        })
+    }
+
+    pub async fn list_threads_in_label(
+        label_id: u64,
+        page: u64,
+        page_size: u64,
+        desc: bool,
+    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
+        let threads = paginate_secondary_scan_impl::<EmailThread>(
+            DB_MANAGER.envelope_db(),
+            Some(page),
+            Some(page_size),
+            Some(desc),
+            EmailThreadKey::mailbox_id,
+            label_id,
+        )
+        .await?;
+
+        let fetch_tasks = threads.items.into_iter().map(|thread| async move {
+            GmailEnvelope::get(thread.envelope_id)
+                .await?
+                .ok_or_else(|| {
+                    raise_error!(
+                        format!("Envelope not found: {}", thread.envelope_id),
+                        ErrorCode::InternalError
+                    )
+                })
+        });
+
+        let results: RustMailerResult<Vec<GmailEnvelope>> =
+            join_all(fetch_tasks).await.into_iter().collect();
+
+        let envelopes = results?.into_iter().map(|e| e.into()).collect();
         Ok(DataPage {
             current_page: threads.page,
             page_size: threads.page_size,

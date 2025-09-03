@@ -5,8 +5,11 @@
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::v2::AccountV2,
-        cache::imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV3},
+        account::{entity::MailerType, v2::AccountV2},
+        cache::{
+            imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV3},
+            vendor::gmail::sync::{envelope::GmailEnvelope, labels::GmailLabels},
+        },
         context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope,
         error::{code::ErrorCode, RustMailerResult},
@@ -139,19 +142,33 @@ pub async fn list_threads_in_mailbox(
         ));
     }
 
-    match MailBox::get(account.id, mailbox_name).await {
-        Ok(mailbox) => {
-            EmailThread::list_threads_in_mailbox(mailbox.id, page, page_size, desc).await
-        }
-        Err(_) => Err(raise_error!(
+    let not_found_err = || {
+        raise_error!(
             format!(
                 "Mailbox '{}' not found in the synchronized mailbox list for account {}. \
-                This may happen if the mailbox was not selected during synchronization settings \
-                or has been removed from the email server.",
+                 This may happen if the mailbox was not selected during synchronization settings \
+                 or has been removed from the email server.",
                 mailbox_name, account_id
             ),
             ErrorCode::MailBoxNotCached
-        )),
+        )
+    };
+
+    match account.mailer_type {
+        MailerType::ImapSmtp => {
+            let mailbox = MailBox::get(account.id, mailbox_name)
+                .await
+                .map_err(|_| not_found_err())?;
+            EmailThread::list_threads_in_mailbox(mailbox.id, page, page_size, desc).await
+        }
+        MailerType::GmailApi => {
+            let labels = GmailLabels::list_all(account_id).await?;
+            let label = labels
+                .iter()
+                .find(|l| l.name == mailbox_name)
+                .ok_or_else(not_found_err)?;
+            EmailThread::list_threads_in_label(label.id, page, page_size, desc).await
+        }
     }
 }
 
@@ -173,9 +190,8 @@ pub async fn get_thread_messages(
         ));
     }
 
-    match MailBox::get(account.id, mailbox_name).await {
-        Ok(mailbox) => EmailEnvelopeV3::get_thread(account_id, mailbox.id, thread_id).await,
-        Err(_) => Err(raise_error!(
+    let not_found_err = || {
+        raise_error!(
             format!(
                 "Mailbox '{}' not found in the synchronized mailbox list for account {}. \
                 This may happen if the mailbox was not selected during synchronization settings \
@@ -183,6 +199,24 @@ pub async fn get_thread_messages(
                 mailbox_name, account_id
             ),
             ErrorCode::MailBoxNotCached
-        )),
+        )
+    };
+
+    match account.mailer_type {
+        MailerType::ImapSmtp => {
+            let mailbox = MailBox::get(account.id, mailbox_name)
+                .await
+                .map_err(|_| not_found_err())?;
+            EmailEnvelopeV3::get_thread(account_id, mailbox.id, thread_id).await
+        }
+        MailerType::GmailApi => {
+            let labels = GmailLabels::list_all(account_id).await?;
+            let label = labels
+                .iter()
+                .find(|l| l.name == mailbox_name)
+                .ok_or_else(not_found_err)?;
+            let envelopes = GmailEnvelope::get_thread(account_id, label.id, thread_id).await?;
+            Ok(envelopes.into_iter().map(Into::into).collect())
+        }
     }
 }
