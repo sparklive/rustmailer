@@ -29,14 +29,14 @@ export function AccountDeleteDialog({ open, onOpenChange, currentRow }: Props) {
   const queryClient = useQueryClient();
   function handleSuccess() {
     toast({
-      title: 'Delete Request Received',
-      description: 'Your account deletion is in progress. This may take a few seconds.',
+      title: 'Account Deleted',
+      description: 'Your account has been successfully deleted.',
       action: <ToastAction altText="Close">Close</ToastAction>,
     });
 
     queryClient.invalidateQueries({ queryKey: ['account-list'] });
     onOpenChange(false);
-  }
+  } 
 
   function handleError(error: AxiosError) {
     const errorMessage = error.response?.data ||

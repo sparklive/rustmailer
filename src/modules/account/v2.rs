@@ -8,7 +8,7 @@ use native_model::{native_model, Model};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{
     encrypt,
@@ -18,7 +18,16 @@ use crate::{
             since::DateSince,
             status::AccountRunningState,
         },
-        cache::imap::mailbox::MailBox,
+        cache::{
+            imap::{
+                address::AddressEntity, mailbox::MailBox, manager::FLAGS_STATE_MAP,
+                minimal::MinimalEnvelope, thread::EmailThread, v2::EmailEnvelopeV3,
+            },
+            vendor::gmail::sync::{
+                envelope::GmailEnvelope,
+                labels::{GmailCheckPoint, GmailLabels},
+            },
+        },
         database::{insert_impl, list_all_impl},
         error::RustMailerResult,
     },
@@ -29,8 +38,7 @@ use crate::id;
 use crate::modules::account::payload::AccountCreateRequest;
 use crate::modules::account::payload::AccountUpdateRequest;
 use crate::modules::account::payload::MinimalAccount;
-use crate::modules::cache::imap::manager::EnvelopeFlagsManager;
-use crate::modules::cache::imap::task::IMAP_TASKS;
+use crate::modules::cache::imap::task::SYNC_TASKS;
 use crate::modules::context::controller::SYNC_CONTROLLER;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::database::count_by_unique_secondary_key_impl;
@@ -153,21 +161,35 @@ impl AccountV2 {
         })
     }
 
-    pub async fn check_account_active(account_id: u64) -> RustMailerResult<AccountV2> {
-        let account_entity =
+    pub async fn check_account_active(
+        account_id: u64,
+        imap_only: bool,
+    ) -> RustMailerResult<AccountV2> {
+        let account =
             secondary_find_impl::<AccountV2>(DB_MANAGER.meta_db(), AccountV2Key::id, account_id)
-                .await?;
-        match account_entity {
-            Some(entity) if entity.enabled => Ok(entity),
-            Some(_) => Err(raise_error!(
+                .await?
+                .ok_or_else(|| {
+                    raise_error!(
+                        format!("Account id='{account_id}' not found"),
+                        ErrorCode::ResourceNotFound
+                    )
+                })?;
+
+        if !account.enabled {
+            return Err(raise_error!(
                 format!("Account id='{account_id}' is disabled"),
                 ErrorCode::AccountDisabled
-            )),
-            None => Err(raise_error!(
-                format!("Account id='{account_id}' not found"),
-                ErrorCode::ResourceNotFound
-            )),
+            ));
         }
+
+        if imap_only && !matches!(account.mailer_type, MailerType::ImapSmtp) {
+            return Err(raise_error!(
+                format!("Account id='{account_id}' is not IMAP/SMTP compatible"),
+                ErrorCode::Incompatible
+            ));
+        }
+
+        Ok(account)
     }
 
     /// Fetches an `AccountEntity` by its `id`.
@@ -237,13 +259,8 @@ impl AccountV2 {
             ..Default::default()
         };
         Self::update(account_id, request, false).await?;
-        IMAP_TASKS.stop(account_id).await?;
-        tokio::spawn(async move {
-            if let Err(e) = Self::cleanup_account_resources_sequential(account_id).await {
-                error!("Account cleanup failed for {}: {:?}", account_id, e);
-            }
-        });
-        Ok(())
+        SYNC_TASKS.stop(account_id).await?;
+        Self::cleanup_account_resources_sequential(account_id).await
     }
 
     async fn delete_account(account_id: u64) -> RustMailerResult<()> {
@@ -259,10 +276,23 @@ impl AccountV2 {
         OAuth2AccessToken::try_delete(account_id).await?;
         EventHooks::try_delete(account_id).await?;
         AccessToken::cleanup_account(account_id).await?;
-        MailBox::clean(account_id).await?;
         AccountRunningState::delete(account_id).await?;
-        EnvelopeFlagsManager::clean_account(account.id).await?;
-        RUST_MAIL_CONTEXT.clean_account(account_id).await?;
+        match account.mailer_type {
+            MailerType::ImapSmtp => {
+                MailBox::clean(account_id).await?;
+                FLAGS_STATE_MAP.remove(&account.id);
+                EmailEnvelopeV3::clean_account(account.id).await?;
+                MinimalEnvelope::clean_account(account.id).await?;
+                RUST_MAIL_CONTEXT.clean_account(account_id).await?;
+            }
+            MailerType::GmailApi => {
+                GmailLabels::clean(account_id).await?;
+                GmailEnvelope::clean_account(account.id).await?;
+                GmailCheckPoint::clean(account.id).await?;
+            }
+        }
+        AddressEntity::clean_account(account.id).await?;
+        EmailThread::clean_account(account.id).await?;
         Self::delete_account(account_id).await?;
         info!("Sequential cleanup completed for account: {}", account_id);
         Ok(())
