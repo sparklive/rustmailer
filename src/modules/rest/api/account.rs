@@ -40,7 +40,6 @@ impl AccountApi {
     ) -> ApiResult<Json<AccountV2>> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        println!("{}", account_id);
         Ok(Json(AccountV2::get(account_id).await?))
     }
 

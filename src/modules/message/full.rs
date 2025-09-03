@@ -35,7 +35,7 @@ pub async fn retrieve_full_email(
     mailbox: String,
     uid: u32,
 ) -> RustMailerResult<cacache::Reader> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, false).await?;
     let meta = get_minimal_meta(account_id, &mailbox, uid).await?;
     if meta.size > MAX_EMAIL_TOTAL_SIZE {
         return Err(raise_error!(format!(

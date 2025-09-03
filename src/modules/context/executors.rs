@@ -119,7 +119,7 @@ impl EmailClientExecutors {
         let active_accounts: Vec<AccountV2> = accounts.into_iter().filter(|a| a.enabled).collect();
 
         if active_accounts.is_empty() {
-            info!("No active accounts found for IMAP initialization.");
+            info!("No active accounts found for account initialization.");
             return Ok(());
         }
         info!(

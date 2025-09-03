@@ -25,7 +25,7 @@ pub async fn rename_mailbox(
     account_id: u64,
     payload: MailboxRenameRequest,
 ) -> RustMailerResult<()> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, false).await?;
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     executor
         .rename_mailbox(

@@ -113,6 +113,5 @@ pub async fn retrieve_label_metadata(
             Err(e) => return Err(raise_error!(format!("{:#?}", e), ErrorCode::InternalError)),
         }
     }
-
     Ok(details)
 }

@@ -59,7 +59,7 @@ pub async fn retrieve_email_attachment(
     account_id: u64,
     request: AttachmentRequest,
 ) -> RustMailerResult<cacache::Reader> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, false).await?;
 
     if request.attachment.size >= MAX_ATTACHMENT_SIZE {
         return Err(raise_error!(

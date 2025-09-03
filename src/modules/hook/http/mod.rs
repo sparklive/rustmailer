@@ -4,6 +4,8 @@
 
 use dashmap::DashMap;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
+use http::StatusCode;
+use tracing::error;
 
 use crate::modules::error::code::ErrorCode;
 use crate::modules::hook::entity::HttpMethod;
@@ -119,7 +121,7 @@ impl HttpClient {
             .await
             .map_err(|e| {
                 raise_error!(
-                    format!("Request failed for URL {}: {:#?}", url, e),
+                    format!("Request failed: {:#?}", e),
                     ErrorCode::InternalError
                 )
             })?;
@@ -127,7 +129,7 @@ impl HttpClient {
         if res.status().is_success() {
             let json: serde_json::Value = res.json().await.map_err(|e| {
                 raise_error!(
-                    format!("Failed to parse response from URL {}: {:#?}", url, e),
+                    format!("Failed to parse response: {:#?}", e),
                     ErrorCode::InternalError
                 )
             })?;
@@ -136,14 +138,21 @@ impl HttpClient {
             let status = res.status();
             let text = res.text().await.map_err(|e| {
                 raise_error!(
-                    format!("Failed to read error response from URL {}: {:#?}", url, e),
+                    format!("Failed to read error response: {:#?}", e),
                     ErrorCode::InternalError
                 )
             })?;
-            if status.is_client_error() {
+            if matches!(status, StatusCode::NOT_FOUND) || matches!(status, StatusCode::BAD_REQUEST)
+            {
+                error!(
+                    status = ?status,
+                    url = %url,
+                    response = %text,
+                    "Gmail API client error"
+                );
                 return Err(raise_error!(
                     format!(
-                        "Gmail API returned client error (status {}) for {}: historyId may be invalid or expired. Response: {}",
+                        "Gmail API returned client error (status {}) for {}. Response: {}",
                         status, url, text
                     ),
                     ErrorCode::GmailApiInvalidHistoryId

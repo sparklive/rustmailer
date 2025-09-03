@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::{cache::imap::task::IMAP_TASKS, error::RustMailerResult};
+use crate::modules::{cache::imap::task::SYNC_TASKS, error::RustMailerResult};
 use std::{sync::LazyLock, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{error, info};
@@ -44,10 +44,10 @@ impl SyncController {
 
     async fn start_syncer(account_id: u64, email: String) -> RustMailerResult<Option<()>> {
         info!(
-            "IMAP syncer starting for account: {}-{}.",
+            "Account syncer starting for account: {}-{}.",
             account_id, email
         );
-        IMAP_TASKS.start_account_task(account_id, email).await;
+        SYNC_TASKS.start_account_sync_task(account_id, email).await;
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(Some(()))
     }

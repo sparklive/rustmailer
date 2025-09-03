@@ -81,7 +81,7 @@ impl FlagAction {
 }
 
 pub async fn modify_flags(account_id: u64, request: FlagMessageRequest) -> RustMailerResult<()> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, true).await?;
     request.validate()?;
 
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;

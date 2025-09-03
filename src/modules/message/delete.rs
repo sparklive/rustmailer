@@ -25,7 +25,7 @@ pub async fn move_to_trash_or_delete_messages_directly(
     account_id: u64,
     request: &MessageDeleteRequest,
 ) -> RustMailerResult<()> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, false).await?;
     let uid_set = generate_uid_set(request.uids.clone());
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
 

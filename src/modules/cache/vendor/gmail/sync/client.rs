@@ -131,7 +131,7 @@ impl GmailClient {
         max_results: u32,
     ) -> RustMailerResult<HistoryList> {
         let mut url = format!(
-            "https://gmail.googleapis.com/gmail/v1/users/me/history?labelIds={}&maxResults={}&startHistoryId={}",
+            "https://gmail.googleapis.com/gmail/v1/users/me/history?labelId={}&maxResults={}&startHistoryId={}",
             label_id, max_results, start_history_id
         );
 

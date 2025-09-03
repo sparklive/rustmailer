@@ -437,7 +437,7 @@ impl MessageSearchRequest {
         page_size: u64,
         desc: bool,
     ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
-        let account = AccountV2::check_account_active(account_id).await?;
+        let account = AccountV2::check_account_active(account_id, false).await?;
         self.search_remote(&account, page, page_size, desc).await
     }
 

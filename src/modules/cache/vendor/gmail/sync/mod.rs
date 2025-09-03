@@ -64,12 +64,9 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
         .collect();
 
     let local_labels = GmailLabels::list_all(account.id).await?;
-    // How to determine if a rebuild is needed?
-    // Simplified rule: if the local label does not exist, trigger a rebuild.
-    // We do not check how many local message metadata entries exist,
-    // since that would be expensive.
-    let local_checkpoints = GmailCheckPoint::list_all(account.id).await?;
-    if should_rebuild_cache(account, local_labels.len(), local_checkpoints.len()).await? {
+
+    let checkpoint = GmailCheckPoint::find(account.id).await?;
+    if should_rebuild_cache(account, &local_labels, checkpoint).await? {
         AccountRunningState::set_initial_sync_folders(
             account.id,
             remote_labels
@@ -78,7 +75,6 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
                 .collect(),
         )
         .await?;
-    
         match &account.date_since {
             Some(date_since) => {
                 rebuild_cache_since_date(account, &remote_labels, date_since).await?;
@@ -120,8 +116,14 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
     }
 
     if !missing_labels.is_empty() {
+        info!(
+            count = missing_labels.len(),
+            labels = ?missing_labels,
+            "Inserting missing Gmail labels into database"
+        );
         GmailLabels::batch_insert(&missing_labels).await?;
         for label in &missing_labels {
+            //During incremental synchronization, if any labels are found missing or not fully synchronized, the checkpoint does not need to be updated.
             rebuild_single_label_cache(account, label).await?;
         }
     }
@@ -130,24 +132,32 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
 
 pub async fn should_rebuild_cache(
     account: &AccountV2,
-    local_labels_count: usize,
-    local_checkpoints_count: usize,
+    local_labels: &[GmailLabels],
+    checkpoint: Option<GmailCheckPoint>,
 ) -> RustMailerResult<bool> {
     // If both local labels and checkpoint exist, no rebuild is needed.
-    if local_labels_count > 0 && local_checkpoints_count > 0 {
+    if !local_labels.is_empty() && checkpoint.is_some() {
         return Ok(false);
     }
-    // If there are local mailboxes but no checkpoints, clear the mailboxes.
-    if local_labels_count > 0 {
-        let mailboxes = GmailLabels::list_all(account.id).await?;
-        GmailLabels::batch_delete(mailboxes).await?;
+
+    info!(
+        account_id = account.id,
+        label_count = local_labels.len(),
+        "Rebuilding cache: cleaning local labels and checkpoints"
+    );
+
+    if !local_labels.is_empty() {
+        GmailLabels::batch_delete(local_labels.to_vec()).await?;
     }
-    if local_checkpoints_count > 0 {
-        //这个要清理，清理掉本地缓存的所有信息，包括关联的索引信息，比如thread, checkpoint也是
-        //EnvelopeFlagsManager::clean_account(account.id).await?
+    if checkpoint.is_some() {
         GmailCheckPoint::clean(account.id).await?;
     }
-    // If either remote mailboxes or local envelopes were missing, cache rebuild is required.
+    GmailEnvelope::clean_account(account.id).await?;
+    AddressEntity::clean_account(account.id).await?;
+    EmailThread::clean_account(account.id).await?;
+
+    info!(account_id = account.id, "Cache cleaning completed");
+
     Ok(true)
 }
 

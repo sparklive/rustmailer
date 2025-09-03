@@ -73,7 +73,7 @@ impl AddressEntity {
     }
 
     pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
-        const BATCH_SIZE: usize = 500;
+        const BATCH_SIZE: usize = 200;
         let mut total_deleted = 0usize;
         let start_time = Instant::now();
         loop {

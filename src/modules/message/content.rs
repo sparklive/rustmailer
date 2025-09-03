@@ -283,7 +283,7 @@ pub async fn retrieve_email_content(
     request: MessageContentRequest,
     skip_cache: bool,
 ) -> RustMailerResult<MessageContent> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, false).await?;
 
     let mut plain: Option<PlainText> = None;
     let mut html: Option<String> = None;

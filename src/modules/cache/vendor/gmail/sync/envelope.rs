@@ -2,8 +2,6 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use std::time::Instant;
-
 use crate::{
     calculate_hash, id,
     modules::{
@@ -22,10 +20,12 @@ use crate::{
     },
     raise_error,
 };
+use itertools::Itertools;
 use native_db::*;
 use native_model::{native_model, Model};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use tracing::info;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
@@ -174,10 +174,10 @@ impl GmailEnvelope {
                     Some(e.internal_date),
                     e.date,
                 );
-
                 // --- Store envelope ---
                 rw.insert::<GmailEnvelope>(e)
                     .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?;
+
                 // --- Thread upsert ---
                 match rw
                     .get()
@@ -255,6 +255,40 @@ impl GmailEnvelope {
         info!(
             "Finished deleting gmail envelopes for label_id={} account_id={} total_deleted={} in {:?}",
             label_id,
+            account_id,
+            total_deleted,
+            start_time.elapsed()
+        );
+        Ok(())
+    }
+
+    pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
+        const BATCH_SIZE: usize = 200;
+        let mut total_deleted = 0usize;
+        let start_time = Instant::now();
+        loop {
+            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+                let to_delete: Vec<GmailEnvelope> = rw
+                    .scan()
+                    .secondary(GmailEnvelopeKey::account_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .start_with(account_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .take(BATCH_SIZE)
+                    .try_collect()
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
+                Ok(to_delete)
+            })
+            .await?;
+            total_deleted += deleted;
+            // If this batch is empty, break the loop
+            if deleted == 0 {
+                break;
+            }
+        }
+
+        info!(
+            "Finished deleting gmail envelopes for account_id={} total_deleted={} in {:?}",
             account_id,
             total_deleted,
             start_time.elapsed()

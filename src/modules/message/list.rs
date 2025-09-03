@@ -24,7 +24,7 @@ pub async fn list_messages_in_mailbox(
     remote: bool,
     desc: bool,
 ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
-    let account = AccountV2::check_account_active(account_id).await?;
+    let account = AccountV2::check_account_active(account_id, false).await?;
     validate_pagination_params(page, page_size)?;
     let remote = remote || account.minimal_sync();
 
@@ -125,7 +125,7 @@ pub async fn list_threads_in_mailbox(
     page_size: u64,
     desc: bool,
 ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
-    let account = AccountV2::check_account_active(account_id).await?;
+    let account = AccountV2::check_account_active(account_id, false).await?;
     validate_pagination_params(page, page_size)?;
     if account.minimal_sync() {
         return Err(raise_error!(
@@ -160,7 +160,7 @@ pub async fn get_thread_messages(
     mailbox_name: &str,
     thread_id: u64,
 ) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
-    let account = AccountV2::check_account_active(account_id).await?;
+    let account = AccountV2::check_account_active(account_id, false).await?;
     if account.minimal_sync() {
         return Err(raise_error!(
             format!(

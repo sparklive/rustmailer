@@ -2,7 +2,6 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-
 use ahash::{AHashSet, HashSet};
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
@@ -16,6 +15,7 @@ use crate::{
                 cleanup_single_label,
                 client::GmailClient,
                 envelope::GmailEnvelope,
+                flow::max_history_id,
                 labels::{GmailCheckPoint, GmailLabels},
                 rebuild::rebuild_single_label_cache,
             },
@@ -33,8 +33,9 @@ pub async fn handle_history(
     let account_id = account.id;
     let use_proxy = account.use_proxy.clone();
     let remote_labels = find_existing_remote_labels(local_labels, remote_labels);
+    let checkpoint = GmailCheckPoint::get(account_id).await?;
+    let mut history_ids = Vec::with_capacity(remote_labels.len());
     for remote in remote_labels {
-        let checkpoint = GmailCheckPoint::get(remote.id).await?;
         let mut page_token = None;
         loop {
             let mut list = match GmailClient::list_history(
@@ -55,8 +56,11 @@ pub async fn handle_history(
                         code,
                     } => {
                         if code == ErrorCode::GmailApiInvalidHistoryId {
-                            handle_invalid_history_id(account, &remote).await?;
-                            continue;
+                            let history_id = handle_invalid_history_id(account, &remote).await?;
+                            if let Some(history_id) = history_id {
+                                history_ids.push(history_id);
+                            }
+                            break;
                         } else {
                             return Err(raise_error!(message, code));
                         }
@@ -70,16 +74,18 @@ pub async fn handle_history(
                 .into_iter()
                 .filter(|h| h.has_changes())
                 .collect();
-
             apply_history(account_id, use_proxy, &remote, history_list).await?;
             if page_token.is_none() {
-                GmailCheckPoint::new(account_id, remote.id, list.history_id)
-                    .save()
-                    .await?;
+                history_ids.push(list.history_id);
                 break;
             }
         }
         GmailLabels::upsert(remote).await?;
+    }
+    let max = max_history_id(&history_ids);
+    if let Some(history_id) = max {
+        let checkpoint = GmailCheckPoint::new(account_id, history_id.to_string());
+        checkpoint.save().await?;
     }
     Ok(())
 }
@@ -214,7 +220,7 @@ pub async fn apply_history(
 async fn handle_invalid_history_id(
     account: &AccountV2,
     label: &GmailLabels,
-) -> RustMailerResult<()> {
+) -> RustMailerResult<Option<String>> {
     info!(
         "Account {}: Invalid history ID detected for label '{}'. Rebuilding local state...",
         account.id, label.name
@@ -229,11 +235,5 @@ async fn handle_invalid_history_id(
         "Account {}: Upserted label '{}' into local database",
         account.id, label.name
     );
-    rebuild_single_label_cache(account, label).await?;
-    info!(
-        "Account {}: Rebuilt local cache for label '{}'",
-        account.id, label.name
-    );
-
-    Ok(())
+    rebuild_single_label_cache(account, label).await
 }

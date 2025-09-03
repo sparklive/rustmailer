@@ -27,6 +27,7 @@ import { CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import useProxyList from '@/hooks/use-proxy';
 
 
 const relativeDateSchema = z.object({
@@ -47,6 +48,7 @@ const accountSchema = () =>
     email: z.string({ required_error: 'Email is required' }).email({ message: 'Invalid email address' }),
     enabled: z.boolean(),
     minimal_sync: z.boolean(),
+    use_proxy: z.number().optional(),
     date_since: dateSelectionSchema.optional(),
     incremental_sync_interval_sec: z.number({ invalid_type_error: 'Incremental sync interval must be a number' }).int().min(1, { message: 'Incremental sync interval must be at least 1 second' }),
   });
@@ -64,6 +66,7 @@ export type GmailApiAccount = {
       value?: number;
     };
   };
+  use_proxy?: number,
   incremental_sync_interval_sec: number;
 };
 
@@ -82,7 +85,8 @@ const defaultValues: GmailApiAccount = {
   enabled: true,
   date_since: undefined,
   incremental_sync_interval_sec: 30,
-  minimal_sync: false
+  minimal_sync: false,
+  use_proxy: undefined
 };
 
 
@@ -94,6 +98,7 @@ const mapCurrentRowToFormValues = (currentRow: AccountEntity): GmailApiAccount =
     minimal_sync: currentRow.minimal_sync ?? false,
     date_since: currentRow.date_since ?? undefined,
     incremental_sync_interval_sec: currentRow.incremental_sync_interval_sec,
+    use_proxy: currentRow.use_proxy
   };
   return account;
 };
@@ -109,6 +114,8 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
         ? "relative"
         : "none"
     : "none")
+
+  const { proxyOptions } = useProxyList();
 
   const form = useForm<GmailApiAccount>({
     mode: "all",
@@ -166,6 +173,7 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
         date_since: data.date_since,
         minimal_sync: data.minimal_sync,
         incremental_sync_interval_sec: data.incremental_sync_interval_sec,
+        use_proxy: data.use_proxy
       };
       if (isEdit) {
         updateMutation.mutate(commonData);
@@ -417,6 +425,42 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
                   />
                 </div>
               </div>}
+              <FormField
+                control={form.control}
+                name='use_proxy'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center justify-between">Use Proxy(optional):</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={(val) => field.onChange(Number(val))}
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a proxy" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {proxyOptions && proxyOptions.length > 0 ? (
+                            proxyOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value.toString()}>
+                                {option.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem disabled value="__none__">No proxy available</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormDescription className='flex-1'>
+                      Use a SOCKS5 proxy for Gmail API connections.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </form>
           </Form>
         </ScrollArea>

@@ -57,6 +57,7 @@ export interface AccountEntity {
   incremental_sync_interval_sec: number;
   created_at: number;
   updated_at: number;
+  use_proxy?: number
 }
 
 

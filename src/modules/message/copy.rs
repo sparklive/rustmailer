@@ -33,7 +33,7 @@ pub async fn copy_mailbox_messages(
     payload: &MailboxTransferRequest,
 ) -> RustMailerResult<()> {
     // Ensure the account exists before proceeding
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, false).await?;
 
     // Generate a set of UIDs from the payload
     let uid_set = generate_uid_set(payload.uids.clone());

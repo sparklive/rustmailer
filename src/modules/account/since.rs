@@ -6,7 +6,7 @@ use crate::{
     modules::error::{code::ErrorCode, RustMailerResult},
     raise_error,
 };
-use chrono::{Datelike, Days, Local, Months, NaiveDate, TimeZone, Utc};
+use chrono::{Datelike, Days, Local, Months, NaiveDate, Utc};
 use poem_openapi::{Enum, Object};
 use serde::{Deserialize, Serialize};
 

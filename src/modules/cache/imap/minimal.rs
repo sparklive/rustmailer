@@ -68,7 +68,7 @@ impl MinimalEnvelope {
     }
 
     pub async fn clean_mailbox_envelopes(account_id: u64, mailbox_id: u64) -> RustMailerResult<()> {
-        const BATCH_SIZE: usize = 500;
+        const BATCH_SIZE: usize = 200;
         let mut total_deleted = 0usize;
         let start_time = Instant::now();
         loop {
@@ -162,7 +162,7 @@ impl MinimalEnvelope {
     }
 
     pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
-        const BATCH_SIZE: usize = 500;
+        const BATCH_SIZE: usize = 200;
         let mut total_deleted = 0usize;
         let start_time = Instant::now();
         loop {

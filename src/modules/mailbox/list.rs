@@ -2,8 +2,14 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use std::sync::Arc;
+
+use crate::modules::account::entity::MailerType;
 use crate::modules::account::v2::AccountV2;
 use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, MailBox};
+use crate::modules::cache::vendor::gmail::model::labels::{Label, LabelDetail};
+use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
+use crate::modules::cache::vendor::gmail::sync::labels::GmailLabels;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::{RustMailerError, RustMailerResult};
@@ -15,17 +21,23 @@ pub async fn get_account_mailboxes(
     account_id: u64,
     remote: bool,
 ) -> RustMailerResult<Vec<MailBox>> {
-    let account = AccountV2::check_account_active(account_id).await?;
+    let account = AccountV2::check_account_active(account_id, false).await?;
     let remote = remote || account.minimal_sync();
-    if remote {
-        request_imap_all_mailbox_list(account_id).await
-    } else {
-        MailBox::list_all(account_id).await
+
+    match (&account.mailer_type, remote) {
+        (MailerType::ImapSmtp, true) => request_imap_all_mailbox_list(account_id).await,
+        (MailerType::ImapSmtp, false) => MailBox::list_all(account_id).await,
+
+        (MailerType::GmailApi, true) => request_gmail_label_list(&account).await,
+        (MailerType::GmailApi, false) => {
+            let labels = GmailLabels::list_all(account_id).await?;
+            Ok(labels.into_iter().map(Into::into).collect())
+        }
     }
 }
 
 pub async fn list_subscribed_mailboxes(account_id: u64) -> RustMailerResult<Vec<MailBox>> {
-    AccountV2::check_account_active(account_id).await?;
+    AccountV2::check_account_active(account_id, true).await?;
     request_imap_subscribed_mailbox_list(account_id).await
 }
 
@@ -41,6 +53,50 @@ pub async fn request_imap_all_mailbox_list(account_id: u64) -> RustMailerResult<
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     let names = executor.list_all_mailboxes().await?;
     convert_names_to_mailboxes(account_id, names.iter()).await
+}
+
+pub async fn request_gmail_label_list(account: &AccountV2) -> RustMailerResult<Vec<MailBox>> {
+    let all_labels = GmailClient::list_labels(account.id, account.use_proxy).await?;
+    let visible_labels: Vec<Label> = all_labels
+        .labels
+        .into_iter()
+        .filter(|label| label.message_list_visibility.as_deref() != Some("hide"))
+        .collect();
+
+    let mut tasks = Vec::new();
+
+    let account = Arc::new(account.clone());
+    for label in visible_labels.into_iter() {
+        let label_id = label.id.clone();
+        let account = account.clone();
+        let task: tokio::task::JoinHandle<Result<LabelDetail, RustMailerError>> =
+            tokio::spawn(async move {
+                GmailClient::get_label(account.id, account.use_proxy, label_id.as_str()).await
+            });
+        tasks.push(task);
+    }
+
+    let mut details = Vec::new();
+
+    for task in tasks {
+        match task.await {
+            Ok(Ok(detail)) => details.push(detail),
+            Ok(Err(err)) => return Err(err),
+            Err(e) => return Err(raise_error!(format!("{:#?}", e), ErrorCode::InternalError)),
+        }
+    }
+
+    let mailboxes: Vec<MailBox> = details
+        .into_iter()
+        .map(|label| {
+            let mut label: GmailLabels = label.into();
+            label.account_id = account.id;
+            label.id = mailbox_id(account.id, &label.label_id);
+            label.into()
+        })
+        .collect();
+
+    Ok(mailboxes)
 }
 
 fn contains_no_select(attributes: &[Attribute]) -> bool {

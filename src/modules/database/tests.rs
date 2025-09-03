@@ -8,7 +8,10 @@ use crate::{
     id,
     modules::{
         account::{entity::AccountKey, v2::AccountV2},
-        cache::imap::mailbox::MailBox,
+        cache::{
+            imap::{mailbox::MailBox, ENVELOPE_MODELS},
+            vendor::gmail::sync::{envelope::GmailEnvelope, flow::max_history_id},
+        },
         database::META_MODELS,
         hook::{
             entity::{EventHooks, HookType, HttpConfig, HttpMethod},
@@ -110,4 +113,35 @@ fn test6() {
     };
 
     println!("{}", serde_json::to_string_pretty(&test).unwrap());
+}
+
+#[test]
+fn test7() {
+    let database = Builder::new()
+        .create(
+            &ENVELOPE_MODELS,
+            PathBuf::from("D://rustmailer_data//envelope.db"),
+        )
+        .unwrap();
+    //database.compact().unwrap();
+    let r_transaction = database.r_transaction().unwrap();
+    let entities: Vec<GmailEnvelope> = r_transaction
+        .scan()
+        .primary()
+        .unwrap()
+        .all()
+        .unwrap()
+        .try_collect()
+        .unwrap();
+    // println!("{:#?}", entities);
+
+    let history_ids: Vec<String> = entities
+        .into_iter()
+        .filter(|e| e.label_name == "INBOX")
+        .map(|e| e.history_id)
+        .collect();
+    println!("{}", history_ids.len());
+
+    let max_id = max_history_id(&history_ids);
+    println!("{:#?}", max_id);
 }
