@@ -10,53 +10,139 @@ use mail_send::{
 };
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::{
-    encode_mailbox_name,
+    base64_encode, encode_mailbox_name,
     modules::{
-        account::v2::AccountV2,
+        account::{entity::MailerType, v2::AccountV2},
+        cache::vendor::gmail::sync::{
+            client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
+        },
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
-        smtp::request::{reply::apply_references, EmailHandler},
+        smtp::request::{
+            reply::{apply_references, apply_references2},
+            EmailHandler,
+        },
     },
     raise_error,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct AppendReplyToDraftRequest {
-    /// The name of the mailbox containing the original message.
+    /// The name of the mailbox or label containing the original message.
     ///
-    /// This is used to locate the source message that is being replied to.
+    /// - For IMAP accounts, this is the mailbox name where the source message resides.
+    /// - For Gmail API accounts, this refers to the label name associated with the source message.
+    /// This is used to locate the message being replied to.
     pub mailbox_name: String,
-    /// The UID of the message being replied to.
+    /// The UID of the message being replied to (IMAP accounts only).
     ///
-    /// This identifies the specific message in the mailbox.
-    pub uid: u32,
+    /// For IMAP accounts, this identifies the specific message in the mailbox.
+    /// For Gmail API accounts, this field is ignored.
+    pub uid: Option<u32>,
+    /// The Gmail API message ID (Gmail API accounts only), sourced from [`EmailEnvelopeV3::mid`].
+    ///
+    /// This is the `id` returned by `list messages` and used by `get message`.
+    /// For IMAP accounts, this field is ignored.
+    pub mid: Option<String>,
     /// A preview text for the reply email.
     ///
     /// This optional field provides a short summary or preview of the reply content.
+    #[oai(validator(min_length = "1", max_length = "200"))]
     pub preview: Option<String>,
     /// The plain text body of the reply email.
     ///
     /// This field is optional and can be used to provide plain text content.
+    #[oai(validator(min_length = "1", max_length = "10000"))]
     pub text: Option<String>,
     /// The HTML body of the reply email.
     ///
     /// This field is optional and can be used to provide HTML content.
+    #[oai(validator(min_length = "1", max_length = "50000"))]
     pub html: Option<String>,
-    // For example: "[Gmail]/Drafts"
-    // This can be obtained from the `name` field of the mailbox via the list-mailboxes endpoint.
-    pub draft_folder_path: String,
+    /// The path of the folder used to store drafts (IMAP accounts only).
+    ///
+    /// For example: "[Gmail]/Drafts".
+    /// This can be obtained from the `name` field of the mailbox via the list-mailboxes endpoint.
+    /// For Gmail API accounts, this field is ignored.
+    pub draft_folder_path: Option<String>,
 }
 
 impl AppendReplyToDraftRequest {
+    fn validate(&self, is_gmail_api: bool) -> RustMailerResult<()> {
+        if self.mailbox_name.trim().is_empty() {
+            return Err(raise_error!(
+                "mailbox_name cannot be empty".into(),
+                ErrorCode::InvalidParameter
+            ));
+        }
+
+        if is_gmail_api {
+            // Gmail API account: mid required
+            if self.mid.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                return Err(raise_error!(
+                    "mid is required for Gmail API accounts".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+        } else {
+            // IMAP account: uid and draft_folder_path required
+            if self.uid.is_none() {
+                return Err(raise_error!(
+                    "uid is required for IMAP accounts".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+            if self
+                .draft_folder_path
+                .as_ref()
+                .map(|s| s.is_empty())
+                .unwrap_or(true)
+            {
+                return Err(raise_error!(
+                    "draft_folder_path cannot be empty for IMAP accounts".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub async fn append_reply_to_draft(&self, account_id: u64) -> RustMailerResult<()> {
         let account = AccountV2::check_account_active(account_id, false).await?;
-        let envelope = EmailHandler::get_envelope(&account, &self.mailbox_name, self.uid).await?;
+        self.validate(matches!(account.mailer_type, MailerType::GmailApi))?;
+
+        match account.mailer_type {
+            MailerType::ImapSmtp => self.append_reply_to_draft_imap(&account).await?,
+            MailerType::GmailApi => {
+                self.append_reply_to_draft_gmail(&account, account_id)
+                    .await?
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn append_reply_to_draft_imap(&self, account: &AccountV2) -> RustMailerResult<()> {
+        let envelope = EmailHandler::get_envelope(
+            account,
+            &self.mailbox_name,
+            self.uid.ok_or_else(|| {
+                raise_error!(
+                    "uid is missing but required for IMAP accounts".into(),
+                    ErrorCode::InternalError
+                )
+            })?,
+        )
+        .await?;
+
         let from = Address::new_address(
             account.name.as_ref().map(|n| Cow::Owned(n.to_string())),
             Cow::Owned(account.email.clone()),
         );
+
         let to = match &envelope.reply_to {
             Some(reply_to) if !reply_to.is_empty() => reply_to.clone(),
             _ => envelope
@@ -70,11 +156,12 @@ impl AppendReplyToDraftRequest {
                     )
                 })?,
         };
+
         let subject = format!("Re: {}", envelope.subject.as_deref().unwrap_or(""));
         let mut builder = MessageBuilder::new()
             .from(from)
             .to(Address::from(to.clone()))
-            .subject(subject.clone());
+            .subject(subject);
         builder = apply_references(builder, &envelope)?;
         builder = self.apply_content(builder)?;
         let message = builder.into_message().map_err(|e| {
@@ -83,9 +170,102 @@ impl AppendReplyToDraftRequest {
                 ErrorCode::InternalError
             )
         })?;
-        let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
-        let drafts = encode_mailbox_name!(&self.draft_folder_path);
-        executor.append(drafts, None, None, message.body).await
+
+        let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
+        let drafts =
+            encode_mailbox_name!(&self.draft_folder_path.as_ref().ok_or_else(|| raise_error!(
+                "draft_folder_path is missing but required for IMAP accounts".into(),
+                ErrorCode::InternalError
+            ))?);
+        executor.append(drafts, None, None, message.body).await?;
+        Ok(())
+    }
+
+    async fn append_reply_to_draft_gmail(
+        &self,
+        account: &AccountV2,
+        account_id: u64,
+    ) -> RustMailerResult<()> {
+        let labels = GmailLabels::list_all(account_id).await?;
+        let target_label = labels
+            .iter()
+            .find(|label| label.name == self.mailbox_name)
+            .ok_or_else(|| {
+                raise_error!(
+                    format!(
+                        "Label '{}' not found for account {}",
+                        self.mailbox_name, account_id
+                    ),
+                    ErrorCode::MailBoxNotCached
+                )
+            })?;
+
+        let envelope = GmailEnvelope::find(
+            account_id,
+            target_label.id,
+            &self.mid.as_ref().ok_or_else(|| {
+                raise_error!(
+                    "mid is missing but required for Gmail API accounts".into(),
+                    ErrorCode::InternalError
+                )
+            })?,
+        )
+        .await?
+        .ok_or_else(|| {
+            raise_error!(
+                format!(
+                    "Gmail message with id '{}' not found in label '{}' for account {}",
+                    self.mid.as_ref().unwrap(),
+                    target_label.name,
+                    account_id
+                ),
+                ErrorCode::ResourceNotFound
+            )
+        })?;
+
+        let from = Address::new_address(
+            account.name.as_ref().map(|n| Cow::Owned(n.to_string())),
+            Cow::Owned(account.email.clone()),
+        );
+
+        let to = match &envelope.reply_to {
+            Some(reply_to) if !reply_to.is_empty() => reply_to.clone(),
+            _ => envelope
+                .from
+                .clone()
+                .map(|from| vec![from])
+                .ok_or_else(|| {
+                    raise_error!(
+                        "Invalid email envelope: missing both 'reply_to' and 'from'".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                })?,
+        };
+
+        let subject = format!("Re: {}", envelope.subject.as_deref().unwrap_or(""));
+        let mut builder = MessageBuilder::new()
+            .from(from)
+            .to(Address::from(to.clone()))
+            .subject(subject);
+        builder = apply_references2(builder, &envelope)?;
+        builder = self.apply_content(builder)?;
+        let message = builder.into_message().map_err(|e| {
+            raise_error!(
+                format!("Failed to build message: {}", e),
+                ErrorCode::InternalError
+            )
+        })?;
+
+        let raw_encoded = base64_encode!(&message.body);
+        let body = json!({
+            "message": {
+                "threadId": envelope.gmail_thread_id,
+                "raw": raw_encoded
+            }
+        });
+
+        GmailClient::create_draft(account_id, account.use_proxy, body).await?;
+        Ok(())
     }
 
     fn apply_content(

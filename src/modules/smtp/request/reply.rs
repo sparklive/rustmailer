@@ -5,7 +5,7 @@
 use crate::{
     modules::{
         account::v2::AccountV2,
-        cache::imap::v2::EmailEnvelopeV3,
+        cache::{imap::v2::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
         error::{code::ErrorCode, RustMailerResult},
         smtp::{
             composer::BodyComposer,
@@ -341,6 +341,25 @@ impl ReplyEmailRequest {
 pub fn apply_references(
     builder: MessageBuilder<'static>,
     envelope: &EmailEnvelopeV3,
+) -> RustMailerResult<MessageBuilder<'static>> {
+    let builder = if let Some(message_id) = &envelope.message_id {
+        builder.in_reply_to(message_id.clone())
+    } else {
+        builder
+    };
+
+    let mut references = envelope.references.clone().unwrap_or_default();
+    if let Some(message_id) = &envelope.message_id {
+        if !references.contains(message_id) {
+            references.push(message_id.clone());
+        }
+    }
+    Ok(builder.references(references))
+}
+
+pub fn apply_references2(
+    builder: MessageBuilder<'static>,
+    envelope: &GmailEnvelope,
 ) -> RustMailerResult<MessageBuilder<'static>> {
     let builder = if let Some(message_id) = &envelope.message_id {
         builder.in_reply_to(message_id.clone())

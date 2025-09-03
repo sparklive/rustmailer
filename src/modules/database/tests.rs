@@ -135,13 +135,9 @@ fn test7() {
         .unwrap();
     // println!("{:#?}", entities);
 
-    let history_ids: Vec<String> = entities
+    let envelopes: Vec<GmailEnvelope> = entities
         .into_iter()
-        .filter(|e| e.label_name == "INBOX")
-        .map(|e| e.history_id)
+        .filter(|e| e.id == "19720f0b9bd3822c")
         .collect();
-    println!("{}", history_ids.len());
-
-    let max_id = max_history_id(&history_ids);
-    println!("{:#?}", max_id);
+    println!("{:#?}", envelopes);
 }

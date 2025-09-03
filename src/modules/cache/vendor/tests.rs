@@ -2,12 +2,17 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use mail_send::{
+    mail_builder::{headers::address::Address, MessageBuilder},
+    smtp::message::IntoMessage,
+};
 use poem_grpc::{ClientConfig, CompressionEncoding};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
-use serde_json::Value;
-use std::time::Duration;
+use serde_json::{json, Value};
+use std::{borrow::Cow, time::Duration};
 
 use crate::{
+    base64_encode,
     modules::{
         cache::{
             imap::v2::EmailEnvelopeV3,
@@ -38,7 +43,7 @@ async fn access_token() -> String {
     grpc_client.set_send_compressed(CompressionEncoding::GZIP);
 
     let request = GetOAuth2TokensRequest {
-        account_id: 1908057970788951,
+        account_id: 4391092875701825,
     };
 
     let mut request = poem_grpc::Request::new(request);
@@ -200,5 +205,68 @@ async fn test5() {
     for s in examples {
         let addr = Addr::parse(s);
         println!("{:?}", addr);
+    }
+}
+
+#[tokio::test]
+async fn test6() {
+    let access_token = access_token().await;
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+
+    let from = Address::new_address(
+        Some(Cow::Owned("rustmailer".to_string())),
+        Cow::Owned("rustmailer.git@gmail.com".to_string()),
+    );
+    let to = Address::new_address(
+        Some(Cow::Owned("noreply".to_string())),
+        Cow::Owned("noreply@medium.com".to_string()),
+    );
+    let subject = "Re: 👋 Welcome to Medium".to_string();
+    let mut builder = MessageBuilder::new()
+        .from(from)
+        .to(Address::from(to.clone()))
+        .subject(subject.clone());
+
+    builder = builder.in_reply_to("5JgiBu1_TSC_RIro8-xLWg@geopod-ismtpd-4".to_string());
+    let references = vec!["5JgiBu1_TSC_RIro8-xLWg@geopod-ismtpd-4".to_string()];
+    builder = builder.references(references);
+    builder = builder.text_body("wowwowwowwowwowwowwowwowwowwowwowwow");
+
+    let message = builder.into_message().unwrap();
+
+    let raw_encoded = base64_encode!(&message.body);
+
+    let body = json!({
+        "message": {
+            "threadId": "19720f0b9bd3822c",
+            "raw": raw_encoded
+        }
+    });
+
+    let res = client
+        .post(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let json = serde_json::to_string_pretty(&body).unwrap();
+        println!("Response = {}", json);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
     }
 }

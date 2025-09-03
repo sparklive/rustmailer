@@ -186,11 +186,12 @@ async fn test6() {
     let request = AppendReplyToDraftRequest {
         account_id: 6637484689546669,
         mailbox_name: "INBOX".into(),
-        uid: 395,
+        uid: Some(395),
         preview: None,
         text: Some("hello world.".into()),
         html: None,
-        draft_folder_path: "[Gmail]/Drafts".into(),
+        draft_folder_path: Some("[Gmail]/Drafts".into()),
+        mid: None,
     };
 
     let mut request = poem_grpc::Request::new(request);
@@ -229,4 +230,35 @@ async fn test7() {
         .upsert_external_o_auth2_token(request)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn test8() {
+    RustMailerTls::initialize().await.unwrap();
+
+    let cfg = ClientConfig::builder()
+        .uri("http://localhost:16630")
+        .build()
+        .unwrap();
+    let mut grpc_client = MessageServiceClient::new(cfg);
+    grpc_client.set_accept_compressed([CompressionEncoding::GZIP]);
+    grpc_client.set_send_compressed(CompressionEncoding::GZIP);
+
+    let request = AppendReplyToDraftRequest {
+        account_id: 4391092875701825,
+        mailbox_name: "INBOX".into(),
+        uid: None,
+        preview: None,
+        text: Some("hello world.".into()),
+        html: None,
+        draft_folder_path: None,
+        mid: Some("1970d297da3c2dd2".into()),
+    };
+
+    let mut request = poem_grpc::Request::new(request);
+    request.metadata_mut().insert(
+        AUTHORIZATION,
+        format!("Bearer {}", "2mY4irNCahQXeSarHYje1P1W"),
+    );
+    grpc_client.append_reply_to_draft(request).await.unwrap();
 }

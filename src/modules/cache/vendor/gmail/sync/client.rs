@@ -149,4 +149,16 @@ impl GmailClient {
             ), ErrorCode::InternalError))?;
         Ok(list)
     }
+
+    pub async fn create_draft(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        body: serde_json::Value,
+    ) -> RustMailerResult<serde_json::Value> {
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.post(url, &access_token, &body).await?;
+        Ok(value)
+    }
 }

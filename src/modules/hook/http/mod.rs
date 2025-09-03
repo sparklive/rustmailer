@@ -5,6 +5,7 @@
 use dashmap::DashMap;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::StatusCode;
+use serde::Serialize;
 use tracing::error;
 
 use crate::modules::error::code::ErrorCode;
@@ -158,6 +159,55 @@ impl HttpClient {
                     ErrorCode::GmailApiInvalidHistoryId
                 ));
             }
+            // Return the error with status and response text for more context
+            Err(raise_error!(
+                format!(
+                    "Gmail API call to {} failed with status {}: {}",
+                    url, status, text
+                ),
+                ErrorCode::GmailApiCallFailed
+            ))
+        }
+    }
+
+    /// Wrapper around the Gmail API `POST` request.
+    pub async fn post<T: Serialize + ?Sized>(
+        &self,
+        url: &str,
+        access_token: &str,
+        body: &T,
+    ) -> RustMailerResult<serde_json::Value> {
+        let res = self
+            .client
+            .post(url)
+            .header(AUTHORIZATION, format!("Bearer {}", access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| {
+                raise_error!(
+                    format!("Request failed: {:#?}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+
+        if res.status().is_success() {
+            let json: serde_json::Value = res.json().await.map_err(|e| {
+                raise_error!(
+                    format!("Failed to parse response: {:#?}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+            Ok(json)
+        } else {
+            let status = res.status();
+            let text = res.text().await.map_err(|e| {
+                raise_error!(
+                    format!("Failed to read error response: {:#?}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
             // Return the error with status and response text for more context
             Err(raise_error!(
                 format!(
