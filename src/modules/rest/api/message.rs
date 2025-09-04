@@ -332,16 +332,12 @@ impl MessageApi {
         &self,
         /// The page number for pagination (1-based).
         page: Query<u64>,
-
         /// The number of messages per page.
         page_size: Query<u64>,
-
         /// If `true`, lists results in descending order; otherwise, ascending.
         desc: Query<Option<bool>>,
-
         /// The unified search criteria (email, time range, accounts, etc.).
         payload: Json<UnifiedSearchRequest>,
-
         /// Request context (includes authentication and permissions).
         context: ClientContext,
     ) -> ApiResult<Json<DataPage<EmailEnvelopeV3>>> {

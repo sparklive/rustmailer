@@ -2,9 +2,11 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::modules::account::entity::MailerType;
 use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
 use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::database::Paginated;
 use crate::modules::error::code::ErrorCode;
@@ -573,13 +575,10 @@ impl MessageSearchRequest {
 pub struct UnifiedSearchRequest {
     /// Optional list of account IDs to search within. If omitted, search all accessible accounts.
     pub accounts: Option<Vec<u64>>,
-
     /// Customer email address to search for (appears in from, to, cc, bcc).
     pub email: String,
-
     /// Optional start timestamp (UTC milliseconds). Filters messages after this time.
     pub after: Option<i64>,
-
     /// Optional end timestamp (UTC milliseconds). Filters messages before this time.
     pub before: Option<i64>,
 }
@@ -614,18 +613,21 @@ impl UnifiedSearchRequest {
         let from = filter(AddressEntity::from(&self.email).await?);
         let to = filter(AddressEntity::to(&self.email).await?);
         let cc = filter(AddressEntity::cc(&self.email).await?);
-
         let all = from.into_iter().chain(to.into_iter()).chain(cc.into_iter());
 
-        let mut hash_map: AHashMap<u64, i64> = AHashMap::new();
-
+        let mut hash_map: AHashMap<u64, (u64, i64)> = AHashMap::new();
         for entity in all {
             let ts = entity.internal_date.unwrap_or(0);
-            hash_map.entry(entity.envelope_hash).or_insert(ts);
+            hash_map
+                .entry(entity.envelope_hash)
+                .or_insert((entity.account_id, ts));
         }
 
-        let mut vec: Vec<(u64, i64)> = hash_map.into_iter().collect();
-        vec.sort_by(|a, b| b.1.cmp(&a.1));
+        let mut vec: Vec<(u64, u64, i64)> = hash_map
+            .into_iter()
+            .map(|(hash, (account_id, ts))| (hash, account_id, ts))
+            .collect();
+        vec.sort_by(|a, b| b.2.cmp(&a.2));
 
         if !desc {
             vec.reverse();
@@ -633,13 +635,27 @@ impl UnifiedSearchRequest {
 
         let result = paginate_vec(&vec, Some(page), Some(page_size))?;
         let mut items = Vec::new();
-        for (id, _) in result.items {
-            let envelope = EmailEnvelopeV3::get(id).await?.ok_or_else(|| {
-                raise_error!(
-                    format!("Failed to get EmailEnvelope for hash {id} in search operation"),
-                    ErrorCode::InternalError
-                )
-            })?;
+        for (id, account_id, _) in result.items {
+            let account = AccountV2::get(account_id).await?;
+            let envelope = match account.mailer_type {
+                MailerType::ImapSmtp => EmailEnvelopeV3::get(id).await?.ok_or_else(|| {
+                    raise_error!(
+                        format!("Failed to get EmailEnvelope for hash {id} in search operation"),
+                        ErrorCode::InternalError
+                    )
+                })?,
+                MailerType::GmailApi => {
+                    let envelope = GmailEnvelope::get(id).await?.ok_or_else(|| {
+                        raise_error!(
+                            format!(
+                                "Failed to get GmailEnvelope for hash {id} in search operation"
+                            ),
+                            ErrorCode::InternalError
+                        )
+                    })?;
+                    EmailEnvelopeV3::from(envelope)
+                }
+            };
             items.push(envelope);
         }
 

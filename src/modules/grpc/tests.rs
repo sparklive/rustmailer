@@ -97,8 +97,8 @@ async fn test3() {
     grpc_client.set_send_compressed(CompressionEncoding::GZIP);
 
     let request = UnifiedSearchRequest {
-        accounts: Vec::new(),
-        email: "no-reply@accounts.google.com".into(),
+        accounts: vec![],
+        email: "news@team.semrush.com".into(),
         after: None,
         before: None,
         page: 1,
@@ -113,6 +113,7 @@ async fn test3() {
     );
     let response = grpc_client.unified_search(request).await.unwrap();
     println!("{:#?}", response.items);
+    println!("{:#?}", response.total_items);
 }
 
 #[tokio::test]
