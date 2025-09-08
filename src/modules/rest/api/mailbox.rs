@@ -21,7 +21,13 @@ pub struct MailBoxApi;
 impl MailBoxApi {
     /// Returns all available mailboxes for the given account.
     ///
-    /// This includes both local and optionally remote (e.g., IMAP) mailboxes.
+    /// - For IMAP/SMTP accounts, this corresponds to folders/mailboxes.
+    /// - For Gmail API accounts, this corresponds to labels visible via the
+    ///   `list messages` API (serving as mailbox equivalents).
+    ///
+    /// Both account types support two modes:
+    /// - Using the local cache of mailboxes/labels.
+    /// - Querying the remote service directly for the latest state.
     #[oai(
         path = "/list-mailboxes/:account_id",
         method = "get",
@@ -43,9 +49,12 @@ impl MailBoxApi {
 
     /// Returns a list of mailboxes that the user is currently subscribed to.
     ///
-    /// This is not a synchronized list of mail folders, but rather the subscription list
-    /// as maintained by the IMAP server. In the IMAP protocol, this list reflects which
-    /// mailboxes the user has chosen to subscribe to on the server side.
+    /// This is only applicable to IMAP/SMTP accounts.
+    ///
+    /// In the IMAP protocol, this list reflects which mailboxes the user has
+    /// chosen to subscribe to on the server side, as maintained by the IMAP server.
+    /// This is not a synchronized list of all mail folders, but rather the
+    /// server-side subscription list.
     #[oai(
         path = "/list-subscribed-mailboxes/:account_id",
         method = "get",
@@ -64,9 +73,13 @@ impl MailBoxApi {
 
     /// Subscribes to a mailbox with the specified name.
     ///
-    /// This operation marks the mailbox as subscribed on the IMAP server side.
-    /// It does not create or synchronize the mailbox, but only updates the
-    /// server-maintained subscription list.
+    /// This operation is only applicable to IMAP/SMTP accounts.
+    ///
+    /// In the IMAP protocol, it marks the mailbox as subscribed on the
+    /// server side. It does not create or synchronize the mailbox, but
+    /// only updates the server-maintained subscription list.
+    ///
+    /// Unsupported for Gmail API accounts.
     #[oai(
         path = "/subscribe-mailbox/:account_id",
         method = "post",
@@ -87,9 +100,13 @@ impl MailBoxApi {
 
     /// Unsubscribes from a mailbox with the specified name.
     ///
-    /// This operation removes the mailbox from the subscription list on the IMAP server.
-    /// It does not delete the mailbox or stop synchronization, but only affects the
-    /// server’s record of subscribed folders.
+    /// This operation is only applicable to IMAP/SMTP accounts.
+    ///
+    /// In the IMAP protocol, it removes the mailbox from the subscription list
+    /// on the server side. It does not delete the mailbox or stop synchronization,
+    /// but only affects the server’s record of subscribed folders.
+    ///
+    /// Unsupported for Gmail API accounts.
     #[oai(
         path = "/unsubscribe-mailbox/:account_id",
         method = "post",

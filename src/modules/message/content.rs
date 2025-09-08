@@ -2,7 +2,6 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::calculate_hash;
 use crate::modules::account::entity::MailerType;
 use crate::modules::account::v2::AccountV2;
 use crate::modules::cache::vendor::gmail::model::messages::PartBody;
@@ -10,6 +9,7 @@ use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::imap::section::Encoding;
 use crate::modules::message::attachment::inline_attachment_diskcache_key;
+use crate::{base64_decode_url_safe, base64_encode, calculate_hash};
 use crate::{
     encode_mailbox_name,
     modules::{
@@ -616,13 +616,25 @@ async fn embed_inline_attachments(
                     GmailClient::get_attachments(account_id, use_proxy, mid, &att.id).await?
                 {
                     let cid_ref = format!("cid:{}", att.content_id);
-                    let data_uri = format!("data:{};base64,{}", att.file_type, data);
+                    let data_uri =
+                        format!("data:{};base64,{}", att.file_type, normalize_base64(&data)?);
                     *html = html.replace(&cid_ref, &data_uri);
                 }
             }
         }
     }
     Ok(())
+}
+
+fn normalize_base64(data: &str) -> RustMailerResult<String> {
+    base64_decode_url_safe!(data)
+        .map_err(|e| {
+            raise_error!(
+                format!("Failed to decode base64_content: {}", e),
+                ErrorCode::InternalError
+            )
+        })
+        .map(|bytes| base64_encode!(bytes))
 }
 
 async fn fetch_and_cache(
