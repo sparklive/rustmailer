@@ -337,6 +337,7 @@ impl From<MinimalAccount> for rustmailer_grpc::MinimalAccount {
         Self {
             id: value.id,
             email: value.email,
+            mailer_type: value.mailer_type.into(),
         }
     }
 }

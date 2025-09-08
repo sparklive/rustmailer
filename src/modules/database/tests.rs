@@ -9,6 +9,7 @@ use crate::{
     modules::{
         account::{entity::AccountKey, v2::AccountV2},
         cache::{
+            disk::CacheItem,
             imap::{mailbox::MailBox, ENVELOPE_MODELS},
             vendor::gmail::sync::{envelope::GmailEnvelope, flow::max_history_id},
         },
@@ -17,7 +18,7 @@ use crate::{
             entity::{EventHooks, HookType, HttpConfig, HttpMethod},
             events::EventType,
             payload::EventhookCreateRequest,
-        },
+        }, scheduler::nativedb::{TaskMetaEntity, TASK_MODELS},
     },
 };
 use itertools::Itertools;
@@ -137,7 +138,57 @@ fn test7() {
 
     let envelopes: Vec<GmailEnvelope> = entities
         .into_iter()
-        .filter(|e| e.id == "19720f0b9bd3822c")
+        .filter(|e| e.subject.as_deref() == Some("ClonBrowser looks forward to your return"))
         .collect();
     println!("{:#?}", envelopes);
+}
+
+//todo It’s best to perform cache cleanup based on the number of entries and their age, not just on the remaining disk space.
+#[test]
+fn test8() {
+    let database = Builder::new()
+        .create(&META_MODELS, PathBuf::from("D://rustmailer_data//meta.db"))
+        .unwrap();
+    //database.compact().unwrap();
+    let r_transaction = database.r_transaction().unwrap();
+    let entities: Vec<CacheItem> = r_transaction
+        .scan()
+        .primary()
+        .unwrap()
+        .all()
+        .unwrap()
+        .try_collect()
+        .unwrap();
+    // println!("{:#?}", entities);
+    let rw = database.rw_transaction().unwrap();
+    for item in entities {
+        rw.remove(item).unwrap();
+    }
+    rw.commit().unwrap();
+}
+
+
+
+#[test]
+fn test9() {
+    let database = Builder::new()
+        .create(
+            &TASK_MODELS,
+            PathBuf::from("D://rustmailer_data//tasks.db"),
+        )
+        .unwrap();
+    //database.compact().unwrap();
+    let r_transaction = database.r_transaction().unwrap();
+    let entities: Vec<TaskMetaEntity> = r_transaction
+        .scan()
+        .primary()
+        .unwrap()
+        .all()
+        .unwrap()
+        .try_collect()
+        .unwrap();
+    // println!("{:#?}", entities);
+
+    
+    println!("{:#?}", entities);
 }

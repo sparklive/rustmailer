@@ -2,7 +2,12 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::base64_decode_url_safe;
+use crate::modules::account::entity::MailerType;
+use crate::modules::cache::vendor::gmail::model::messages::PartBody;
+use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::message::content::{AttachmentInfo, FullMessageContent};
 use crate::modules::message::get_minimal_meta;
 use crate::{
     encode_mailbox_name,
@@ -21,14 +26,57 @@ const MAX_ATTACHMENT_SIZE: usize = 52_428_800; // 50MB
 /// Represents a request to fetch an attachment from a message in a mailbox.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct AttachmentRequest {
-    /// The UID of the message containing the attachment.
-    pub uid: u32,
+    /// IMAP only: The UID of the message containing the attachment.
+    /// Not used for Gmail API accounts.
+    pub uid: Option<u32>,
+    /// IMAP only: The name of the mailbox where the message is located.
+    /// Not used for Gmail API accounts.
+    pub mailbox: Option<String>,
+    /// IMAP only: The metadata describing the attachment to fetch.
+    /// Not used for Gmail API accounts.
+    pub attachment: Option<ImapAttachment>,
+    /// The message identifier string (Gmail API `id`)  
+    /// - Required for Gmail API accounts  
+    /// - Not used for IMAP/SMTP  
+    pub mid: Option<String>,
+    /// Gmail API only: attachment info used to fetch it via Gmail API.
+    /// Not used for IMAP accounts.
+    pub attachment_info: Option<AttachmentInfo>,
+    /// Optional: The original filename of the attachment, if available.  
+    /// - Gmail API only.  
+    pub filename: Option<String>,
+}
 
-    /// The name of the mailbox where the message is located.
-    pub mailbox: String,
-
-    /// The metadata describing the attachment to fetch.
-    pub attachment: ImapAttachment,
+impl AttachmentRequest {
+    pub fn validate(&self, account: &AccountV2) -> RustMailerResult<()> {
+        match account.mailer_type {
+            MailerType::ImapSmtp => {
+                if self.uid.is_none() || self.mailbox.is_none() || self.attachment.is_none() {
+                    return Err(raise_error!(
+                    format!(
+                        "Current account type is `ImapSmtp`. Downloading attachments requires `uid`, `mailbox`, and `attachment` metadata."
+                    ),
+                    ErrorCode::InvalidParameter
+                ));
+                }
+            }
+            MailerType::GmailApi => {
+                if self.attachment_info.is_none() {
+                    return Err(raise_error!(
+                        "Current account type is `Gmail API`. Downloading attachments requires `attachment_info`.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.mid.is_none() {
+                    return Err(raise_error!(
+                        "Current account type is `Gmail API`. Downloading attachments requires `mid`.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 pub fn attachment_diskcache_key(
@@ -55,33 +103,107 @@ pub fn inline_attachment_diskcache_key(
     )
 }
 
+pub fn gmail_attachment_diskcache_key(
+    account_id: u64,
+    mid: &str,
+    attachment_info: &AttachmentInfo,
+) -> String {
+    format!(
+        "gmail_attachment_{}_{}_{}",
+        account_id,
+        mid,
+        attachment_info.hash()
+    )
+}
+
+pub fn gmail_inline_attachment_diskcache_key(
+    account_id: u64,
+    mid: &str,
+    attachment_info: &AttachmentInfo,
+) -> String {
+    format!(
+        "gmail_inline_attachment_{}_{}_{}",
+        account_id,
+        mid,
+        attachment_info.hash()
+    )
+}
+
 pub async fn retrieve_email_attachment(
     account_id: u64,
     request: AttachmentRequest,
-) -> RustMailerResult<cacache::Reader> {
-    AccountV2::check_account_active(account_id, false).await?;
+) -> RustMailerResult<(cacache::Reader, Option<String>)> {
+    let account = AccountV2::check_account_active(account_id, false).await?;
+    request.validate(&account)?;
+    match account.mailer_type {
+        MailerType::ImapSmtp => {
+            let mut attachment = request.attachment.ok_or_else(|| {
+                raise_error!(
+                    "`attachment` is required when retrieving attachments for IMAP/SMTP accounts."
+                        .into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let mailbox = request.mailbox.ok_or_else(|| {
+                raise_error!(
+                    "`mailbox` is required when retrieving attachments for IMAP/SMTP accounts."
+                        .into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let uid = request.uid.ok_or_else(|| {
+                raise_error!(
+                    "`uid` is required when retrieving attachments for IMAP/SMTP accounts.".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let filename = attachment.filename.take();
+            let reader = retrieve_imap_attachment(account_id, attachment, mailbox, uid).await?;
+            Ok((reader, filename))
+        }
+        MailerType::GmailApi => {
+            let mid = request.mid.as_ref().ok_or_else(|| {
+                raise_error!(
+                    "`mid` is required when retrieving attachments for Gmail API accounts.".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
 
-    if request.attachment.size >= MAX_ATTACHMENT_SIZE {
+            let attachment_info = request.attachment_info.as_ref().ok_or_else(|| {
+                raise_error!(
+                    "`attachment_info` is required when retrieving attachments for Gmail API accounts.".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let filename = request.filename;
+            let reader = retrieve_gmail_attachment(&account, &mid, &attachment_info).await?;
+            Ok((reader, filename))
+        }
+    }
+}
+
+async fn retrieve_imap_attachment(
+    account_id: u64,
+    attachment: ImapAttachment,
+    mailbox: String,
+    uid: u32,
+) -> RustMailerResult<cacache::Reader> {
+    if attachment.size >= MAX_ATTACHMENT_SIZE {
         return Err(raise_error!(
             format!(
                 "Attachment size {} bytes exceeds the maximum allowed size of {} bytes",
-                request.attachment.size, MAX_ATTACHMENT_SIZE
+                attachment.size, MAX_ATTACHMENT_SIZE
             ),
             ErrorCode::ExceedsLimitation
         ));
     }
 
-    let cache_key = attachment_diskcache_key(
-        account_id,
-        &request.mailbox,
-        request.uid,
-        request.attachment.path.clone(),
-    );
+    let cache_key = attachment_diskcache_key(account_id, &mailbox, uid, attachment.path.clone());
     if let Some(reader) = DISK_CACHE.get_cache(&cache_key).await? {
         return Ok(reader);
     }
 
-    let meta = get_minimal_meta(account_id, &request.mailbox, request.uid).await?;
+    let meta = get_minimal_meta(account_id, &mailbox, uid).await?;
     let attachments = meta.attachments.ok_or_else(|| {
         raise_error!(
             "No attachments found in the message".into(),
@@ -91,13 +213,10 @@ pub async fn retrieve_email_attachment(
 
     let target = attachments
         .into_iter()
-        .find(|a| a.path == request.attachment.path)
+        .find(|a| a.path == attachment.path)
         .ok_or_else(|| {
             raise_error!(
-                format!(
-                    "Attachment not found with path: {}",
-                    request.attachment.path
-                ),
+                format!("Attachment not found with path: {}", attachment.path),
                 ErrorCode::ResourceNotFound
             )
         })?;
@@ -115,23 +234,20 @@ pub async fn retrieve_email_attachment(
     // Fetch the attachment from the server
     let result = executor
         .uid_fetch_single_part(
-            &request.uid.to_string(),
-            &encode_mailbox_name!(&request.mailbox),
-            &request.attachment.path.to_string(),
+            &uid.to_string(),
+            &encode_mailbox_name!(&mailbox),
+            &attachment.path.to_string(),
         )
         .await?;
     // Find the corresponding result
-    let target = result
-        .iter()
-        .find(|f| f.uid == Some(request.uid))
-        .ok_or_else(|| {
-            raise_error!(
-                "Failed to fetch attachment from server".into(),
-                ErrorCode::InternalError
-            )
-        })?;
+    let target = result.iter().find(|f| f.uid == Some(uid)).ok_or_else(|| {
+        raise_error!(
+            "Failed to fetch attachment from server".into(),
+            ErrorCode::InternalError
+        )
+    })?;
     // Decode the attachment
-    let decoded = request.attachment.decode(target).ok_or_else(|| {
+    let decoded = attachment.decode(target).ok_or_else(|| {
         raise_error!(
             "Failed to parse attachment content from result".into(),
             ErrorCode::InternalError
@@ -141,19 +257,15 @@ pub async fn retrieve_email_attachment(
     DISK_CACHE.put_cache(&cache_key, &decoded, false).await?;
 
     // Cache the original inline attachment for replace cid with attachment content
-    if request.attachment.inline {
-        let encoded = request.attachment.encoded(target).ok_or_else(|| {
+    if attachment.inline {
+        let encoded = attachment.encoded(target).ok_or_else(|| {
             raise_error!(
                 "Failed to parse inline attachment content from result".into(),
                 ErrorCode::InternalError
             )
         })?;
-        let inline_cache_key = inline_attachment_diskcache_key(
-            account_id,
-            &request.mailbox,
-            request.uid,
-            request.attachment.path.clone(),
-        );
+        let inline_cache_key =
+            inline_attachment_diskcache_key(account_id, &mailbox, uid, attachment.path.clone());
         DISK_CACHE
             .put_cache(&inline_cache_key, &encoded, false)
             .await?;
@@ -163,4 +275,80 @@ pub async fn retrieve_email_attachment(
         .get_cache(&cache_key)
         .await?
         .ok_or_else(|| raise_error!("Unexpected cache miss".into(), ErrorCode::InternalError))
+}
+
+async fn retrieve_gmail_attachment(
+    account: &AccountV2,
+    mid: &str,
+    attachment_info: &AttachmentInfo,
+) -> RustMailerResult<cacache::Reader> {
+    let cache_key = gmail_attachment_diskcache_key(account.id, mid, attachment_info);
+    if let Some(reader) = DISK_CACHE.get_cache(&cache_key).await? {
+        return Ok(reader);
+    }
+
+    //Fetching a full message twice for attachment details may yield different ids for the same attachment when checking its size against the safety threshold.
+    let full_message = GmailClient::get_full_messages(account.id, account.use_proxy, mid).await?;
+    let message: FullMessageContent = full_message.try_into()?;
+    let attachments = message.attachments.as_ref().ok_or_else(|| {
+        raise_error!(
+            "Expected attachments metadata from Gmail API, but none was found.".into(),
+            ErrorCode::InternalError
+        )
+    })?;
+
+    let target_hash = attachment_info.hash();
+    //Attachments cannot be compared using the id obtained from two separate fetches, because they may differ.
+    //In other words, the Gmail API may return different ids for the same attachment content, but local caching cannot rely on these ids;
+    //instead, a hash should be calculated based on the attachment's basic information.
+    let attachment = attachments
+        .iter()
+        .find(|att| att.hash() == target_hash)
+        .ok_or_else(|| {
+            raise_error!(
+                "Attachment not found in Gmail message metadata.".into(),
+                ErrorCode::ResourceNotFound
+            )
+        })?;
+
+    if attachment.size as usize >= MAX_ATTACHMENT_SIZE {
+        return Err(raise_error!(
+            format!(
+                "Attachment size {} bytes exceeds the maximum allowed size of {} bytes",
+                attachment.size, MAX_ATTACHMENT_SIZE
+            )
+            .into(),
+            ErrorCode::ExceedsLimitation
+        ));
+    }
+
+    let body =
+        GmailClient::get_attachments(account.id, account.use_proxy, mid, &attachment.id).await?;
+
+    match body {
+        PartBody::Body { data, .. } => {
+            let decoded = base64_decode_url_safe!(&data).map_err(|e| {
+                raise_error!(
+                    format!("Failed to decode base64_content: {}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+            DISK_CACHE.put_cache(&cache_key, &decoded, false).await?;
+            //Inline attachments directly cache the Base64-encoded content.
+            if attachment.inline {
+                let inline_cache_key =
+                    gmail_inline_attachment_diskcache_key(account.id, mid, attachment_info);
+                DISK_CACHE
+                    .put_cache(&inline_cache_key, data.as_bytes(), false)
+                    .await?;
+            }
+            DISK_CACHE.get_cache(&cache_key).await?.ok_or_else(|| {
+                raise_error!("Unexpected cache miss".into(), ErrorCode::InternalError)
+            })
+        }
+        _ => Err(raise_error!(
+            "Expected attachment body part, but received a different part type.".into(),
+            ErrorCode::ResourceNotFound
+        )),
+    }
 }

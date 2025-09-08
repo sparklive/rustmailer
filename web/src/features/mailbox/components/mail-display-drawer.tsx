@@ -18,7 +18,7 @@ import { Download, FileCode, FileCode2, Forward, Loader, MailCheck, MailQuestion
 import { Separator } from '@/components/ui/separator'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useEffect, useState } from 'react'
-import { download_attachment, get_full_message, getContent, load_message } from '@/api/mailbox/envelope/api'
+import { AttachmentInfo, download_attachment, get_full_message, getContent, load_message } from '@/api/mailbox/envelope/api'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from '@/hooks/use-toast'
 import { formatFileSize } from '@/lib/utils'
@@ -76,6 +76,9 @@ interface Props {
 export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope, setDeleteUids, currentMailbox, currentAccountId }: Props) {
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
+
+  const [gmailAttachments, setGmailAttachments] = useState<AttachmentInfo[] | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [contentType, setContentType] = useState<'Plain' | 'Html' | null>(null);
 
@@ -100,11 +103,25 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
   });
 
   const loadMessageMutation = useMutation({
-    mutationFn: ({ accountId, payload }: { accountId: number, payload: Record<string, any> }) => load_message(accountId, payload),
+    mutationFn: ({ accountId, payload }: { accountId: number, payload?: Record<string, any> }) => {
+      if (payload) {
+        return load_message(accountId, payload)
+      } else {
+        throw new Error("Payload must be provided")
+      }
+    },
     retry: 0,
     onSuccess: (data) => {
       setLoading(false)
       setContent(getContent(data))
+      if (data.attachments) {
+        setGmailAttachments(data.attachments)
+      }
+      if (data.html) {
+        setContentType('Html');
+      } else {
+        setContentType('Plain');
+      }
     },
     onError: (error) => {
       setLoading(false)
@@ -128,18 +145,41 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
     }
   }
 
+
+  const onGmailAttachmentDownload = (attachment_info: AttachmentInfo) => {
+    if (currentEnvelope) {
+      let payload = {
+        attachment_info,
+        filename: attachment_info.filename,
+        mid: currentEnvelope.mid
+      };
+      setDownloadingAttachmentId(attachment_info.id);
+      downloadMutation.mutate({ accountId: currentAccountId!, fileName: attachment_info.filename, payload })
+    }
+  }
+
   useEffect(() => {
     if (open && currentEnvelope) {
-      const emailBodyParts = currentEnvelope.body_meta || [];
-      const htmlPart = emailBodyParts.find(part => part.part_type === 'Html');
-      const textPart = emailBodyParts.find(part => part.part_type === 'Plain');
-      setLoading(true);
-      if (htmlPart) {
-        onLoadMessage(htmlPart);
-        setContentType('Html');
-      } else if (textPart) {
-        onLoadMessage(textPart);
-        setContentType('Plain');
+      if (currentEnvelope.mid) {
+        setLoading(true);
+        let payload: {
+          mid: string;
+        } = {
+          mid: currentEnvelope.mid
+        };
+        loadMessageMutation.mutate({ accountId: currentAccountId!, payload })
+      } else {
+        const emailBodyParts = currentEnvelope.body_meta || [];
+        const htmlPart = emailBodyParts.find(part => part.part_type === 'Html');
+        const textPart = emailBodyParts.find(part => part.part_type === 'Plain');
+        setLoading(true);
+        if (htmlPart) {
+          onLoadMessage(htmlPart);
+          // setContentType('Html');
+        } else if (textPart) {
+          onLoadMessage(textPart);
+          // setContentType('Plain');
+        }
       }
     }
   }, [currentEnvelope, open]);
@@ -418,8 +458,10 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
                 <div className="flex items-start">
                   <div className="grid gap-1">
                     <div className="line-clamp-1 text-xs space-x-2">
-                      <span className="font-medium text-gray-400">Uid:</span>
-                      <span>{currentEnvelope.uid}</span>
+                      <span className="font-medium text-gray-400">
+                        {currentEnvelope.mid ? "Mid:" : "Uid:"}
+                      </span>
+                      <span>{currentEnvelope.mid ?? currentEnvelope.uid}</span>
                     </div>
                     {currentEnvelope.from && (
                       <div className="line-clamp-1 text-xs space-x-2">
@@ -519,7 +561,38 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  ) : loading ? (<span className="text-gray-500 text-xs min-h-3" />) : gmailAttachments && gmailAttachments.length > 0 ? (<div className="space-y-2">
+                    {gmailAttachments.map((attachment, index) => (
+                      <div key={index} className="flex items-center">
+                        <div className="flex items-center space-x-8">
+                          <span className="truncate text-xs">{attachment.filename}</span>
+                          <span className="text-xs px-2 py-1 rounded">
+                            [{attachment.file_type}]
+                          </span>
+                          {attachment.inline && (
+                            <span className="text-xs text-blue-500 bg-blue-100 px-2 py-1 rounded">
+                              Inline
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4 ml-auto">
+                          <span className="text-gray-500 text-xs shrink-0">
+                            {formatFileSize(attachment.size)}
+                          </span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                {downloadingAttachmentId === attachment.id ? <Loader className='w-4 h-4 mb-1 animate-spin' /> : <Download className='w-4 h-4 mb-1' onClick={() => onGmailAttachmentDownload(attachment)} />}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className='text-xs'>Download</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    ))}
+                  </div>) : (
                     <span className="text-gray-500 text-xs">No attachments</span>
                   )}
                 </div>
@@ -528,7 +601,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
                   {loading ? (
                     <div className="flex justify-center items-center">
                       <Loader className="w-6 h-6 animate-spin" />
-                      <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
+                      <span className="ml-2 text-sm text-muted-foreground">loading...</span>
                     </div>
                   ) : content ? (
                     <div className="bg-gray-100 rounded-lg border-gray-300">

@@ -13,13 +13,15 @@ use crate::{
         common::Addr,
         database::{
             batch_delete_impl, delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
-            secondary_find_impl, upsert_impl, with_transaction,
+            paginate_secondary_scan_impl, secondary_find_impl, upsert_impl, with_transaction,
         },
         error::{code::ErrorCode, RustMailerResult},
+        rest::response::DataPage,
         utils::envelope_hash_from_id,
     },
     raise_error,
 };
+use ahash::AHashMap;
 use itertools::Itertools;
 use native_db::*;
 use native_model::{native_model, Model};
@@ -187,6 +189,24 @@ impl GmailEnvelope {
         Ok(result)
     }
 
+    pub async fn list_messages_in_label(
+        label_id: u64,
+        page: u64,
+        page_size: u64,
+        desc: bool,
+    ) -> RustMailerResult<DataPage<GmailEnvelope>> {
+        paginate_secondary_scan_impl(
+            DB_MANAGER.envelope_db(),
+            Some(page),
+            Some(page_size),
+            Some(desc),
+            GmailEnvelopeKey::label_id,
+            label_id,
+        )
+        .await
+        .map(DataPage::from)
+    }
+
     pub async fn upsert(envelope: GmailEnvelope) -> RustMailerResult<()> {
         upsert_impl(DB_MANAGER.envelope_db(), envelope).await
     }
@@ -328,39 +348,43 @@ impl GmailEnvelope {
         );
         Ok(())
     }
-}
 
-impl From<GmailEnvelope> for EmailEnvelopeV3 {
-    fn from(value: GmailEnvelope) -> Self {
-        Self {
-            account_id: value.account_id,
-            mailbox_id: value.label_id,
-            mailbox_name: value.label_name,
+    pub fn into_v3(self, label_map: &AHashMap<String, String>) -> EmailEnvelopeV3 {
+        let labels: Vec<String> = self
+            .label_ids
+            .into_iter()
+            .filter_map(|id| label_map.get(&id).cloned())
+            .collect();
+
+        EmailEnvelopeV3 {
+            account_id: self.account_id,
+            mailbox_id: self.label_id,
+            mailbox_name: self.label_name,
             uid: 0,
-            internal_date: Some(value.internal_date),
-            size: value.size,
+            internal_date: Some(self.internal_date),
+            size: self.size,
             flags: vec![],
             flags_hash: 0,
-            bcc: value.bcc,
-            cc: value.cc,
-            date: value.date,
-            from: value.from,
-            in_reply_to: value.in_reply_to,
-            sender: value.sender,
+            bcc: self.bcc,
+            cc: self.cc,
+            date: self.date,
+            from: self.from,
+            in_reply_to: self.in_reply_to,
+            sender: self.sender,
             return_address: None,
-            message_id: value.message_id,
-            subject: value.subject,
+            message_id: self.message_id,
+            subject: self.subject,
             thread_name: None,
-            thread_id: value.thread_id,
-            mime_version: value.mime_version,
-            references: value.references,
-            reply_to: value.reply_to,
-            to: value.to,
+            thread_id: self.thread_id,
+            mime_version: self.mime_version,
+            references: self.references,
+            reply_to: self.reply_to,
+            to: self.to,
             attachments: None,
             body_meta: None,
             received: None,
-            mid: Some(value.id),
-            label_ids: value.label_ids,
+            mid: Some(self.id),
+            labels,
         }
     }
 }

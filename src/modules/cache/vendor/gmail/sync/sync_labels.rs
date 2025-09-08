@@ -19,12 +19,7 @@ use crate::{
 };
 
 pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelDetail>> {
-    let all_labels = GmailClient::list_labels(account.id, account.use_proxy).await?;
-    let visible_labels: Vec<Label> = all_labels
-        .labels
-        .into_iter()
-        .filter(|label| label.message_list_visibility.as_deref() != Some("hide"))
-        .collect();
+    let visible_labels = GmailClient::list_visible_labels(account.id, account.use_proxy).await?;
     // Exclude all labels that cannot retrieve messages via the message list,
     // since we use the message API to fetch message details.
     if visible_labels.is_empty() {
@@ -52,8 +47,7 @@ pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelD
     )
     .await?;
 
-    // Labels that need to be synced are stored by their ID, not by name,
-    // because the label name can be changed.
+    //sync_folders stores the mailbox names for IMAP accounts, whereas for Gmail API accounts it stores the label IDs.
     let subscribed = &account.sync_folders;
     // Filter labels according to the subscription list; matched_labels will not include any labels outside of it.
     let mut matched_labels: Vec<&Label> = if !subscribed.is_empty() {

@@ -21,7 +21,7 @@ use crate::{
         common::Addr,
         error::{code::ErrorCode, RustMailerResult},
         hook::events::payload::{EmailLinkClicked, EmailOpened},
-        message::content::{MessageContent, PlainText},
+        message::content::{FullMessageContent, PlainText},
         settings::cli::SETTINGS,
     },
     raise_error, utc_now,
@@ -177,12 +177,13 @@ impl RustMailerEvent {
                 sender: Some(addr("sender@example.com")),
                 message_id: Some("<msg456@server.com>".into()),
                 subject: Some("Meeting Notes".into()),
-                message: MessageContent {
+                message: FullMessageContent {
                     plain: Some(PlainText {
                         content: String::from("Welcome to use rustmailer!"),
                         truncated: false,
                     }),
                     html: Some(String::from("<p>Welcome to use rustmailer!</p>")),
+                    attachments: None
                 },
                 thread_name: Some("Meeting Thread".into()),
                 thread_id: id!(64),
@@ -194,6 +195,8 @@ impl RustMailerEvent {
                     size: 1024,
                     file_type: "application/pdf".into(),
                 }]),
+                mid: None,
+                labels: vec![]
             }
         );
 

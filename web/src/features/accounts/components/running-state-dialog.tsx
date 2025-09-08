@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { AccountEntity } from '../data/schema'
+import { AccountEntity, MailerType } from '../data/schema'
 import { useQuery } from '@tanstack/react-query'
 import { account_state } from '@/api/account/api'
 import { formatDistanceToNow, formatDuration, intervalToDuration } from 'date-fns'
@@ -190,8 +190,7 @@ export function RunningStateDialog({ currentRow, open, onOpenChange }: Props) {
                   </div>
                 )}
               </div>
-
-              <div className="p-4 border rounded-lg">
+              {currentRow.mailer_type === MailerType.ImapSmtp && <div className="p-4 border rounded-lg">
                 <h3 className="text-lg font-semibold mb-3">Full Sync</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">
@@ -229,8 +228,7 @@ export function RunningStateDialog({ currentRow, open, onOpenChange }: Props) {
                     </div>
                   </div>
                 </div>
-              </div>
-
+              </div>}
               <div className="p-4 border rounded-lg">
                 <h3 className="text-lg font-semibold mb-3">Incremental Sync</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

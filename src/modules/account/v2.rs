@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use ahash::AHashMap;
 use native_db::*;
 use native_model::{native_model, Model};
 
@@ -24,6 +25,7 @@ use crate::{
                 minimal::MinimalEnvelope, thread::EmailThread, v2::EmailEnvelopeV3,
             },
             vendor::gmail::sync::{
+                client::GmailClient,
                 envelope::GmailEnvelope,
                 labels::{GmailCheckPoint, GmailLabels},
             },
@@ -241,14 +243,19 @@ impl AccountV2 {
         if validate {
             request.validate_update_request()?;
         }
-        update_impl(DB_MANAGER.meta_db(), move |rw| {
-            rw.get().secondary::<AccountV2>(AccountV2Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?.ok_or_else(|| raise_error!(format!(
-                "Attempted to edit the account's base information, but the corresponding account metadata was not found. account_id={}",
-                account_id
-            ), ErrorCode::ResourceNotFound))
-        }, |current|{
-            Self::apply_update_fields(current, request)
-        }).await?;
+
+        let account = AccountV2::get(account_id).await?;
+
+        let mut map = None;
+        if matches!(account.mailer_type, MailerType::GmailApi) {
+            map = Some(GmailClient::reverse_label_map(account_id, account.use_proxy).await?);
+        }
+        update_impl(
+            DB_MANAGER.meta_db(),
+            move |_| Ok(account),
+            move |current| Self::apply_update_fields(current, request, map),
+        )
+        .await?;
 
         Ok(())
     }
@@ -379,7 +386,8 @@ impl AccountV2 {
             .filter(|a: &AccountV2| a.enabled)
             .map(|account: AccountV2| MinimalAccount {
                 id: account.id,
-                email: account.email.clone(),
+                email: account.email,
+                mailer_type: account.mailer_type,
             })
             .collect::<Vec<MinimalAccount>>();
         Ok(result)
@@ -404,6 +412,7 @@ impl AccountV2 {
     fn apply_update_fields(
         old: &AccountV2,
         request: AccountUpdateRequest,
+        label_map: Option<AHashMap<String, String>>,
     ) -> RustMailerResult<AccountV2> {
         let mut new = old.clone();
 
@@ -443,8 +452,14 @@ impl AccountV2 {
             }
         }
 
-        if let Some(mailboxes) = request.sync_folders {
-            new.sync_folders = mailboxes;
+        if let Some(folder_names) = request.sync_folders {
+            let label_map =
+                label_map.ok_or_else(|| raise_error!("".into(), ErrorCode::InternalError))?;
+            let folder_ids: Vec<String> = folder_names
+                .into_iter()
+                .filter_map(|name| label_map.get(&name).cloned())
+                .collect();
+            new.sync_folders = folder_ids;
         }
 
         if let Some(use_proxy) = request.use_proxy {

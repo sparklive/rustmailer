@@ -452,11 +452,8 @@ impl TaskStore for NativeDbTaskStore {
             let task_params = task.task_params.clone();
             tokio::spawn(async move {
                 if let Ok(smtp_task) = serde_json::from_str::<SmtpTask>(&task_params) {
-                    if let Ok(true) = EventHookTask::event_watched(
-                        smtp_task.account_id,
-                        EventType::EmailSendingError,
-                    )
-                    .await
+                    if let Ok(true) =
+                        EventHookTask::is_watching_email_sending_error(smtp_task.account_id).await
                     {
                         let max_retries = smtp_task.retry_policy().max_retries;
                         EVENT_CHANNEL

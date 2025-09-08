@@ -54,13 +54,19 @@ impl EventChannel {
         tokio::spawn({
             async move {
                 loop {
-                    match receiver.recv_many(&mut buffer, 50).await {
-                        0 => break, // Channel closed
-                        n => n,
-                    };
-                    let should_flush = buffer.len() >= BATCH_SIZE
-                        || last_flush_time.elapsed() >= Duration::from_secs(1);
+                    tokio::select! {
+                        maybe_event = receiver.recv() => {
+                            match maybe_event {
+                                Some(e) => buffer.push(e),
+                                None => break, // channel closed
+                            }
+                        }
+                        _ = tokio::time::sleep(Duration::from_secs(3)) => {
+                        }
+                    }
 
+                    let should_flush = buffer.len() >= BATCH_SIZE
+                        || last_flush_time.elapsed() >= Duration::from_secs(3);
                     if should_flush && !buffer.is_empty() {
                         match Self::handle(&buffer).await {
                             Ok(_) => tracing::debug!(
@@ -75,7 +81,6 @@ impl EventChannel {
                 }
 
                 if !buffer.is_empty() {
-                    tracing::info!("Processing final batch of {} messages", buffer.len());
                     if let Err(e) = Self::handle(&buffer).await {
                         tracing::error!("Error processing final batch: {:?}", e);
                     }

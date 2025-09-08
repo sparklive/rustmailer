@@ -49,7 +49,7 @@ pub struct EventHookTask {
 }
 
 impl EventHookTask {
-    pub async fn event_watched(account_id: u64, event_type: EventType) -> RustMailerResult<bool> {
+    async fn event_watched(account_id: u64, event_type: EventType) -> RustMailerResult<bool> {
         let account_hook = EventHooks::get_by_account_id(account_id)
             .await?
             .map_or(false, |hook| {
@@ -61,6 +61,56 @@ impl EventHookTask {
             .any(|hook| hook.enabled && hook.watched_events.contains(&event_type));
 
         Ok(account_hook || global_hook)
+    }
+
+    pub async fn is_watching_email_add_event(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailAddedToFolder).await
+    }
+
+    pub async fn is_watching_email_flags_changed(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailFlagsChanged).await
+    }
+
+    pub async fn is_watching_email_sent_success(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailSentSuccess).await
+    }
+
+    pub async fn is_watching_email_sending_error(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailSendingError).await
+    }
+
+    pub async fn is_watching_uid_validity_change(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::UIDValidityChange).await
+    }
+
+    pub async fn is_watching_mailbox_deletion(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::MailboxDeletion).await
+    }
+
+    pub async fn is_watching_mailbox_creation(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::MailboxCreation).await
+    }
+
+    pub async fn is_watching_account_first_sync_completed(
+        account_id: u64,
+    ) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::AccountFirstSyncCompleted).await
+    }
+
+    pub async fn is_watching_email_bounce(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailBounce).await
+    }
+
+    pub async fn is_watching_email_feedback_report(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailFeedBackReport).await
+    }
+
+    pub async fn is_watching_email_opened(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailOpened).await
+    }
+
+    pub async fn is_watching_email_link_clicked(account_id: u64) -> RustMailerResult<bool> {
+        EventHookTask::event_watched(account_id, EventType::EmailLinkClicked).await
     }
 
     pub async fn bounce_watched(account_id: u64) -> RustMailerResult<bool> {

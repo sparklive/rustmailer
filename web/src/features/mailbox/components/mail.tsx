@@ -41,7 +41,6 @@ import { useFlagMessageMutation } from "@/hooks/use-flag-messages"
 import { EnvelopeFilterDialog } from "./envelope-filter-dialog"
 import Logo from '@/assets/logo.svg'
 
-
 interface MailProps {
     defaultLayout: number[] | undefined
     defaultCollapsed?: boolean
@@ -311,7 +310,7 @@ export function Mail({
                             <div>
                                 <AccountSwitcher onAccountSelect={(accountId) => {
                                     localStorage.setItem('mailbox:selectedAccountId', `${accountId}`);
-                                    setSelectedAccountId(accountId)
+                                    setSelectedAccountId(accountId);
                                     setSelectedMailbox(undefined);
                                     setSelectedUids([]);
                                 }} defaultAccountId={lastSelectedAccountId} />

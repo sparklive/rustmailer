@@ -269,6 +269,8 @@ message MinimalAccount {
   uint64 id = 1;
   // The email address associated with the account.
   string email = 2;
+  // The type of the mailer (e.g., IMAP, Gmail API, etc.).
+  MailerType mailer_type = 3;
 }
 
 // ListMinimalAccountsResponse contains a list of minimal account information.
@@ -726,15 +728,19 @@ message FetchMessageContentRequest {
   // The ID of the account.
   uint64 account_id = 1;
   // The name of the mailbox containing the message.
-  string mailbox_name = 2;
+  optional string mailbox_name = 2;
   // The unique identifier (UID) of the message.
-  uint32 uid = 3;
+  optional uint32 uid = 3;
   // Optional: The maximum length of content to fetch.
   optional uint64 max_length = 4;
   // A list of specific body sections to fetch.
   repeated EmailBodyPart sections = 5;
   // A list of inline attachments to fetch.
   repeated ImapAttachment inline = 6;
+  // The Gmail API message ID (Gmail API accounts only)
+  // This is the `id` returned by `list messages` and used by `get message`.
+  // For IMAP accounts, this field is ignored.
+  optional string mid = 7;
 }
 
 // FetchMessageAttachmentRequest is used to fetch a specific attachment from an email message.
@@ -742,11 +748,20 @@ message FetchMessageAttachmentRequest {
   // The ID of the account.
   uint64 account_id = 1;
   // The unique identifier (UID) of the message.
-  uint32 uid = 2;
+  optional uint32 uid = 2;
   // The name of the mailbox containing the message.
-  string mailbox_name = 3;
+  optional string mailbox_name = 3;
   // The attachment to fetch, identified by its data.
-  ImapAttachment attachment = 4;
+  optional ImapAttachment attachment = 4;
+  // The message identifier string (Gmail API `id`) 
+  // - Required for Gmail API accounts
+  // - Not used for IMAP/SMTP     
+  optional string mid = 5;
+  // Gmail API only: attachment info used to fetch it via Gmail API.
+  optional AttachmentInfo attachment_info = 6;
+  // Optional: The filename of the attachment.  
+  // - Gmail API only.  
+  optional string filename = 7;
 }
 
 // FetchFullMessageRequest is used to fetch the complete raw content of an email message.
@@ -887,27 +902,21 @@ message UnifiedSearchRequest {
   // Optional list of account IDs to search within.
   // If omitted, search across all accessible accounts.
   repeated uint64 accounts = 1;
-
   // Customer email address to search for.
   // This will match fields like from, to, cc, and bcc.
   string email = 2;
-
   // Optional start timestamp in UTC milliseconds.
   // Filters messages received/sent after this time.
   optional int64 after = 3;
-
   // Optional end timestamp in UTC milliseconds.
   // Filters messages received/sent before this time.
   optional int64 before = 4;
-
   // The page number to retrieve, starting from 1.
   // Defaults to 1 if not specified.
   uint64 page = 5;
-
   // Number of messages to return per page.
   // Defaults to a reasonable value (e.g., 50).
   uint64 page_size = 6;
-
   // If true, sort messages in descending order (newest first).
   // If false or unset, sort in ascending order (oldest first).
   bool desc = 7;
@@ -986,12 +995,36 @@ message PlainText {
   bool truncated = 2;
 }
 
+// Represents information about an email attachment, including both regular files and inline attachments
+message AttachmentInfo {
+  // MIME content type of the attachment (e.g., "image/png", "application/pdf").
+  string file_type = 1;
+  // Content transfer encoding (usually "base64").
+  string transfer_encoding = 2;
+  // Content-ID, used for inline attachments (referenced in HTML by `cid:` URLs).
+  string content_id = 3;
+  // Whether the attachment is marked as inline (true) or a regular file (false).
+  bool inline = 4;
+  // Original filename of the attachment, if provided.
+  string filename = 5;
+  // Gmail-specific attachment ID, used to fetch the attachment via Gmail API.
+  string id = 6;
+  // Size of the attachment in bytes.
+  uint32 size = 7;
+}
+
+
 // MessageContentResponse contains the parsed content of an email message.
 message MessageContentResponse {
   // The plain text version of the email content.
   PlainText plain = 1;
   // Optional: The HTML version of the email content.
   optional string html = 2;
+  // - Gmail API accounts: Always present. If the message has no attachments,
+  //   this will be an empty list.
+  // - IMAP accounts: Always absent (empty), since attachment metadata is already
+  //   included in the envelope.
+  repeated AttachmentInfo attachments = 3;
 }
 
 // ByteResponse is a generic message for returning raw byte data.

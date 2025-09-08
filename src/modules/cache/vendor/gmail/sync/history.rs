@@ -21,6 +21,15 @@ use crate::{
             },
         },
         error::{code::ErrorCode, RustMailerError, RustMailerResult},
+        hook::{
+            channel::{Event, EVENT_CHANNEL},
+            events::{
+                payload::{Attachment, EmailAddedToFolder},
+                EventPayload, EventType, RustMailerEvent,
+            },
+            task::EventHookTask,
+        },
+        message::content::FullMessageContent,
     },
     raise_error,
 };
@@ -74,7 +83,7 @@ pub async fn handle_history(
                 .into_iter()
                 .filter(|h| h.has_changes())
                 .collect();
-            apply_history(account_id, use_proxy, &remote, history_list).await?;
+            apply_history(account, &remote, history_list).await?;
             if page_token.is_none() {
                 history_ids.push(list.history_id);
                 break;
@@ -104,15 +113,15 @@ pub fn find_existing_remote_labels(
 }
 
 pub async fn apply_history(
-    account_id: u64,
-    use_proxy: Option<u64>,
+    account: &AccountV2,
     label: &GmailLabels,
     history_list: Vec<History>,
 ) -> RustMailerResult<()> {
     for history in history_list {
+        // -- labels_added
         for item in history.labels_added {
             let current =
-                GmailEnvelope::find(account_id, label.id, item.message.id.as_str()).await?;
+                GmailEnvelope::find(account.id, label.id, item.message.id.as_str()).await?;
             match current {
                 Some(mut current) => {
                     let mut merged: HashSet<String> = current.label_ids.into_iter().collect();
@@ -130,15 +139,15 @@ pub async fn apply_history(
                 }
             }
         }
-
+        // -- labels_removed
         for item in history.labels_removed {
             let current =
-                GmailEnvelope::find(account_id, label.id, item.message.id.as_str()).await?;
+                GmailEnvelope::find(account.id, label.id, item.message.id.as_str()).await?;
             match current {
                 Some(mut current) => {
                     if let Some(to_remove) = &item.label_ids {
                         if to_remove.contains(&label.id.to_string()) {
-                            GmailEnvelope::delete(account_id, label.id, &current.id).await?;
+                            GmailEnvelope::delete(account.id, label.id, &current.id).await?;
                         } else {
                             current.label_ids.retain(|id| !to_remove.contains(id));
                             GmailEnvelope::upsert(current).await?;
@@ -155,10 +164,10 @@ pub async fn apply_history(
         }
         let len = history.messages_added.len();
         let mut handles: Vec<JoinHandle<Option<GmailEnvelope>>> = Vec::with_capacity(len);
-
+        // -- messages_added
+        let account_id = account.id;
+        let use_proxy = account.use_proxy;
         for item in history.messages_added {
-            let account_id = account_id;
-            let use_proxy = use_proxy.clone();
             let label = label.clone();
             handles.push(tokio::spawn(async move {
                 if !item.message.label_ids.contains(&label.label_id) {
@@ -196,9 +205,12 @@ pub async fn apply_history(
                 messages_added.push(envelope);
             }
         }
-
+        // save to local envelope cache and build some index
         if !messages_added.is_empty() {
-            GmailEnvelope::save_envelopes(messages_added).await?;
+            GmailEnvelope::save_envelopes(messages_added.clone()).await?;
+            if EventHookTask::is_watching_email_add_event(account.id).await? {
+                dispatch_new_email_notification(account, messages_added).await?;
+            }
         }
         //Deletion events are temporarily not handled
         // for item in history.messages_deleted {
@@ -214,6 +226,58 @@ pub async fn apply_history(
         // }
     }
 
+    Ok(())
+}
+
+async fn dispatch_new_email_notification(
+    account: &AccountV2,
+    messages: Vec<GmailEnvelope>,
+) -> RustMailerResult<()> {
+    let label_map = GmailClient::label_map(account.id, account.use_proxy).await?;
+    for message in messages {
+        let full_message =
+            GmailClient::get_full_messages(account.id, account.use_proxy, &message.id).await?;
+        let message_content: FullMessageContent = full_message.try_into()?;
+        let mut envelope = message.into_v3(&label_map);
+        envelope.thread_id = envelope.compute_thread_id();
+        EVENT_CHANNEL
+            .queue(Event::new(
+                account.id,
+                &account.email,
+                RustMailerEvent::new(
+                    EventType::EmailAddedToFolder,
+                    EventPayload::EmailAddedToFolder(EmailAddedToFolder {
+                        account_id: account.id,
+                        account_email: account.email.clone(),
+                        mailbox_name: envelope.mailbox_name.clone(),
+                        uid: envelope.uid,
+                        internal_date: envelope.internal_date,
+                        date: envelope.date,
+                        from: envelope.from,
+                        subject: envelope.subject,
+                        to: envelope.to,
+                        size: envelope.size,
+                        flags: envelope.flags.into_iter().map(|f| f.to_string()).collect(),
+                        cc: envelope.cc,
+                        bcc: envelope.bcc,
+                        in_reply_to: envelope.in_reply_to,
+                        sender: envelope.sender,
+                        message_id: envelope.message_id,
+                        message: message_content,
+                        thread_name: envelope.thread_name,
+                        reply_to: envelope.reply_to,
+                        attachments: envelope
+                            .attachments
+                            .as_ref()
+                            .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
+                        thread_id: envelope.thread_id,
+                        mid: envelope.mid,
+                        labels: envelope.labels,
+                    }),
+                ),
+            ))
+            .await;
+    }
     Ok(())
 }
 

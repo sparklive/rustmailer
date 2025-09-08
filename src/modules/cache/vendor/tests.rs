@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use ahash::AHashMap;
 use mail_send::{
     mail_builder::{headers::address::Address, MessageBuilder},
     smtp::message::IntoMessage,
@@ -19,7 +20,7 @@ use crate::{
             vendor::gmail::{
                 model::{
                     history::HistoryList,
-                    messages::{MessageList, MessageMeta},
+                    messages::{FullMessage, MessageList, MessageMeta, PartBody},
                 },
                 sync::envelope::GmailEnvelope,
             },
@@ -27,6 +28,7 @@ use crate::{
         common::{rustls::RustMailerTls, Addr},
         context::Initialize,
         grpc::service::rustmailer_grpc::{GetOAuth2TokensRequest, OAuth2ServiceClient},
+        message::content::FullMessageContent,
     },
     rustmailer_version,
 };
@@ -43,7 +45,7 @@ async fn access_token() -> String {
     grpc_client.set_send_compressed(CompressionEncoding::GZIP);
 
     let request = GetOAuth2TokensRequest {
-        account_id: 4391092875701825,
+        account_id: 3436285658349684,
     };
 
     let mut request = poem_grpc::Request::new(request);
@@ -60,12 +62,14 @@ async fn test1() {
     let access_token = access_token().await;
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
     let url =
-        "https://gmail.googleapis.com/gmail/v1/users/me/messages/198e590baf688394?format=metadata";
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/198e590baf688394?format=full";
     let url =
         "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=10";
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=SENT&maxResults=20";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/1987883d362411ec?format=full";
     let mut builder = reqwest::ClientBuilder::new()
         .user_agent(rustmailer_version!())
         .timeout(Duration::from_secs(10))
@@ -87,7 +91,51 @@ async fn test1() {
     if res.status().is_success() {
         let body: Value = res.json().await.unwrap();
         let pretty = serde_json::to_string_pretty(&body).unwrap();
-        println!("Response = {}", pretty);
+        let full_message: FullMessage = serde_json::from_value(body).unwrap();
+        let content = FullMessageContent::try_from(full_message).unwrap();
+        //println!("Response = {}", pretty);
+        println!("Response = {:#?}", content);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test11() {
+    let access_token = access_token().await;
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/198e590baf688394?format=full";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=10";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=SENT&maxResults=20";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/19831865c33e773c/attachments/ANGjdJ9WUXcBy5Jqg9ZpsF2f4xlM40tr4f9eB9FGgZ4ik5EQcRYGj8P00OvgdS-WIGRF1EFC2iBOw8JPPRxY7NjI6C4dxWc5GZYvUoZWpS_JiDN6-BYDjqPV2UUQA71WYuZ2ZTjDi21d3CT-XEWfb1VmxP0Ef6E_s5XQqijeotlpJayDk3NjmKC_ttfaLy8gl-Ol9fDm7MJSVAmntXgA2lUWRSbyeJbkKjkNBNmSZyrYsmxR9EGiL_NzqILZ4eI5PNeMwph6BzqqltnEV-ZPgLwxKOFLEUOq350XV8VNcL7BLf6hCwVBwoPBkWoqmm3hmDX7qe66o7iQo9Vs8OO7_9VoCYl6LJ_UwR8_tTSspMEm__CS9a4GUsCZSERhPJ_cYVYBLFzZd9SGgwgcRyG8";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+    let res = client
+        .get(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let pretty = serde_json::to_string_pretty(&body).unwrap();
+        let body: PartBody = serde_json::from_value(body).unwrap();
+        println!("Response = {:#?}", body);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
     }
@@ -153,7 +201,7 @@ async fn test3() {
         let detail: MessageMeta = serde_json::from_value(body).unwrap();
         let envelope: GmailEnvelope = detail.try_into().unwrap();
         println!("Response = {:#?}", envelope);
-        let envelope: EmailEnvelopeV3 = envelope.into();
+        let envelope: EmailEnvelopeV3 = envelope.into_v3(&AHashMap::new());
         println!("Response = {:#?}", envelope);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());

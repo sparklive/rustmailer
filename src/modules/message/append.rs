@@ -186,20 +186,7 @@ impl AppendReplyToDraftRequest {
         account: &AccountV2,
         account_id: u64,
     ) -> RustMailerResult<()> {
-        let labels = GmailLabels::list_all(account_id).await?;
-        let target_label = labels
-            .iter()
-            .find(|label| label.name == self.mailbox_name)
-            .ok_or_else(|| {
-                raise_error!(
-                    format!(
-                        "Label '{}' not found for account {}",
-                        self.mailbox_name, account_id
-                    ),
-                    ErrorCode::MailBoxNotCached
-                )
-            })?;
-
+        let target_label = GmailLabels::get_by_name(account_id, &self.mailbox_name).await?;
         let envelope = GmailEnvelope::find(
             account_id,
             target_label.id,

@@ -6,7 +6,7 @@ use crate::modules::{
     bounce::parser::{DeliveryStatus, FeedbackReport, RawEmailHeaders},
     common::Addr,
     imap::section::ImapAttachment,
-    message::content::MessageContent,
+    message::content::FullMessageContent,
 };
 use serde::{Deserialize, Serialize};
 
@@ -43,7 +43,7 @@ pub struct EmailAddedToFolder {
     /// Optional subject line of the email.
     pub subject: Option<String>,
     /// Content of the email, including body and related metadata.
-    pub message: MessageContent,
+    pub message: FullMessageContent,
     /// The identifier of the thread this email belongs to.
     /// This is computed based on `in_reply_to` / `references` / `message_id`.
     pub thread_id: u64,
@@ -55,6 +55,20 @@ pub struct EmailAddedToFolder {
     pub to: Option<Vec<Addr>>,
     /// Optional list of attachments included in the email.
     pub attachments: Option<Vec<Attachment>>,
+    /// The `mid` field is reserved for potential integration with other backend models.
+    /// For instance, it can be used to store the email index or ID from external services like the Gmail API.
+    /// This ID could be used for reference or identification purposes in scenarios where an external service
+    /// provides an identifier for the email in question.
+    ///
+    /// This field is optional, meaning that it may be `None` if no external service identifier is available.
+    pub mid: Option<String>,
+    /// A list of labels applied to the message.
+    ///
+    /// Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").
+    /// This field reflects the current labels associated with the email.
+    ///
+    /// Note: This field is populated only for Gmail API accounts. For other account types, it will be empty.
+    pub labels: Vec<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

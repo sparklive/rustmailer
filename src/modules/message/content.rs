@@ -2,7 +2,11 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::calculate_hash;
+use crate::modules::account::entity::MailerType;
 use crate::modules::account::v2::AccountV2;
+use crate::modules::cache::vendor::gmail::model::messages::PartBody;
+use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::imap::section::Encoding;
 use crate::modules::message::attachment::inline_attachment_diskcache_key;
@@ -25,37 +29,136 @@ use tokio::io::AsyncReadExt;
 
 const MAX_BODY_SIZE: usize = 2 * 1024 * 1024;
 
-/// Request for fetching the content of a specific email message  
-///  
-/// This struct is used with the `fetch_message_content` method to retrieve  
-/// the detailed content of an email message. The message identifier (mailbox and uid)  
-/// typically comes from the results returned by the `list_messages` method.  
-///  
-/// When you call `list_messages`, it returns a paginated list of `EmailEnvelope` objects,  
-/// each containing metadata about an email message. To fetch the full content of a specific  
-/// message, you use the mailbox name and uid from that envelope in this request.  
-///  
-/// @param mailbox - The name of the mailbox containing the message (from list_messages results)  
-/// @param uid - The unique identifier of the message within the mailbox (from list_messages results)  
-/// @param max_length - Optional maximum length to retrieve for text parts (limits large messages)  
-/// @param sections - Specific email body parts to retrieve (e.g., TEXT, HTML)  
-/// @param inline - Optional list of attachments to include inline in the response  
+/// Request for fetching the html/plain content of a specific email message.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct MessageContentRequest {
     /// The name of the mailbox containing the message  
-    pub mailbox: String,
-
-    /// The unique identifier of the message within the mailbox  
-    pub uid: u32,
-
+    /// - Required for IMAP/SMTP accounts  
+    /// - Not used for Gmail API  
+    pub mailbox: Option<String>,
+    /// The unique identifier of the message within the mailbox (IMAP UID)  
+    /// - Required for IMAP/SMTP accounts  
+    /// - Not used for Gmail API  
+    pub uid: Option<u32>,
+    /// The message identifier string (Gmail API `id`)  
+    /// - Required for Gmail API accounts  
+    /// - Not used for IMAP/SMTP  
+    pub mid: Option<String>,
     /// Optional maximum length to retrieve for text parts (useful for large messages)  
+    /// - Supported by both IMAP/SMTP and Gmail API  
     pub max_length: Option<usize>,
-
     /// Specific email body parts to retrieve (e.g., TEXT, HTML)  
-    pub sections: Vec<EmailBodyPart>,
-
+    /// - Only used for IMAP/SMTP accounts  
+    /// - Comes from `list_messages` results   
+    pub sections: Option<Vec<EmailBodyPart>>,
     /// Optional list of attachments to include inline in the response  
+    /// - Only used for IMAP/SMTP accounts  
+    /// - Comes from `list_messages` results  
     pub inline: Option<Vec<ImapAttachment>>,
+}
+
+impl MessageContentRequest {
+    pub fn validate(&self, account: &AccountV2) -> RustMailerResult<()> {
+        match account.mailer_type {
+            MailerType::ImapSmtp => {
+                if self.mailbox.is_none() {
+                    return Err(raise_error!(
+                        "`mailbox` is required for IMAP/SMTP accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.uid.is_none() {
+                    return Err(raise_error!(
+                        "`uid` is required for IMAP/SMTP accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.sections.is_none() {
+                    return Err(raise_error!(
+                        "`sections` is required for IMAP/SMTP accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.mid.is_some() {
+                    return Err(raise_error!(
+                        "`mid` must not be set for IMAP/SMTP accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+            }
+            MailerType::GmailApi => {
+                if self.mid.is_none() {
+                    return Err(raise_error!(
+                        "`mid` is required for Gmail API accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.mailbox.is_some() {
+                    return Err(raise_error!(
+                        "`mailbox` must not be set for Gmail API accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.uid.is_some() {
+                    return Err(raise_error!(
+                        "`uid` must not be set for Gmail API accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.sections.is_some() {
+                    return Err(raise_error!(
+                        "`sections` is only supported for IMAP/SMTP accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.inline.is_some() {
+                    return Err(raise_error!(
+                        "`inline` is only supported for IMAP/SMTP accounts.".into(),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Represents metadata of an attachment in a Gmail message.
+///
+/// This struct stores information required to identify, download,
+/// and render an attachment, including inline images embedded
+/// in HTML emails.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
+pub struct AttachmentInfo {
+    /// MIME content type of the attachment (e.g., `image/png`, `application/pdf`).
+    pub file_type: String,
+    /// Content transfer encoding (usually `"base64"`).
+    pub transfer_encoding: String,
+    /// Content-ID, used for inline attachments (referenced in HTML by `cid:` URLs).
+    pub content_id: String,
+    /// Whether the attachment is marked as inline (true) or a regular file (false).
+    pub inline: bool,
+    /// Original filename of the attachment, if provided.
+    pub filename: String,
+    /// Gmail-specific attachment ID, used to fetch the attachment via Gmail API.
+    pub id: String,
+    /// Size of the attachment in bytes.
+    pub size: u32,
+}
+
+impl AttachmentInfo {
+    pub fn hash(&self) -> u64 {
+        let s = format!(
+            "{}|{}|{}|{}|{}|{}",
+            self.file_type,
+            self.transfer_encoding,
+            self.content_id,
+            self.inline,
+            self.filename,
+            self.size
+        );
+        calculate_hash!(&s)
+    }
 }
 
 /// Represents the content of an email message in both plain text and HTML formats.
@@ -68,15 +171,19 @@ pub struct MessageContentRequest {
 /// - `plain`: The plain text version of the message, if available.
 /// - `html`: The HTML version of the message, if available.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
-pub struct MessageContent {
+pub struct FullMessageContent {
     /// Optional plain text version of the message.
     pub plain: Option<PlainText>,
-
     /// Optional HTML version of the message.
     pub html: Option<String>,
+    /// - **Gmail API accounts**: Always present. If the message has no attachments,
+    ///   this will be an empty `Vec`.
+    /// - **IMAP accounts**: Always `None`, since attachment metadata is already
+    ///   included in the envelope.
+    pub attachments: Option<Vec<AttachmentInfo>>,
 }
 
-impl MessageContent {
+impl FullMessageContent {
     pub fn html(&self) -> Option<&str> {
         self.html.as_deref()
     }
@@ -117,6 +224,22 @@ fn email_content_diskcache_key(
     )
 }
 
+fn gmail_content_diskcache_key(account_id: u64, mid: &str) -> String {
+    format!("gmail_content_{}_{}", account_id, mid)
+}
+
+async fn read_string_from_reader(reader: &mut Reader) -> RustMailerResult<Option<String>> {
+    let mut buffer = Vec::new();
+    if let Err(_) = reader.read_to_end(&mut buffer).await {
+        return Ok(None);
+    }
+
+    match String::from_utf8(buffer) {
+        Ok(s) => Ok(Some(s)),
+        Err(_) => Ok(None),
+    }
+}
+
 async fn read_text_from_reader(
     reader: &mut Reader,
     max_length: Option<usize>,
@@ -132,12 +255,10 @@ async fn read_text_from_reader(
         .await
         .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
     let truncated = bytes_read < actual_size;
-
     let content = match std::str::from_utf8(&buffer[..bytes_read]) {
         Ok(valid_str) => valid_str.into(),
         Err(_) => "???".into(),
     };
-
     Ok(PlainText { content, truncated })
 }
 
@@ -282,27 +403,82 @@ pub async fn retrieve_email_content(
     account_id: u64,
     request: MessageContentRequest,
     skip_cache: bool,
-) -> RustMailerResult<MessageContent> {
-    AccountV2::check_account_active(account_id, false).await?;
+) -> RustMailerResult<FullMessageContent> {
+    let account = AccountV2::check_account_active(account_id, false).await?;
+    request.validate(&account)?;
 
+    match account.mailer_type {
+        MailerType::ImapSmtp => {
+            let sections = request.sections.ok_or_else(|| {
+                raise_error!(
+                    "`sections` is required when retrieving IMAP/SMTP message content.".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let uid = request.uid.ok_or_else(|| {
+                raise_error!(
+                    "`uid` is required when retrieving IMAP/SMTP message content.".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let mailbox = request.mailbox.ok_or_else(|| {
+                raise_error!(
+                    "`mailbox` is required when retrieving IMAP/SMTP message content.".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+
+            retrieve_imap_message_content(
+                account_id,
+                sections,
+                uid,
+                mailbox,
+                request.max_length,
+                request.inline,
+                skip_cache,
+            )
+            .await
+        }
+        MailerType::GmailApi => {
+            retrieve_gmail_message_content(
+                account_id,
+                request.mid.ok_or_else(|| {
+                    raise_error!(
+                        "`mid` is required when retrieving Gmail API message content.".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                })?,
+                request.max_length,
+                skip_cache,
+            )
+            .await
+        }
+    }
+}
+
+async fn retrieve_imap_message_content(
+    account_id: u64,
+    sections: Vec<EmailBodyPart>,
+    uid: u32,
+    mailbox: String,
+    max_length: Option<usize>,
+    inline: Option<Vec<ImapAttachment>>,
+    skip_cache: bool,
+) -> RustMailerResult<FullMessageContent> {
     let mut plain: Option<PlainText> = None;
     let mut html: Option<String> = None;
 
     // Find Plain part
-    if let Some(part) = request
-        .sections
-        .iter()
-        .find(|p| p.part_type == PartType::Plain)
-    {
+    if let Some(part) = sections.iter().find(|p| p.part_type == PartType::Plain) {
         let content = if skip_cache {
             // Skip cache and fetch directly
             let decoded_content =
-                fetch_mail_part_from_imap(account_id, request.uid, &request.mailbox, part).await?;
+                fetch_mail_part_from_imap(account_id, uid, &mailbox, part).await?;
             let mut decoded_content = to_string(&decoded_content)?;
 
             // Handle max_length truncation
-            if matches!(request.max_length, Some(max) if decoded_content.len() > max) {
-                decoded_content.truncate(request.max_length.unwrap());
+            if matches!(max_length, Some(max) if decoded_content.len() > max) {
+                decoded_content.truncate(max_length.unwrap());
                 PlainText {
                     content: decoded_content,
                     truncated: true,
@@ -315,20 +491,15 @@ pub async fn retrieve_email_content(
             }
         } else {
             // Try cache first
-            let cache_key = email_content_diskcache_key(
-                account_id,
-                &request.mailbox,
-                request.uid,
-                part.path.clone(),
-            );
+            let cache_key =
+                email_content_diskcache_key(account_id, &mailbox, uid, part.path.clone());
 
             if let Some(mut reader) = DISK_CACHE.get_cache(&cache_key).await? {
-                read_text_from_reader(&mut reader, request.max_length, part.size).await?
+                read_text_from_reader(&mut reader, max_length, part.size).await?
             } else {
                 // Fetch from IMAP if not in cache
                 let decoded_content =
-                    fetch_mail_part_from_imap(account_id, request.uid, &request.mailbox, part)
-                        .await?;
+                    fetch_mail_part_from_imap(account_id, uid, &mailbox, part).await?;
                 // Cache the decoded content
                 DISK_CACHE
                     .put_cache(&cache_key, decoded_content.as_slice(), false)
@@ -337,8 +508,8 @@ pub async fn retrieve_email_content(
                 let mut decoded_content = to_string(&decoded_content)?;
 
                 // Handle max_length truncation
-                if matches!(request.max_length, Some(max) if decoded_content.len() > max) {
-                    decoded_content.truncate(request.max_length.unwrap());
+                if matches!(max_length, Some(max) if decoded_content.len() > max) {
+                    decoded_content.truncate(max_length.unwrap());
                     PlainText {
                         content: decoded_content,
                         truncated: true,
@@ -355,23 +526,19 @@ pub async fn retrieve_email_content(
     }
 
     // Find HTML part
-    if let Some(part) = request
-        .sections
-        .iter()
-        .find(|p| p.part_type == PartType::Html)
-    {
+    if let Some(part) = sections.iter().find(|p| p.part_type == PartType::Html) {
         let content = if skip_cache {
             // Skip cache and fetch directly
             let decoded_content =
-                fetch_mail_part_from_imap(account_id, request.uid, &request.mailbox, part).await?;
+                fetch_mail_part_from_imap(account_id, uid, &mailbox, part).await?;
             let mut decoded_content = to_string(&decoded_content)?;
 
             // Handle inline attachments
-            if let Some(inline) = &request.inline {
+            if let Some(inline) = &inline {
                 replace_inline_attachments(
                     account_id,
-                    &request.mailbox,
-                    request.uid,
+                    &mailbox,
+                    uid,
                     &mut decoded_content,
                     inline,
                     skip_cache,
@@ -381,20 +548,16 @@ pub async fn retrieve_email_content(
             decoded_content
         } else {
             // Try cache first
-            let cache_key = email_content_diskcache_key(
-                account_id,
-                &request.mailbox,
-                request.uid,
-                part.path.clone(),
-            );
+            let cache_key =
+                email_content_diskcache_key(account_id, &mailbox, uid, part.path.clone());
 
             if let Some(mut reader) = DISK_CACHE.get_cache(&cache_key).await? {
                 let mut content = read_html_from_reader(&mut reader, part.size).await?;
-                if let Some(inline) = &request.inline {
+                if let Some(inline) = &inline {
                     replace_inline_attachments(
                         account_id,
-                        &request.mailbox,
-                        request.uid,
+                        &mailbox,
+                        uid,
                         &mut content,
                         inline,
                         skip_cache,
@@ -405,8 +568,7 @@ pub async fn retrieve_email_content(
             } else {
                 // Fetch from IMAP if not in cache
                 let decoded_content =
-                    fetch_mail_part_from_imap(account_id, request.uid, &request.mailbox, part)
-                        .await?;
+                    fetch_mail_part_from_imap(account_id, uid, &mailbox, part).await?;
                 // Cache the decoded content
                 DISK_CACHE
                     .put_cache(&cache_key, decoded_content.as_slice(), false)
@@ -415,11 +577,11 @@ pub async fn retrieve_email_content(
                 let mut decoded_content = to_string(&decoded_content)?;
 
                 // Handle inline attachments
-                if let Some(inline) = &request.inline {
+                if let Some(inline) = &inline {
                     replace_inline_attachments(
                         account_id,
-                        &request.mailbox,
-                        request.uid,
+                        &mailbox,
+                        uid,
                         &mut decoded_content,
                         inline,
                         skip_cache,
@@ -432,7 +594,113 @@ pub async fn retrieve_email_content(
         html = Some(content);
     }
 
-    Ok(MessageContent { plain, html })
+    Ok(FullMessageContent {
+        plain,
+        html,
+        attachments: None,
+    })
+}
+
+async fn embed_inline_attachments(
+    account_id: u64,
+    use_proxy: Option<u64>,
+    mid: &str,
+    message_content: &mut FullMessageContent,
+) -> RustMailerResult<()> {
+    if let (Some(attachments), Some(html)) =
+        (&message_content.attachments, &mut message_content.html)
+    {
+        for att in attachments {
+            if att.inline && !att.content_id.is_empty() {
+                if let PartBody::Body { data, .. } =
+                    GmailClient::get_attachments(account_id, use_proxy, mid, &att.id).await?
+                {
+                    let cid_ref = format!("cid:{}", att.content_id);
+                    let data_uri = format!("data:{};base64,{}", att.file_type, data);
+                    *html = html.replace(&cid_ref, &data_uri);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn fetch_and_cache(
+    account_id: u64,
+    use_proxy: Option<u64>,
+    mid: &str,
+    cache_key: &str,
+    max_length: Option<usize>,
+) -> RustMailerResult<FullMessageContent> {
+    let full_message = GmailClient::get_full_messages(account_id, use_proxy, mid).await?;
+    let mut message_content: FullMessageContent = full_message.try_into()?;
+    if let Some(max_len) = max_length {
+        if let Some(plain) = &mut message_content.plain {
+            if plain.content.len() > max_len {
+                plain.content.truncate(max_len);
+                plain.truncated = true;
+            } else {
+                plain.truncated = false;
+            }
+        }
+    }
+
+    //Check for inline attachments; if present, download and embed them into the HTML, then cache the result. This approach is simplified compared to the IMAP method.
+    embed_inline_attachments(account_id, use_proxy, mid, &mut message_content).await?;
+
+    let json = serde_json::to_string(&message_content).map_err(|e| {
+        raise_error!(
+            format!(
+                "Failed to serialize FullMessageContent into JSON for caching.\nError: {:#?}",
+                e
+            ),
+            ErrorCode::InternalError
+        )
+    })?;
+    DISK_CACHE
+        .put_cache(cache_key, json.as_bytes(), false)
+        .await?;
+
+    Ok(message_content)
+}
+
+async fn retrieve_gmail_message_content(
+    account_id: u64,
+    mid: String,
+    max_length: Option<usize>,
+    skip_cache: bool,
+) -> RustMailerResult<FullMessageContent> {
+    let account = AccountV2::get(account_id).await?;
+    let cache_key = gmail_content_diskcache_key(account_id, &mid);
+    if skip_cache {
+        return fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await;
+    }
+
+    if let Some(mut reader) = DISK_CACHE.get_cache(&cache_key).await? {
+        if let Some(json) = read_string_from_reader(&mut reader).await? {
+            let mut message: FullMessageContent = serde_json::from_str(&json).map_err(|e| {
+                raise_error!(
+                    format!(
+                        "Failed to deserialize cached JSON into FullMessageContent.\nError: {:#?}",
+                        e
+                    ),
+                    ErrorCode::InternalError
+                )
+            })?;
+            if let Some(max_len) = max_length {
+                if let Some(plain) = &mut message.plain {
+                    if plain.content.len() > max_len {
+                        plain.content.truncate(max_len);
+                        plain.truncated = true;
+                    } else {
+                        plain.truncated = false;
+                    }
+                }
+            }
+            return Ok(message);
+        }
+    }
+    fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await
 }
 
 async fn fetch_mail_part_from_imap(

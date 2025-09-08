@@ -53,10 +53,10 @@ macro_rules! base64_decode {
 }
 
 #[macro_export]
-macro_rules! base64_decode_safe {
+macro_rules! base64_decode_url_safe {
     ($key:expr) => {{
-        use base64::{engine::general_purpose::STANDARD, *};
-        match STANDARD.decode($key) {
+        use base64::{engine::general_purpose::URL_SAFE, *};
+        match URL_SAFE.decode($key) {
             Ok(decoded) => Ok(decoded),
             Err(e) => Err(e),
         }

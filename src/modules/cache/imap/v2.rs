@@ -242,7 +242,7 @@ pub struct EmailEnvelopeV3 {
     /// This field reflects the current labels associated with the email.
     ///
     /// Note: This field is populated only for Gmail API accounts. For other account types, it will be empty.
-    pub label_ids: Vec<String>,
+    pub labels: Vec<String>,
 }
 
 impl EmailEnvelopeV3 {
@@ -634,7 +634,7 @@ impl From<EmailEnvelopeV2> for EmailEnvelopeV3 {
             body_meta: value.body_meta,
             received: value.received,
             mid: None,
-            label_ids: vec![],
+            labels: vec![],
         }
     }
 }

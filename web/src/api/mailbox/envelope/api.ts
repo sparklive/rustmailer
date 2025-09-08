@@ -39,9 +39,31 @@ export interface PlainText {
     truncated: boolean;
 }
 
+
+export interface AttachmentInfo {
+    /** MIME content type of the attachment (e.g., `image/png`, `application/pdf`). */
+    file_type: string;
+    /** Content transfer encoding (usually `"base64"`). */
+    transfer_encoding: string;
+    /** Content-ID, used for inline attachments (referenced in HTML by `cid:` URLs). */
+    content_id: string;
+    /** Whether the attachment is marked as inline (true) or a regular file (false). */
+    inline: boolean;
+    /** Original filename of the attachment, if provided. */
+    filename: string;
+    /** Gmail-specific attachment ID, used to fetch the attachment via Gmail API. */
+    id: string;
+    /** Size of the attachment in bytes. */
+    size: number;
+}
+
+
+
+
 export interface MessageContentResponse {
     plain?: PlainText;
     html?: string;
+    attachments?: AttachmentInfo[]
 }
 
 export const getContent = (messageContent: MessageContentResponse): string | null => {
@@ -52,7 +74,6 @@ export const getContent = (messageContent: MessageContentResponse): string | nul
     }
     return null;
 };
-
 
 export const load_message = async (accountId: number, payload: Record<string, any>) => {
     const response = await axiosInstance.post<MessageContentResponse>(`/api/v1/message-content/${accountId}`, payload);

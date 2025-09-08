@@ -24,6 +24,10 @@ export function seen(envelope: EmailEnvelope): boolean {
   return envelope.flags.some(flag => flag.flag === 'Seen');
 }
 
+export function gmail_unread(envelope: EmailEnvelope): boolean {
+  return envelope.labels.includes("UNREAD");
+}
+
 export function getBadgeVariantFromFlag(flag: EmailFlag): "default" | "secondary" | "destructive" | "outline" | null | undefined {
   switch (flag) {
     case 'Deleted':
@@ -54,6 +58,7 @@ export interface EmailEnvelope {
   return_address?: string;
   message_id?: string;
   subject?: string;
+  thread_id: number,
   thread_name?: string;
   mime_version?: string;
   references?: string[];
@@ -62,7 +67,11 @@ export interface EmailEnvelope {
   attachments?: Attachment[];
   body_meta?: EmailBodyPart[];
   received?: Received;
+  mid?: string;
+  labels: string[];
 }
+
+
 
 interface EnvelopeFlag {
   flag: EmailFlag;

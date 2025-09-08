@@ -69,7 +69,7 @@ pub async fn execute_imap_sync(account: &AccountV2) -> RustMailerResult<()> {
         }
         //update full sync end time here
         AccountRunningState::set_initial_sync_completed(account_id).await?;
-        if EventHookTask::event_watched(account_id, EventType::AccountFirstSyncCompleted).await? {
+        if EventHookTask::is_watching_account_first_sync_completed(account_id).await? {
             EVENT_CHANNEL
                 .queue(Event::new(
                     account.id,

@@ -5,12 +5,13 @@
  */
 
 import axiosInstance from "@/api/axiosInstance";
-import { AccountEntity } from "@/features/accounts/data/schema";
+import { AccountEntity, MailerType } from "@/features/accounts/data/schema";
 import { PaginatedResponse } from "..";
 
 export interface MinimalAccount {
     id: number;
     email: string;
+    mailer_type: MailerType;
 }
 
 export const minimal_account_list = async () => {

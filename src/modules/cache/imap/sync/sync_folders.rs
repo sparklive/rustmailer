@@ -143,7 +143,7 @@ pub async fn detect_mailbox_changes(
             "Account {}: Folders deleted: {:?}",
             account.id, deleted_folders
         );
-        if EventHookTask::event_watched(account.id, EventType::MailboxDeletion).await? {
+        if EventHookTask::is_watching_mailbox_deletion(account.id).await? {
             EVENT_CHANNEL
                 .queue(Event::new(
                     account.id,
@@ -167,7 +167,7 @@ pub async fn detect_mailbox_changes(
             "Account {}: New folders detected: {:?}",
             account.id, new_folders
         );
-        if EventHookTask::event_watched(account.id, EventType::MailboxCreation).await? {
+        if EventHookTask::is_watching_mailbox_creation(account.id).await? {
             EVENT_CHANNEL
                 .queue(Event::new(
                     account.id,

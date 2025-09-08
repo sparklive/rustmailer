@@ -331,7 +331,7 @@ mod tests {
             body_meta: None,
             received: None,
             mid: None,
-            label_ids: vec![],
+            labels: vec![],
         };
 
         let result = BodyComposer::generate_html(
@@ -380,7 +380,7 @@ mod tests {
             body_meta: None,
             received: None,
             mid: None,
-            label_ids: vec![],
+            labels: vec![],
         };
 
         let result = BodyComposer::generate_text(

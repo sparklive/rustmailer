@@ -64,6 +64,28 @@ impl GmailLabels {
         .await
     }
 
+    // pub async fn get_label_map(account_id: u64) -> RustMailerResult<HashMap<String, String>> {
+    //     let labels = Self::list_all(account_id).await?;
+    //     let map: HashMap<String, String> = labels
+    //         .into_iter()
+    //         .map(|label| (label.label_id, label.name))
+    //         .collect();
+    //     Ok(map)
+    // }
+
+    pub async fn get_by_name(account_id: u64, name: &str) -> RustMailerResult<Self> {
+        let labels = Self::list_all(account_id).await?;
+        labels
+            .into_iter()
+            .find(|label| label.name == name)
+            .ok_or_else(|| {
+                raise_error!(
+                    format!("Label '{}' not found for account {}", name, account_id),
+                    ErrorCode::MailBoxNotCached
+                )
+            })
+    }
+
     pub async fn batch_delete(labels: Vec<GmailLabels>) -> RustMailerResult<()> {
         batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
             let mut to_deleted = Vec::new();

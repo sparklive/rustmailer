@@ -14,7 +14,7 @@ use crate::modules::{
     message::{
         append::AppendReplyToDraftRequest,
         attachment::AttachmentRequest,
-        content::{MessageContent, MessageContentRequest, PlainText},
+        content::{AttachmentInfo, FullMessageContent, MessageContentRequest, PlainText},
         copy::MailboxTransferRequest,
         delete::MessageDeleteRequest,
         flag::{FlagAction, FlagMessageRequest},
@@ -204,7 +204,7 @@ impl From<EmailEnvelopeV3> for rustmailer_grpc::EmailEnvelope {
                 .collect(),
             received: value.received.map(Into::into),
             mid: value.mid,
-            label_ids: value.label_ids,
+            label_ids: value.labels,
         }
     }
 }
@@ -377,11 +377,15 @@ impl TryFrom<rustmailer_grpc::FetchMessageContentRequest> for MessageContentRequ
             mailbox: value.mailbox_name,
             uid: value.uid,
             max_length: value.max_length.map(|m| m as usize),
-            sections: value
-                .sections
-                .into_iter()
-                .map(EmailBodyPart::try_from)
-                .collect::<Result<Vec<EmailBodyPart>, _>>()?,
+            sections: (!value.sections.is_empty())
+                .then(|| {
+                    value
+                        .sections
+                        .into_iter()
+                        .map(EmailBodyPart::try_from)
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?,
             inline: (!value.inline.is_empty())
                 .then(|| {
                     value
@@ -391,15 +395,50 @@ impl TryFrom<rustmailer_grpc::FetchMessageContentRequest> for MessageContentRequ
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,
+            mid: value.mid,
         })
     }
 }
 
-impl From<MessageContent> for rustmailer_grpc::MessageContentResponse {
-    fn from(value: MessageContent) -> Self {
+impl From<FullMessageContent> for rustmailer_grpc::MessageContentResponse {
+    fn from(value: FullMessageContent) -> Self {
         Self {
             plain: value.plain.map(Into::into),
             html: value.html,
+            attachments: value
+                .attachments
+                .unwrap_or_default()
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+impl From<AttachmentInfo> for rustmailer_grpc::AttachmentInfo {
+    fn from(value: AttachmentInfo) -> Self {
+        Self {
+            file_type: value.file_type,
+            transfer_encoding: value.transfer_encoding,
+            content_id: value.content_id,
+            inline: value.inline,
+            filename: value.filename,
+            id: value.id,
+            size: value.size,
+        }
+    }
+}
+
+impl From<rustmailer_grpc::AttachmentInfo> for AttachmentInfo {
+    fn from(value: rustmailer_grpc::AttachmentInfo) -> Self {
+        Self {
+            file_type: value.file_type,
+            transfer_encoding: value.transfer_encoding,
+            content_id: value.content_id,
+            inline: value.inline,
+            filename: value.filename,
+            id: value.id,
+            size: value.size,
         }
     }
 }
@@ -422,10 +461,10 @@ impl TryFrom<rustmailer_grpc::FetchMessageAttachmentRequest> for AttachmentReque
         Ok(Self {
             uid: value.uid,
             mailbox: value.mailbox_name,
-            attachment: value
-                .attachment
-                .ok_or("field 'attachment' is missing")?
-                .try_into()?,
+            attachment: value.attachment.map(|a| a.try_into()).transpose()?,
+            mid: value.mid,
+            attachment_info: value.attachment_info.map(|a| a.into()),
+            filename: value.filename,
         })
     }
 }
@@ -450,11 +489,7 @@ impl TryFrom<rustmailer_grpc::MessageSearch> for MessageSearch {
 impl From<rustmailer_grpc::UnifiedSearchRequest> for UnifiedSearchRequest {
     fn from(value: rustmailer_grpc::UnifiedSearchRequest) -> Self {
         Self {
-            accounts: if value.accounts.is_empty() {
-                None
-            } else {
-                Some(value.accounts)
-            },
+            accounts: Some(value.accounts).filter(|v| !v.is_empty()),
             email: value.email,
             after: value.after,
             before: value.before,

@@ -5,7 +5,9 @@
 use std::sync::LazyLock;
 use std::time::Duration;
 
+use ahash::AHashMap;
+
 use crate::modules::common::lru::TimedLruCache;
 
-pub static IMAP_SEARCH_CACHE: LazyLock<TimedLruCache<String, (Vec<String>, u64)>> =
-    LazyLock::new(|| TimedLruCache::new(100, Duration::from_secs(120)));
+pub static GMAIL_LABELS_CACHE: LazyLock<TimedLruCache<u64, AHashMap<String, String>>> =
+    LazyLock::new(|| TimedLruCache::new(100, Duration::from_secs(3600)));

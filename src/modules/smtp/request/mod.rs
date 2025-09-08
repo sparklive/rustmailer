@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::base64_decode_url_safe;
 use crate::encode_mailbox_name;
 use crate::generate_token;
 use crate::modules::cache::disk::DISK_CACHE;
@@ -14,14 +15,13 @@ use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::envelope::extractor::extract_envelope;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::message::content::retrieve_email_content;
-use crate::modules::message::content::MessageContent;
+use crate::modules::message::content::FullMessageContent;
 use crate::modules::message::content::MessageContentRequest;
 use crate::modules::smtp::template::preview::EmailPreview;
 use crate::modules::tasks::queue::RustMailerTaskQueue;
 use crate::utc_now;
 use crate::validate_email;
 use crate::{
-    base64_decode_safe,
     modules::{
         account::v2::AccountV2,
         error::RustMailerResult,
@@ -174,7 +174,7 @@ impl MailAttachment {
         content: &str,
         mime_type: &str,
     ) -> RustMailerResult<BodyPart<'static>> {
-        let decoded = base64_decode_safe!(content).map_err(|e| {
+        let decoded = base64_decode_url_safe!(content).map_err(|e| {
             raise_error!(
                 format!("Failed to decode base64_content: {}", e),
                 ErrorCode::InternalError
@@ -206,12 +206,15 @@ impl MailAttachment {
         mime_type: &str,
         account: &AccountV2,
     ) -> RustMailerResult<BodyPart<'static>> {
-        let mut reader = retrieve_email_attachment(
+        let (mut reader, _) = retrieve_email_attachment(
             account.id,
             AttachmentRequest {
-                uid: attachment_ref.uid,
-                mailbox: attachment_ref.mailbox_name.clone(),
-                attachment: attachment_ref.attachment_data.clone(),
+                uid: Some(attachment_ref.uid),
+                mailbox: Some(attachment_ref.mailbox_name.clone()),
+                attachment: Some(attachment_ref.attachment_data.clone()),
+                mid: None,
+                attachment_info: None,
+                filename: None,
             },
         )
         .await?;
@@ -602,7 +605,7 @@ impl EmailHandler {
     pub async fn retrieve_message_content(
         account: &AccountV2,
         envelope: &EmailEnvelopeV3,
-    ) -> RustMailerResult<Option<MessageContent>> {
+    ) -> RustMailerResult<Option<FullMessageContent>> {
         let body_meta = match &envelope.body_meta {
             Some(meta) => meta,
             None => return Ok(None),
@@ -614,11 +617,12 @@ impl EmailHandler {
                 .collect::<Vec<_>>()
         });
         let request = MessageContentRequest {
-            mailbox: envelope.mailbox_name.clone(),
-            uid: envelope.uid,
+            mailbox: Some(envelope.mailbox_name.clone()),
+            uid: Some(envelope.uid),
             max_length: None,
-            sections: body_meta.clone(),
+            sections: Some(body_meta.clone()),
             inline: inline_attachments,
+            mid: None,
         };
         retrieve_email_content(account.id, request, false)
             .await

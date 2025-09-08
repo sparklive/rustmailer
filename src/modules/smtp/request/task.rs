@@ -212,9 +212,7 @@ impl Task for SmtpTask {
                         .with_label_values(&[SUCCESS])
                         .inc();
                     RUSTMAILER_EMAIL_SENT_BYTES.inc_by(body.len() as u64);
-                    if EventHookTask::event_watched(self.account_id, EventType::EmailSentSuccess)
-                        .await?
-                    {
+                    if EventHookTask::is_watching_email_sent_success(self.account_id).await? {
                         EVENT_CHANNEL
                             .queue(Event::new(
                                 self.account_id,

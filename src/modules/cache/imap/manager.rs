@@ -139,7 +139,7 @@ impl EnvelopeFlagsManager {
         RUSTMAILER_MAIL_FLAG_CHANGE_TOTAL.inc_by(data.len() as u64);
         for (uid, flags) in data {
             if !account.minimal_sync()
-                && EventHookTask::event_watched(account.id, EventType::EmailFlagsChanged).await?
+                && EventHookTask::is_watching_email_flags_changed(account.id).await?
             {
                 if let Some(current) = EmailEnvelopeV3::find(account.id, mailbox_id, uid).await? {
                     let (added, removed) = Self::diff_envelope_flags(&current.flags, &flags);

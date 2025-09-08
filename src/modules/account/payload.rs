@@ -132,10 +132,19 @@ pub struct AccountUpdateRequest {
     /// - First-time sync optimization for large accounts
     /// - Reducing server load during resyncs
     pub date_since: Option<DateSince>,
-    /// Configuration for selective folder synchronization
+    /// Configuration for selective folder (mailbox/label) synchronization
+    ///
+    /// - For IMAP/SMTP accounts:
+    ///   Stores the mailbox names, since IMAP mailboxes do not have stable IDs.
+    ///   Synchronization is keyed by the folder name.
+    ///
+    /// - For Gmail API accounts:
+    ///   A Gmail label is treated as a mailbox (model mapping).
+    ///   Since label names can be easily changed, the stable `labelId` is recorded here
+    ///   instead of the label name.
     ///
     /// Defaults to standard folders (`INBOX`, `Sent`) if empty.
-    /// Modified folders will be automatically synced on next update.
+    /// Modified folders will be automatically synced on the next update.
     pub sync_folders: Option<Vec<String>>,
     /// Full sync interval (minutes)
     #[oai(validator(minimum(value = "10"), maximum(value = "10080")))]
@@ -173,6 +182,7 @@ impl AccountUpdateRequest {
 pub struct MinimalAccount {
     pub id: u64,
     pub email: String,
+    pub mailer_type: MailerType,
 }
 
 pub fn filter_accessible_accounts<'a>(

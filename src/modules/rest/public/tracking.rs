@@ -64,12 +64,7 @@ pub async fn get_tracking_code(
                             .into_response();
                     }
 
-                    match EventHookTask::event_watched(
-                        payload.account_id,
-                        EventType::EmailLinkClicked,
-                    )
-                    .await
-                    {
+                    match EventHookTask::is_watching_email_link_clicked(payload.account_id).await {
                         Ok(watched) => {
                             if watched {
                                 EVENT_CHANNEL
@@ -106,10 +101,7 @@ pub async fn get_tracking_code(
                 }
                 TrackType::Open => {
                     RUSTMAILER_EMAIL_OPENS_TOTAL.inc();
-
-                    match EventHookTask::event_watched(payload.account_id, EventType::EmailOpened)
-                        .await
-                    {
+                    match EventHookTask::is_watching_email_opened(payload.account_id).await {
                         Ok(watched) => {
                             if watched {
                                 EVENT_CHANNEL

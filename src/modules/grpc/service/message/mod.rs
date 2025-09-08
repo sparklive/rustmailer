@@ -122,7 +122,7 @@ impl MessageService for RustMailerMessageService {
         request: Request<FetchMessageAttachmentRequest>,
     ) -> Result<Response<ByteResponse>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        let mut reader = retrieve_email_attachment(
+        let (mut reader, _) = retrieve_email_attachment(
             req.account_id,
             req.try_into().map_err(|e: &'static str| {
                 raise_error!(e.to_string(), ErrorCode::InvalidParameter)

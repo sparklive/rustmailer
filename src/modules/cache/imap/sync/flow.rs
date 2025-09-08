@@ -38,7 +38,7 @@ use crate::{
             },
             task::EventHookTask,
         },
-        message::content::{retrieve_email_content, MessageContent, MessageContentRequest},
+        message::content::{retrieve_email_content, FullMessageContent, MessageContentRequest},
         metrics::RUSTMAILER_NEW_EMAIL_ARRIVAL_TOTAL,
         settings::cli::SETTINGS,
     },
@@ -322,7 +322,7 @@ pub async fn compare_and_sync_mailbox(
                     The mailbox data may be invalid, resetting its envelopes and rebuilding the cache.",
                     account_id, local_mailbox.name, &local_mailbox.uid_validity, &remote_mailbox.uid_validity
                 );
-                if EventHookTask::event_watched(account_id, EventType::UIDValidityChange).await? {
+                if EventHookTask::is_watching_uid_validity_change(account_id).await? {
                     EVENT_CHANNEL
                         .queue(Event::new(
                             account_id,
@@ -724,8 +724,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
     let len = uid_list.len();
     RUSTMAILER_NEW_EMAIL_ARRIVAL_TOTAL.inc_by(len as u64);
 
-    let is_email_added_watched =
-        EventHookTask::event_watched(account.id, EventType::EmailAddedToFolder).await?;
+    let is_email_added_watched = EventHookTask::is_watching_email_add_event(account.id).await?;
     let is_bounce_watched = EventHookTask::bounce_watched(account.id).await?;
 
     // Early return if no relevant events are being watched
@@ -803,20 +802,22 @@ async fn process_email_added_events(
         let message_content = match envelope.body_meta {
             Some(sections) => {
                 let request = MessageContentRequest {
-                    mailbox: remote.name.clone(),
-                    uid: envelope.uid,
+                    mailbox: Some(remote.name.clone()),
+                    uid: Some(envelope.uid),
                     max_length: Some(SETTINGS.rustmailer_max_email_content_length as usize),
-                    sections,
+                    sections: Some(sections),
                     inline: envelope
                         .attachments
                         .as_ref()
                         .map(|att| att.iter().filter(|a| a.inline).cloned().collect()),
+                    mid: None,
                 };
                 retrieve_email_content(account.id, request, true).await?
             }
-            None => MessageContent {
+            None => FullMessageContent {
                 plain: None,
                 html: None,
+                attachments: None,
             },
         };
         EVENT_CHANNEL
@@ -850,6 +851,8 @@ async fn process_email_added_events(
                             .as_ref()
                             .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
                         thread_id,
+                        mid: None,
+                        labels: vec![],
                     }),
                 ),
             ))
@@ -931,7 +934,7 @@ async fn process_bounce_reports(
         let report = extract_bounce_report(&message);
 
         // Process bounce event
-        if EventHookTask::event_watched(account.id, EventType::EmailBounce).await?
+        if EventHookTask::is_watching_email_bounce(account.id).await?
             && report.delivery_status.is_some()
             && report.original_headers.is_some()
         {
@@ -939,7 +942,7 @@ async fn process_bounce_reports(
         }
 
         // Process feedback report event
-        if EventHookTask::event_watched(account.id, EventType::EmailFeedBackReport).await?
+        if EventHookTask::is_watching_email_feedback_report(account.id).await?
             && report.feedback_report.is_some()
             && report.original_headers.is_some()
         {

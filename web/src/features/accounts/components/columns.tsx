@@ -97,6 +97,16 @@ export const columns: ColumnDef<AccountEntity>[] = [
     enableSorting: false
   },
   {
+    id: 'mailer_type',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title='Type' />
+    ),
+    cell: ({ row }) => row.original.mailer_type,
+    meta: { className: 'w-12' },
+    enableHiding: false,
+    enableSorting: false
+  },
+  {
     accessorKey: "full_sync_interval_min",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Full Sync' />

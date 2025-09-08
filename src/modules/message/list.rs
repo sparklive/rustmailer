@@ -8,7 +8,9 @@ use crate::{
         account::{entity::MailerType, v2::AccountV2},
         cache::{
             imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV3},
-            vendor::gmail::sync::{envelope::GmailEnvelope, labels::GmailLabels},
+            vendor::gmail::sync::{
+                client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
+            },
         },
         context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope,
@@ -108,16 +110,38 @@ async fn fetch_local_messages(
     page_size: u64,
     desc: bool,
 ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
-    match MailBox::get(account.id, mailbox_name).await {
-        Ok(mailbox) => {
+    match account.mailer_type {
+        MailerType::ImapSmtp => {
+            let mailbox = MailBox::get(account.id, mailbox_name).await.map_err(|_| {
+                raise_error!(
+                    "This mailbox might not be included in the synchronized mailbox list of the account. \
+                     To fetch emails from the mailbox, please add the parameter 'remote=true' in the URL."
+                        .into(),
+                    ErrorCode::MailBoxNotCached
+                )
+            })?;
+
             EmailEnvelopeV3::list_messages_in_mailbox(mailbox.id, page, page_size, desc).await
         }
-        Err(_) => Err(raise_error!(
-            "This mailbox might not be included in the synchronized mailbox list of the account. \
-            To fetch emails from the mailbox, please add the parameter 'remote=true' in the URL."
-                .into(),
-            ErrorCode::MailBoxNotCached
-        )),
+
+        MailerType::GmailApi => {
+            let target_label = GmailLabels::get_by_name(account.id, mailbox_name).await?;
+            let envelopes =
+                GmailEnvelope::list_messages_in_label(target_label.id, page, page_size, desc)
+                    .await?;
+            let map = GmailClient::label_map(account.id, account.use_proxy).await?;
+            Ok(DataPage {
+                current_page: envelopes.current_page,
+                page_size: envelopes.page_size,
+                total_items: envelopes.total_items,
+                total_pages: envelopes.total_pages,
+                items: envelopes
+                    .items
+                    .into_iter()
+                    .map(|e| e.into_v3(&map))
+                    .collect(),
+            })
+        }
     }
 }
 
@@ -162,12 +186,8 @@ pub async fn list_threads_in_mailbox(
             EmailThread::list_threads_in_mailbox(mailbox.id, page, page_size, desc).await
         }
         MailerType::GmailApi => {
-            let labels = GmailLabels::list_all(account_id).await?;
-            let label = labels
-                .iter()
-                .find(|l| l.name == mailbox_name)
-                .ok_or_else(not_found_err)?;
-            EmailThread::list_threads_in_label(label.id, page, page_size, desc).await
+            let label = GmailLabels::get_by_name(account_id, mailbox_name).await?;
+            EmailThread::list_threads_in_label(account, label.id, page, page_size, desc).await
         }
     }
 }
@@ -210,13 +230,10 @@ pub async fn get_thread_messages(
             EmailEnvelopeV3::get_thread(account_id, mailbox.id, thread_id).await
         }
         MailerType::GmailApi => {
-            let labels = GmailLabels::list_all(account_id).await?;
-            let label = labels
-                .iter()
-                .find(|l| l.name == mailbox_name)
-                .ok_or_else(not_found_err)?;
+            let label = GmailLabels::get_by_name(account_id, mailbox_name).await?;
             let envelopes = GmailEnvelope::get_thread(account_id, label.id, thread_id).await?;
-            Ok(envelopes.into_iter().map(Into::into).collect())
+            let map = GmailClient::label_map(account_id, account.use_proxy).await?;
+            Ok(envelopes.into_iter().map(|e| e.into_v3(&map)).collect())
         }
     }
 }

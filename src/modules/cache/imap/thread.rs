@@ -11,7 +11,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     modules::{
-        cache::{imap::v2::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
+        account::v2::AccountV2,
+        cache::{
+            imap::v2::EmailEnvelopeV3,
+            vendor::gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
+        },
         database::{
             batch_delete_impl, delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
         },
@@ -174,6 +178,7 @@ impl EmailThread {
     }
 
     pub async fn list_threads_in_label(
+        account: AccountV2,
         label_id: u64,
         page: u64,
         page_size: u64,
@@ -202,8 +207,8 @@ impl EmailThread {
 
         let results: RustMailerResult<Vec<GmailEnvelope>> =
             join_all(fetch_tasks).await.into_iter().collect();
-
-        let envelopes = results?.into_iter().map(|e| e.into()).collect();
+        let map = GmailClient::label_map(account.id, account.use_proxy).await?;
+        let envelopes = results?.into_iter().map(|e| e.into_v3(&map)).collect();
         Ok(DataPage {
             current_page: threads.page,
             page_size: threads.page_size,

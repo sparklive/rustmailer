@@ -6,6 +6,7 @@ use crate::modules::account::entity::MailerType;
 use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
 use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::database::Paginated;
@@ -473,7 +474,9 @@ impl MessageSearchRequest {
         let cache_key = self.cache_key(account.id, page, page_size, desc, &search_query);
 
         // Attempt to retrieve from cache
-        if let Some((uid_pages, total)) = IMAP_SEARCH_CACHE.get(&cache_key).await {
+        if let Some(v) = IMAP_SEARCH_CACHE.get(&cache_key).await {
+            let uid_pages = &v.0;
+            let total = v.1;
             let total_pages = (total as f64 / page_size as f64).ceil() as u64;
 
             if page > total_pages {
@@ -514,7 +517,9 @@ impl MessageSearchRequest {
             .uid_search(&encode_mailbox_name!(self.mailbox), &search_query)
             .await?;
         if uid_sets.is_empty() {
-            IMAP_SEARCH_CACHE.set(cache_key, Arc::new(vec![]), 0).await;
+            IMAP_SEARCH_CACHE
+                .set(cache_key, Arc::new((vec![], 0)))
+                .await;
             return Ok(DataPage::new(
                 Some(page),
                 Some(page_size),
@@ -526,14 +531,10 @@ impl MessageSearchRequest {
 
         let total_items = uid_sets.len() as u64;
         let total_pages = (total_items as f64 / page_size as f64).ceil() as u64;
-        let pages = Arc::new(generate_uid_sequence_hashset(
-            uid_sets,
-            page_size as usize,
-            desc,
-        ));
+        let pages = generate_uid_sequence_hashset(uid_sets, page_size as usize, desc);
         assert_eq!(total_pages, pages.len() as u64);
         IMAP_SEARCH_CACHE
-            .set(cache_key, pages.clone(), total_items)
+            .set(cache_key, Arc::new((pages.clone(), total_items)))
             .await;
 
         if page > total_pages {
@@ -645,6 +646,7 @@ impl UnifiedSearchRequest {
                     )
                 })?,
                 MailerType::GmailApi => {
+                    let label_map = GmailClient::label_map(account_id, account.use_proxy).await?;
                     let envelope = GmailEnvelope::get(id).await?.ok_or_else(|| {
                         raise_error!(
                             format!(
@@ -653,7 +655,7 @@ impl UnifiedSearchRequest {
                             ErrorCode::InternalError
                         )
                     })?;
-                    EmailEnvelopeV3::from(envelope)
+                    envelope.into_v3(&label_map)
                 }
             };
             items.push(envelope);

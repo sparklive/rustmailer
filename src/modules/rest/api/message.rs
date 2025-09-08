@@ -8,7 +8,7 @@ use crate::modules::common::auth::ClientContext;
 use crate::modules::message::append::AppendReplyToDraftRequest;
 use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentRequest};
 use crate::modules::message::content::{
-    retrieve_email_content, MessageContent, MessageContentRequest,
+    retrieve_email_content, FullMessageContent, MessageContentRequest,
 };
 use crate::modules::message::copy::{copy_mailbox_messages, MailboxTransferRequest};
 use crate::modules::message::delete::{
@@ -223,7 +223,7 @@ impl MessageApi {
         /// specifying the mailbox and message to fetch.
         payload: Json<MessageContentRequest>,
         context: ClientContext,
-    ) -> ApiResult<Json<MessageContent>> {
+    ) -> ApiResult<Json<FullMessageContent>> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
         Ok(Json(
@@ -246,10 +246,9 @@ impl MessageApi {
         context: ClientContext,
     ) -> ApiResult<Attachment<Body>> {
         let request = payload.0;
-        let filename = request.attachment.filename.clone();
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        let reader = retrieve_email_attachment(account_id, request).await?;
+        let (reader, filename) = retrieve_email_attachment(account_id, request).await?;
         let body = Body::from_async_read(reader);
         let mut attachment = Attachment::new(body).attachment_type(AttachmentType::Attachment);
         if let Some(filename) = filename {

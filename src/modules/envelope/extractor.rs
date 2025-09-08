@@ -101,7 +101,7 @@ pub fn extract_envelope(
         body_meta: body,
         received: message.received().map(Into::into),
         mid: None,
-        label_ids: vec![],
+        labels: vec![],
     };
 
     Ok(envelope)

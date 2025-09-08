@@ -84,7 +84,7 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
             }
         }
         AccountRunningState::set_initial_sync_completed(account.id).await?;
-        if EventHookTask::event_watched(account.id, EventType::AccountFirstSyncCompleted).await? {
+        if EventHookTask::is_watching_account_first_sync_completed(account.id).await? {
             EVENT_CHANNEL
                 .queue(Event::new(
                     account.id,
@@ -127,6 +127,7 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
             rebuild_single_label_cache(account, label).await?;
         }
     }
+    AccountRunningState::set_incremental_sync_end(account.id).await?;
     Ok(())
 }
 

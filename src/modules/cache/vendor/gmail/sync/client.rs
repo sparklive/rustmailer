@@ -2,12 +2,19 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use std::sync::Arc;
+
+use ahash::AHashMap;
+
 use crate::{
     modules::{
-        cache::vendor::gmail::model::{
-            history::HistoryList,
-            labels::{LabelDetail, LabelList},
-            messages::{MessageList, MessageMeta},
+        cache::vendor::gmail::{
+            cache::GMAIL_LABELS_CACHE,
+            model::{
+                history::HistoryList,
+                labels::{Label, LabelDetail, LabelList},
+                messages::{FullMessage, MessageList, MessageMeta, PartBody},
+            },
         },
         error::{code::ErrorCode, RustMailerResult},
         hook::http::HttpClient,
@@ -43,6 +50,49 @@ impl GmailClient {
                 e
             ), ErrorCode::InternalError))?;
         Ok(list)
+    }
+
+    pub async fn list_visible_labels(
+        account_id: u64,
+        use_proxy: Option<u64>,
+    ) -> RustMailerResult<Vec<Label>> {
+        let all_labels = Self::list_labels(account_id, use_proxy).await?;
+        let visible_labels: Vec<Label> = all_labels
+            .labels
+            .into_iter()
+            .filter(|label| label.message_list_visibility.as_deref() != Some("hide"))
+            .collect();
+        Ok(visible_labels)
+    }
+
+    pub async fn label_map(
+        account_id: u64,
+        use_proxy: Option<u64>,
+    ) -> RustMailerResult<Arc<AHashMap<String, String>>> {
+        if let Some(v) = GMAIL_LABELS_CACHE.get(&account_id).await {
+            return Ok(v.clone());
+        }
+        let visible_labels = Self::list_visible_labels(account_id, use_proxy).await?;
+        let map: Arc<AHashMap<String, String>> = Arc::new(
+            visible_labels
+                .into_iter()
+                .map(|label| (label.id, label.name))
+                .collect(),
+        );
+        GMAIL_LABELS_CACHE.set(account_id, map.clone()).await;
+        Ok(map)
+    }
+
+    pub async fn reverse_label_map(
+        account_id: u64,
+        use_proxy: Option<u64>,
+    ) -> RustMailerResult<AHashMap<String, String>> {
+        let visible_labels = Self::list_visible_labels(account_id, use_proxy).await?;
+        let map = visible_labels
+            .into_iter()
+            .map(|label| (label.name, label.id))
+            .collect();
+        Ok(map)
     }
 
     pub async fn get_label(
@@ -110,7 +160,6 @@ impl GmailClient {
             "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Bcc&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Mime-Version&metadataHeaders=Reply-To&metadataHeaders=In-Reply-To&metadataHeaders=References&metadataHeaders=Sender",
             mid
         );
-
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
         let value = client.get(url.as_str(), &access_token).await?;
@@ -120,6 +169,47 @@ impl GmailClient {
                 e
             ), ErrorCode::InternalError))?;
         Ok(message)
+    }
+
+    pub async fn get_full_messages(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+    ) -> RustMailerResult<FullMessage> {
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}?format=full",
+            mid
+        );
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.get(url.as_str(), &access_token).await?;
+        let message = serde_json::from_value::<FullMessage>(value)
+            .map_err(|e| raise_error!(format!(
+                "Failed to deserialize Gmail API response into FullMessage: {:#?}. Possible model mismatch or API change.",
+                e
+            ), ErrorCode::InternalError))?;
+        Ok(message)
+    }
+
+    pub async fn get_attachments(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+        aid: &str,
+    ) -> RustMailerResult<PartBody> {
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}/attachments/{}",
+            mid, aid
+        );
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.get(url.as_str(), &access_token).await?;
+        let result = serde_json::from_value::<PartBody>(value)
+            .map_err(|e| raise_error!(format!(
+                "Failed to deserialize Gmail API response into PartBody: {:#?}. Possible model mismatch or API change.",
+                e
+            ), ErrorCode::InternalError))?;
+        Ok(result)
     }
 
     pub async fn list_history(
