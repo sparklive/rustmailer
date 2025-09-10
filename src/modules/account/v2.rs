@@ -186,7 +186,10 @@ impl AccountV2 {
 
         if imap_only && !matches!(account.mailer_type, MailerType::ImapSmtp) {
             return Err(raise_error!(
-                format!("Account id='{account_id}' is not IMAP/SMTP compatible"),
+                format!(
+                    "Operation not allowed: account id='{account_id}' is of type '{:?}', but this action requires an IMAP/SMTP account",
+                    account.mailer_type
+                ),
                 ErrorCode::Incompatible
             ));
         }
@@ -246,8 +249,12 @@ impl AccountV2 {
 
         let account = AccountV2::get(account_id).await?;
         let mut map = None;
-        if matches!(account.mailer_type, MailerType::GmailApi) {
-            map = Some(GmailClient::reverse_label_map(account_id, account.use_proxy, true).await?);
+        if let Some(_) = &request.sync_folders {
+            if matches!(account.mailer_type, MailerType::GmailApi) {
+                map = Some(
+                    GmailClient::reverse_label_map(account_id, account.use_proxy, true).await?,
+                );
+            }
         }
         update_impl(
             DB_MANAGER.meta_db(),
