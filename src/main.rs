@@ -45,7 +45,9 @@ async fn main() -> RustMailerResult<()> {
     info!("Starting rustmailer-server");
     info!("Version:  {}", rustmailer_version!());
     info!("Git:      [{}]", env!("GIT_HASH"));
-
+    info!("Project:  https://rustmailer.com");
+    info!("GitHub:   https://github.com/rustmailer/rustmailer");
+    
     if let Err(error) = initialize().await {
         eprintln!("{:?}", error);
         return Err(error);
