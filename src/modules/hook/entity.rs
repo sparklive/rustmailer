@@ -213,7 +213,7 @@ impl EventHooks {
         }
         delete_impl(DB_MANAGER.meta_db(), move |rw| {
             rw.get()
-                .secondary::<EventHooks>(EventHooksKey::account_id, account_id)
+                .secondary::<EventHooks>(EventHooksKey::account_id, Some(account_id))
                 .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                 .ok_or_else(|| {
                     raise_error!(
