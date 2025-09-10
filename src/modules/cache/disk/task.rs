@@ -6,8 +6,7 @@ use crate::modules::{
     cache::disk::DISK_CACHE, context::RustMailTask, scheduler::periodic::PeriodicTask,
 };
 use std::time::Duration;
-
-const TASK_INTERVAL: Duration = Duration::from_secs(3 * 60);
+const TASK_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 ///This task periodically cleans up the disk cache when storage usage exceeds a specified threshold to ensure efficient use of disk space.
 pub struct DiskCacheCleanTask;

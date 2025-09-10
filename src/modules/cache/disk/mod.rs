@@ -5,7 +5,7 @@
 use crate::{
     modules::{
         database::{
-            delete_impl, async_find_impl, list_all_impl, manager::DB_MANAGER, update_impl,
+            async_find_impl, delete_impl, list_all_impl, manager::DB_MANAGER, update_impl,
             upsert_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
@@ -28,7 +28,8 @@ use tracing::{debug, error, info, warn};
 pub mod task;
 
 const DISK_USAGE_THRESHOLD: f64 = 85.0;
-pub const TWO_WEEK_MS: i64 = 2 * 7 * 24 * 60 * 60 * 1000;
+pub const ONE_WEEK_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+const MAX_ITEMS_THRESHOLD: usize = 10000;
 
 pub static DISK_CACHE: LazyLock<DiskCache> = LazyLock::new(DiskCache::init);
 
@@ -159,6 +160,17 @@ impl DiskCache {
     }
 
     pub async fn clean_cache_if_needed(&self) {
+        let cache_items = match CacheItem::list().await {
+            Ok(items) => {
+                let mut items = items;
+                items.sort_by_key(|item| item.last_access_at);
+                items
+            }
+            Err(e) => {
+                error!("Failed to fetch cache items: {}", e);
+                return;
+            }
+        };
         // Early return if we can't get disk space
         let disk_space = match get_mount_disk_space(&self.cache_dir) {
             Some(space) => space,
@@ -176,18 +188,7 @@ impl DiskCache {
             return;
         }
         info!("Disk usage is {}%, initiating cache cleanup", current_usage);
-        // Get and sort cache items in one go
-        let cache_items = match CacheItem::list().await {
-            Ok(items) => {
-                let mut items = items;
-                items.sort_unstable_by_key(|item| item.last_access_at);
-                items
-            }
-            Err(e) => {
-                error!("Failed to fetch cache items: {}", e);
-                return;
-            }
-        };
+
         // Convert cache_dir to str once and handle early return
         let cache_dir_str = match self.cache_dir.to_str() {
             Some(dir) => dir,
@@ -232,17 +233,18 @@ fn select_items_to_delete(cache_items: &[CacheItem], disk_space: &DiskSpace) -> 
     let now = utc_now!();
     let mut to_delete = Vec::with_capacity(16);
     let mut freed_space = 0;
-
+    let total_items = cache_items.len();
     for item in cache_items {
-        if item.pending && now < item.write_at + TWO_WEEK_MS {
+        if item.pending && now < item.write_at + ONE_WEEK_MS {
             continue;
         }
 
         freed_space += item.size;
         to_delete.push(item.clone());
-
+        let remaining_items = total_items.saturating_sub(to_delete.len());
         let used_space = disk_space.total_space - (disk_space.available_space + freed_space);
-        if (used_space as f64 / disk_space.total_space as f64) * 100.0 < DISK_USAGE_THRESHOLD {
+        let usage_percentage = (used_space as f64 / disk_space.total_space as f64) * 100.0;
+        if usage_percentage < DISK_USAGE_THRESHOLD && remaining_items <= MAX_ITEMS_THRESHOLD {
             break;
         }
     }
@@ -295,4 +297,44 @@ pub fn get_mount_disk_space(file_path: &Path) -> Option<DiskSpace> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sort_by_last_access_at() {
+        let mut items = vec![
+            CacheItem {
+                key: "a".to_string(),
+                size: 10,
+                pending: false,
+                write_at: 100,
+                last_access_at: 300,
+            },
+            CacheItem {
+                key: "b".to_string(),
+                size: 20,
+                pending: false,
+                write_at: 200,
+                last_access_at: 100,
+            },
+            CacheItem {
+                key: "c".to_string(),
+                size: 30,
+                pending: true,
+                write_at: 300,
+                last_access_at: 200,
+            },
+        ];
+
+        items.sort_by_key(|item| item.last_access_at);
+
+        let keys: Vec<&str> = items.iter().map(|i| i.key.as_str()).collect();
+        assert_eq!(keys, vec!["b", "c", "a"]); // 100 -> 200 -> 300
+
+        items = items.drain(1..).collect();
+        println!("{:#?}", items);
+    }
 }
