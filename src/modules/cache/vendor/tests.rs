@@ -20,7 +20,7 @@ use crate::{
             vendor::gmail::{
                 model::{
                     history::HistoryList,
-                    messages::{FullMessage, MessageList, MessageMeta, PartBody},
+                    messages::{MessageList, MessageMeta, PartBody},
                 },
                 sync::envelope::GmailEnvelope,
             },
@@ -28,7 +28,6 @@ use crate::{
         common::{rustls::RustMailerTls, Addr},
         context::Initialize,
         grpc::service::rustmailer_grpc::{GetOAuth2TokensRequest, OAuth2ServiceClient},
-        message::content::FullMessageContent,
     },
     rustmailer_version,
 };

@@ -36,7 +36,7 @@ pub async fn fetch_and_save_since_date(
     // Each page returns message IDs, and we still need to fetch message details individually.
     let mut page_token: Option<String> = None;
     let mut page = 1; // Used only for tracking sync progress
-    let semaphore = Arc::new(Semaphore::new(10));
+    let semaphore = Arc::new(Semaphore::new(5));
     let mut history_ids = Vec::new();
     loop {
         let resp = GmailClient::list_messages(
@@ -163,7 +163,7 @@ pub async fn fetch_and_save_full_label(
         .await?;
         // Update page_token returned by Gmail API
         page_token = resp.next_page_token;
-        // Concurrently fetch message details for this page, with concurrency limited to 10
+        // Concurrently fetch message details for this page, with concurrency limited to 5
         if let Some(messages) = resp.messages {
             let mut batch_messages = Vec::with_capacity(ENVELOPE_BATCH_SIZE as usize);
             if initial {

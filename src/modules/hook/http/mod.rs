@@ -35,7 +35,7 @@ impl HttpClient {
     fn base_builder() -> reqwest::ClientBuilder {
         reqwest::ClientBuilder::new()
             .user_agent(rustmailer_version!())
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(10))
     }
 
@@ -113,60 +113,87 @@ impl HttpClient {
 
     /// Wrapper around the Gmail API `GET` request to fetch data.
     pub async fn get(&self, url: &str, access_token: &str) -> RustMailerResult<serde_json::Value> {
-        let res = self
-            .client
-            .get(url)
-            .header(AUTHORIZATION, format!("Bearer {}", access_token))
-            .header(CONTENT_TYPE, "application/json")
-            .send()
-            .await
-            .map_err(|e| {
-                raise_error!(
-                    format!("Request failed: {:#?}", e),
-                    ErrorCode::InternalError
-                )
-            })?;
+        let mut attempt = 0;
+        let max_attempts = 3;
+        let mut delay_ms = 500;
 
-        if res.status().is_success() {
-            let json: serde_json::Value = res.json().await.map_err(|e| {
-                raise_error!(
-                    format!("Failed to parse response: {:#?}", e),
-                    ErrorCode::InternalError
-                )
-            })?;
-            Ok(json)
-        } else {
-            let status = res.status();
-            let text = res.text().await.map_err(|e| {
-                raise_error!(
-                    format!("Failed to read error response: {:#?}", e),
-                    ErrorCode::InternalError
-                )
-            })?;
-            if matches!(status, StatusCode::NOT_FOUND) || matches!(status, StatusCode::BAD_REQUEST)
-            {
-                error!(
-                    status = ?status,
-                    url = %url,
-                    response = %text,
-                    "Gmail API client error"
-                );
-                return Err(raise_error!(
-                    format!(
-                        "Gmail API returned client error (status {}) for {}. Response: {}",
-                        status, url, text
-                    ),
-                    ErrorCode::GmailApiInvalidHistoryId
-                ));
+        loop {
+            attempt += 1;
+            let res_result = self
+                .client
+                .get(url)
+                .header(AUTHORIZATION, format!("Bearer {}", access_token))
+                .header(CONTENT_TYPE, "application/json")
+                .send()
+                .await;
+
+            match res_result {
+                Ok(res) => {
+                    if res.status().is_success() {
+                        let json: serde_json::Value = res.json().await.map_err(|e| {
+                            raise_error!(
+                                format!("Failed to parse response: {:#?}", e),
+                                ErrorCode::InternalError
+                            )
+                        })?;
+                        return Ok(json);
+                    } else {
+                        let status = res.status();
+                        let text = res.text().await.map_err(|e| {
+                            raise_error!(
+                                format!("Failed to read error response: {:#?}", e),
+                                ErrorCode::InternalError
+                            )
+                        })?;
+
+                        if matches!(status, StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST) {
+                            error!(
+                                status = ?status,
+                                url = %url,
+                                response = %text,
+                                "Gmail API client error"
+                            );
+                            return Err(raise_error!(
+                                format!(
+                                "Gmail API returned client error (status {}) for {}. Response: {}",
+                                status, url, text
+                            ),
+                                ErrorCode::GmailApiInvalidHistoryId
+                            ));
+                        }
+
+                        return Err(raise_error!(
+                            format!(
+                                "Gmail API call to {} failed with status {}: {}",
+                                url, status, text
+                            ),
+                            ErrorCode::GmailApiCallFailed
+                        ));
+                    }
+                }
+                Err(e) => {
+                    if e.is_timeout() || e.is_connect() {
+                        if attempt < max_attempts {
+                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                            delay_ms *= 2;
+                            continue;
+                        } else {
+                            return Err(raise_error!(
+                                format!(
+                                    "Request to {} failed after {} attempts: {:#?}",
+                                    url, attempt, e
+                                ),
+                                ErrorCode::GmailApiCallFailed
+                            ));
+                        }
+                    } else {
+                        return Err(raise_error!(
+                            format!("Request to {} failed: {:#?}", url, e),
+                            ErrorCode::InternalError
+                        ));
+                    }
+                }
             }
-            // Return the error with status and response text for more context
-            Err(raise_error!(
-                format!(
-                    "Gmail API call to {} failed with status {}: {}",
-                    url, status, text
-                ),
-                ErrorCode::GmailApiCallFailed
-            ))
         }
     }
 
