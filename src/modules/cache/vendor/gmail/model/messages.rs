@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use chrono::DateTime;
+use mail_parser::MessageParser;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -65,6 +65,26 @@ pub struct Header {
     pub value: String,
 }
 
+fn parser_date(date: &str) -> RustMailerResult<i64> {
+    let input = format!("Date: {date}");
+    let headers = MessageParser::default()
+        .parse_headers(&input)
+        .ok_or_else(|| {
+            raise_error!(
+                format!("Failed to parse headers from input: {:?}", input),
+                ErrorCode::InternalError
+            )
+        })?;
+    let date = headers.date().ok_or_else(|| {
+        raise_error!(
+            format!("Date field not found or invalid in header: {:?}", input),
+            ErrorCode::InternalError
+        )
+    })?;
+
+    Ok(date.to_timestamp() * 1000)
+}
+
 impl TryFrom<MessageMeta> for GmailEnvelope {
     type Error = RustMailerError;
 
@@ -104,13 +124,7 @@ impl TryFrom<MessageMeta> for GmailEnvelope {
         for header in payload.headers {
             match header.name.as_str() {
                 "Date" => {
-                    let dt = DateTime::parse_from_rfc2822(&header.value).map_err(|e| {
-                        raise_error!(
-                            format!("Failed to parse Date: {}", e),
-                            ErrorCode::InternalError
-                        )
-                    })?;
-                    envelope.date = Some(dt.timestamp_millis());
+                    envelope.date = Some(parser_date(&header.value)?);
                 }
                 "From" => envelope.from = Some(Addr::parse(&header.value)),
                 "Sender" => envelope.sender = Some(Addr::parse(&header.value)),
