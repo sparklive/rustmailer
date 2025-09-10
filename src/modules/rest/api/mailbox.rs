@@ -4,10 +4,10 @@
 
 use crate::modules::cache::imap::mailbox::MailBox;
 use crate::modules::common::auth::ClientContext;
-use crate::modules::mailbox::create::create_mailbox;
+use crate::modules::mailbox::create::{create_mailbox, CreateMailboxRequest};
 use crate::modules::mailbox::delete::delete_mailbox;
 use crate::modules::mailbox::list::{get_account_mailboxes, list_subscribed_mailboxes};
-use crate::modules::mailbox::rename::{rename_mailbox, MailboxRenameRequest};
+use crate::modules::mailbox::rename::{update_mailbox, MailboxUpdateRequest};
 use crate::modules::mailbox::subscribe::{subscribe_mailbox, unsubscribe_mailbox};
 use crate::modules::rest::api::ApiTags;
 use crate::modules::rest::ApiResult;
@@ -136,12 +136,12 @@ impl MailBoxApi {
         /// The unique identifier of the account.
         account_id: Path<u64>,
         /// The name of the mailbox to create.
-        mailbox_name: PlainText<String>,
+        request: Json<CreateMailboxRequest>,
         context: ClientContext,
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(create_mailbox(account_id, &mailbox_name).await?)
+        Ok(create_mailbox(account_id, &request.0).await?)
     }
 
     /// Deletes an existing mailbox from the specified account.
@@ -160,25 +160,25 @@ impl MailBoxApi {
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(delete_mailbox(account_id, &mailbox_name).await?)
+        Ok(delete_mailbox(account_id, &mailbox_name.0.trim()).await?)
     }
 
     /// Renames an existing mailbox under the specified account.
     #[oai(
-        path = "/rename-mailbox/:account_id",
+        path = "/update-mailbox/:account_id",
         method = "post",
-        operation_id = "rename_mailbox"
+        operation_id = "update_mailbox"
     )]
-    async fn rename_mailbox(
+    async fn update_mailbox(
         &self,
         /// The unique identifier of the account.
         account_id: Path<u64>,
         /// The rename payload including old and new mailbox names.
-        payload: Json<MailboxRenameRequest>,
+        payload: Json<MailboxUpdateRequest>,
         context: ClientContext,
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(rename_mailbox(account_id, payload.0).await?)
+        Ok(update_mailbox(account_id, payload.0).await?)
     }
 }

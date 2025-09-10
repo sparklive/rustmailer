@@ -70,6 +70,7 @@ async fn test1() {
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=SENT&maxResults=20";
     let url =
         "https://gmail.googleapis.com/gmail/v1/users/me/messages/1987883d362411ec?format=full";
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
     let mut builder = reqwest::ClientBuilder::new()
         .user_agent(rustmailer_version!())
         .timeout(Duration::from_secs(10))
@@ -91,10 +92,7 @@ async fn test1() {
     if res.status().is_success() {
         let body: Value = res.json().await.unwrap();
         let pretty = serde_json::to_string_pretty(&body).unwrap();
-        let full_message: FullMessage = serde_json::from_value(body).unwrap();
-        let content = FullMessageContent::try_from(full_message).unwrap();
-        //println!("Response = {}", pretty);
-        println!("Response = {:#?}", content);
+        println!("Response = {}", pretty);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
     }
@@ -314,6 +312,82 @@ async fn test6() {
         let body: Value = res.json().await.unwrap();
         let json = serde_json::to_string_pretty(&body).unwrap();
         println!("Response = {}", json);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test7() {
+    let access_token = access_token().await;
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+
+    let body = json!({
+          "name": "test_label_name1",
+          "messageListVisibility": "show",
+          "labelListVisibility": "labelShow",
+          "type": "user",
+          "color": {
+            "textColor": "#e66550",
+            "backgroundColor": "#fcdee8"
+          }
+    });
+
+    let res = client
+        .post(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let json = serde_json::to_string_pretty(&body).unwrap();
+        println!("Response = {}", json);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test8() {
+    let access_token = access_token().await;
+    let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_4";
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+
+    let res = client
+        .delete(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        // let body: Value = res.json().await.unwrap();
+        // let json = serde_json::to_string_pretty(&body).unwrap();
+        // println!("Response = {}", json);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
     }

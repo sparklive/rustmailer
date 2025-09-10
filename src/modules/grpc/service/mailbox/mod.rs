@@ -5,14 +5,14 @@
 use crate::modules::grpc::auth::require_account_access;
 use crate::modules::grpc::service::rustmailer_grpc::{
     CreateMailboxRequest, DeleteMailboxRequest, Empty, ListMailboxesRequest, ListMailboxesResponse,
-    ListSubscribedRequest, MailboxService, RenameMailboxRequest, SubscribeRequest,
+    ListSubscribedRequest, MailboxService, MailboxUpdateRequest, SubscribeRequest,
     UnsubscribeRequest,
 };
 use crate::modules::mailbox::{
     create::create_mailbox,
     delete::delete_mailbox,
     list::{get_account_mailboxes, list_subscribed_mailboxes},
-    rename::rename_mailbox,
+    rename::update_mailbox,
     subscribe::{subscribe_mailbox, unsubscribe_mailbox},
 };
 use poem_grpc::{Request, Response, Status};
@@ -68,7 +68,7 @@ impl MailboxService for RustMailerMailboxService {
         request: Request<CreateMailboxRequest>,
     ) -> Result<Response<Empty>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        create_mailbox(req.account_id, &req.mailbox_name).await?;
+        create_mailbox(req.account_id, &req.into()).await?;
         Ok(Response::new(Empty::default()))
     }
 
@@ -81,12 +81,12 @@ impl MailboxService for RustMailerMailboxService {
         Ok(Response::new(Empty::default()))
     }
 
-    async fn rename_mailbox(
+    async fn update_mailbox(
         &self,
-        request: Request<RenameMailboxRequest>,
+        request: Request<MailboxUpdateRequest>,
     ) -> Result<Response<Empty>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        rename_mailbox(req.account_id, req.into()).await?;
+        update_mailbox(req.account_id, req.into()).await?;
         Ok(Response::new(Empty::default()))
     }
 }

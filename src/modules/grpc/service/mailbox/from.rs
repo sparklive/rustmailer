@@ -6,7 +6,8 @@ use crate::modules::cache::imap::mailbox::{
     Attribute, AttributeEnum, EmailFlag, EnvelopeFlag, MailBox,
 };
 use crate::modules::grpc::service::rustmailer_grpc;
-use crate::modules::mailbox::rename::MailboxRenameRequest;
+use crate::modules::mailbox::create::{CreateMailboxRequest, LabelColor};
+use crate::modules::mailbox::rename::MailboxUpdateRequest;
 
 impl From<MailBox> for rustmailer_grpc::MailBox {
     fn from(value: MailBox) -> Self {
@@ -80,11 +81,30 @@ impl From<EnvelopeFlag> for rustmailer_grpc::EnvelopeFlag {
     }
 }
 
-impl From<rustmailer_grpc::RenameMailboxRequest> for MailboxRenameRequest {
-    fn from(value: rustmailer_grpc::RenameMailboxRequest) -> Self {
+impl From<rustmailer_grpc::MailboxUpdateRequest> for MailboxUpdateRequest {
+    fn from(value: rustmailer_grpc::MailboxUpdateRequest) -> Self {
         Self {
             current_name: value.current_name,
             new_name: value.new_name,
+            label_color: value.label_color.map(|c| c.into()),
+        }
+    }
+}
+
+impl From<rustmailer_grpc::CreateMailboxRequest> for CreateMailboxRequest {
+    fn from(value: rustmailer_grpc::CreateMailboxRequest) -> Self {
+        Self {
+            mailbox_name: value.mailbox_name,
+            label_color: value.label_color.map(|c| c.into()),
+        }
+    }
+}
+
+impl From<rustmailer_grpc::LabelColor> for LabelColor {
+    fn from(value: rustmailer_grpc::LabelColor) -> Self {
+        Self {
+            text_color: value.text_color,
+            background_color: value.background_color,
         }
     }
 }

@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use ahash::AHashMap;
+use serde_json::json;
 
 use crate::{
     modules::{
@@ -18,6 +19,7 @@ use crate::{
         },
         error::{code::ErrorCode, RustMailerResult},
         hook::http::HttpClient,
+        mailbox::{create::CreateMailboxRequest, rename::MailboxUpdateRequest},
         oauth2::token::OAuth2AccessToken,
     },
     raise_error,
@@ -86,12 +88,25 @@ impl GmailClient {
     pub async fn reverse_label_map(
         account_id: u64,
         use_proxy: Option<u64>,
+        skip_cache: bool,
     ) -> RustMailerResult<AHashMap<String, String>> {
+        if !skip_cache {
+            if let Some(v) = GMAIL_LABELS_CACHE.get(&account_id).await {
+                let map: AHashMap<String, String> =
+                    v.iter().map(|(k, v)| (v.clone(), k.clone())).collect();
+                return Ok(map);
+            }
+        }
         let visible_labels = Self::list_visible_labels(account_id, use_proxy).await?;
-        let map = visible_labels
-            .into_iter()
-            .map(|label| (label.name, label.id))
-            .collect();
+        let map: Arc<AHashMap<String, String>> = Arc::new(
+            visible_labels
+                .into_iter()
+                .map(|label| (label.id, label.name))
+                .collect(),
+        );
+        GMAIL_LABELS_CACHE.set(account_id, map.clone()).await;
+        let map: AHashMap<String, String> =
+            map.iter().map(|(k, v)| (v.clone(), k.clone())).collect();
         Ok(map)
     }
 
@@ -113,6 +128,77 @@ impl GmailClient {
                 e
             ), ErrorCode::InternalError))?;
         Ok(detail)
+    }
+
+    pub async fn create_label(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        request: &CreateMailboxRequest,
+    ) -> RustMailerResult<()> {
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+        let client = HttpClient::new(use_proxy).await?;
+
+        let mut body = json!({
+            "name": request.mailbox_name,
+            "messageListVisibility": "show",
+            "labelListVisibility": "labelShow",
+            "type": "user"
+        });
+        if let Some(color) = &request.label_color {
+            body["color"] = json!({
+                "textColor": color.text_color,
+                "backgroundColor": color.background_color
+            });
+        }
+        let access_token = Self::get_access_token(account_id).await?;
+        client.post(url, &access_token, &body).await?;
+        Ok(())
+    }
+
+    pub async fn delete_label(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        label_id: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/labels/{}",
+            label_id
+        );
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        client.delete(url.as_str(), &access_token).await?;
+        Ok(())
+    }
+
+    pub async fn update_label(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        label_id: &str,
+        request: &MailboxUpdateRequest,
+    ) -> RustMailerResult<()> {
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/labels/{}",
+            label_id
+        );
+
+        let mut body = json!({
+            "id": label_id,
+            "name": request.new_name,
+            "messageListVisibility": "show",
+            "labelListVisibility": "labelShow",
+            "type": "user"
+        });
+        if let Some(color) = &request.label_color {
+            body["color"] = json!({
+                "textColor": color.text_color,
+                "backgroundColor": color.background_color
+            });
+        }
+
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        client.put(url.as_str(), &access_token, &body).await?;
+        Ok(())
     }
 
     pub async fn list_messages(
