@@ -245,10 +245,9 @@ impl AccountV2 {
         }
 
         let account = AccountV2::get(account_id).await?;
-
         let mut map = None;
         if matches!(account.mailer_type, MailerType::GmailApi) {
-            map = Some(GmailClient::reverse_label_map(account_id, account.use_proxy).await?);
+            map = Some(GmailClient::reverse_label_map(account_id, account.use_proxy, true).await?);
         }
         update_impl(
             DB_MANAGER.meta_db(),
@@ -453,13 +452,16 @@ impl AccountV2 {
         }
 
         if let Some(folder_names) = request.sync_folders {
-            let label_map =
-                label_map.ok_or_else(|| raise_error!("".into(), ErrorCode::InternalError))?;
-            let folder_ids: Vec<String> = folder_names
-                .into_iter()
-                .filter_map(|name| label_map.get(&name).cloned())
-                .collect();
-            new.sync_folders = folder_ids;
+            match label_map {
+                Some(label_map) => {
+                    let folder_ids: Vec<String> = folder_names
+                        .into_iter()
+                        .filter_map(|name| label_map.get(&name).cloned())
+                        .collect();
+                    new.sync_folders = folder_ids;
+                }
+                None => new.sync_folders = folder_names,
+            }
         }
 
         if let Some(use_proxy) = request.use_proxy {
