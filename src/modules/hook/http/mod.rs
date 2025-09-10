@@ -114,7 +114,7 @@ impl HttpClient {
     /// Wrapper around the Gmail API `GET` request to fetch data.
     pub async fn get(&self, url: &str, access_token: &str) -> RustMailerResult<serde_json::Value> {
         let mut attempt = 0;
-        let max_attempts = 3;
+        let max_attempts = 4;
         let mut delay_ms = 500;
 
         loop {
@@ -139,12 +139,7 @@ impl HttpClient {
                         return Ok(json);
                     } else {
                         let status = res.status();
-                        let text = res.text().await.map_err(|e| {
-                            raise_error!(
-                                format!("Failed to read error response: {:#?}", e),
-                                ErrorCode::InternalError
-                            )
-                        })?;
+                        let text = res.text().await.unwrap_or_default();
 
                         if matches!(status, StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST) {
                             error!(
@@ -153,6 +148,22 @@ impl HttpClient {
                                 response = %text,
                                 "Gmail API client error"
                             );
+
+                            if matches!(status, StatusCode::BAD_REQUEST) {
+                                let is_failed_precondition = text.contains("failedPrecondition")
+                                    || text.contains("FAILED_PRECONDITION");
+                                if is_failed_precondition && attempt < max_attempts {
+                                    tracing::warn!(
+                                        "Gmail API call to {} returned FAILED_PRECONDITION on attempt {}. Retrying after {}ms...",
+                                        url, attempt, delay_ms
+                                    );
+                                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms))
+                                        .await;
+                                    delay_ms *= 2;
+                                    continue;
+                                }
+                            }
+
                             return Err(raise_error!(
                                 format!(
                                 "Gmail API returned client error (status {}) for {}. Response: {}",
@@ -160,6 +171,16 @@ impl HttpClient {
                             ),
                                 ErrorCode::GmailApiInvalidHistoryId
                             ));
+                        }
+
+                        if attempt < max_attempts && status.is_server_error() {
+                            tracing::warn!(
+                                "Gmail API call to {} returned server error {} on attempt {}. Retrying after {}ms...",
+                                url, status, attempt, delay_ms
+                            );
+                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                            delay_ms *= 2;
+                            continue;
                         }
 
                         return Err(raise_error!(
@@ -172,24 +193,24 @@ impl HttpClient {
                     }
                 }
                 Err(e) => {
-                    if e.is_timeout() || e.is_connect() {
-                        if attempt < max_attempts {
-                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-                            delay_ms *= 2;
-                            continue;
-                        } else {
-                            return Err(raise_error!(
-                                format!(
-                                    "Request to {} failed after {} attempts: {:#?}",
-                                    url, attempt, e
-                                ),
-                                ErrorCode::GmailApiCallFailed
-                            ));
-                        }
+                    if attempt < max_attempts {
+                        tracing::warn!(
+                            "Request to {} failed on attempt {}: {:#?}, retrying after {}ms",
+                            url,
+                            attempt,
+                            e,
+                            delay_ms
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        delay_ms *= 2;
+                        continue;
                     } else {
                         return Err(raise_error!(
-                            format!("Request to {} failed: {:#?}", url, e),
-                            ErrorCode::InternalError
+                            format!(
+                                "Request to {} failed after {} attempts: {:#?}",
+                                url, attempt, e
+                            ),
+                            ErrorCode::GmailApiCallFailed
                         ));
                     }
                 }
