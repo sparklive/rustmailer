@@ -57,11 +57,7 @@ pub async fn request_imap_all_mailbox_list(account_id: u64) -> RustMailerResult<
 
 pub async fn request_gmail_label_list(account: &AccountV2) -> RustMailerResult<Vec<MailBox>> {
     let all_labels = GmailClient::list_labels(account.id, account.use_proxy).await?;
-    let visible_labels: Vec<Label> = all_labels
-        .labels
-        .into_iter()
-        .filter(|label| label.message_list_visibility.as_deref() != Some("hide"))
-        .collect();
+    let visible_labels: Vec<Label> = all_labels.labels;
 
     let mut tasks = Vec::new();
 

@@ -59,11 +59,7 @@ impl GmailClient {
         use_proxy: Option<u64>,
     ) -> RustMailerResult<Vec<Label>> {
         let all_labels = Self::list_labels(account_id, use_proxy).await?;
-        let visible_labels: Vec<Label> = all_labels
-            .labels
-            .into_iter()
-            .filter(|label| label.message_list_visibility.as_deref() != Some("hide"))
-            .collect();
+        let visible_labels: Vec<Label> = all_labels.labels;
         Ok(visible_labels)
     }
 
