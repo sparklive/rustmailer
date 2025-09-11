@@ -237,7 +237,7 @@ impl DateSince {
             )
         })?;
 
-        Ok(date.format("/%Y/%m/%d").to_string())
+        Ok(date.format("%Y/%m/%d").to_string())
     }
 
     pub fn since_date(&self) -> RustMailerResult<String> {
