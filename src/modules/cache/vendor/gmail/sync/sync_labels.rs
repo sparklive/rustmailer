@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{
     modules::{
@@ -20,6 +20,12 @@ use crate::{
 
 pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelDetail>> {
     let visible_labels = GmailClient::list_visible_labels(account.id, account.use_proxy).await?;
+    debug!(
+        "Account {}: Retrieved {} visible labels from Gmail API: {:?}",
+        account.id,
+        visible_labels.len(),
+        visible_labels.iter().map(|l| &l.name).collect::<Vec<_>>()
+    );
     // Exclude all labels that cannot retrieve messages via the message list,
     // since we use the message API to fetch message details.
     if visible_labels.is_empty() {
@@ -49,6 +55,10 @@ pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelD
 
     //sync_folders stores the mailbox names for IMAP accounts, whereas for Gmail API accounts it stores the label IDs.
     let subscribed = &account.sync_folders;
+    debug!(
+        "Account {}: Current subscribed sync folders: {:?}",
+        account.id, subscribed
+    );
     // Filter labels according to the subscription list; matched_labels will not include any labels outside of it.
     let mut matched_labels: Vec<&Label> = if !subscribed.is_empty() {
         visible_labels
@@ -58,6 +68,11 @@ pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelD
     } else {
         Vec::new()
     };
+    debug!(
+        "Account {}: Matched labels after subscription filter: {:?}",
+        account.id,
+        matched_labels.iter().map(|l| &l.name).collect::<Vec<_>>()
+    );
     // If there are no subscriptions, default to the two special labels: INBOX and SENT
     if matched_labels.is_empty() {
         matched_labels = visible_labels
@@ -65,6 +80,11 @@ pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelD
             .filter(|label| label.id == "INBOX" || label.id == "SENT")
             .collect();
 
+        debug!(
+            "Account {}: Matched labels after default INBOX/SENT filter: {:?}",
+            account.id,
+            matched_labels.iter().map(|l| &l.name).collect::<Vec<_>>()
+        );
         if !matched_labels.is_empty() {
             let sync_folders: Vec<String> = matched_labels.iter().map(|n| n.id.clone()).collect();
             AccountV2::update_sync_folders(account.id, sync_folders).await?;
