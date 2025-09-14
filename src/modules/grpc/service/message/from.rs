@@ -39,8 +39,9 @@ impl From<rustmailer_grpc::MailboxTransferRequest> for MailboxTransferRequest {
 impl From<rustmailer_grpc::MessageDeleteRequest> for MessageDeleteRequest {
     fn from(value: rustmailer_grpc::MessageDeleteRequest) -> Self {
         Self {
-            uids: value.uids,
+            uids: Some(value.uids).filter(|v| !v.is_empty()),
             mailbox: value.mailbox_name,
+            mids: Some(value.mids).filter(|v| !v.is_empty()),
         }
     }
 }

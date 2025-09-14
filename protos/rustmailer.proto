@@ -578,10 +578,15 @@ message MailboxTransferRequest {
 message MessageDeleteRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // A list of unique identifiers (UIDs) of the messages to delete.
+  /// A list of unique identifiers (UIDs) of the messages to be deleted (IMAP only).
   repeated uint32 uids = 2;
-  // The name of the mailbox from which to delete messages.
-  string mailbox_name = 3;
+  /// A list of Gmail message IDs of the messages to be deleted (Gmail API only).
+  repeated string mids = 3;
+  /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").  (IMAP only)
+  /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
+  /// so no manual decoding is required.
+  /// In Gmail API, this field is not required and can be set to `None`.
+  optional string mailbox_name = 4;
 }
 
 // FlagMessageRequest is used to update flags on messages within a mailbox.

@@ -20,7 +20,7 @@ use crate::modules::message::append::AppendReplyToDraftRequest as RustMailerAppe
 use crate::modules::message::attachment::retrieve_email_attachment;
 use crate::modules::message::content::retrieve_email_content;
 use crate::modules::message::copy::copy_mailbox_messages;
-use crate::modules::message::delete::move_to_trash_or_delete_messages_directly;
+use crate::modules::message::delete::move_to_trash;
 use crate::modules::message::flag::modify_flags;
 use crate::modules::message::flag::FlagMessageRequest as RustMailerFlagMessageRequest;
 use crate::modules::message::full::retrieve_full_email;
@@ -63,7 +63,7 @@ impl MessageService for RustMailerMessageService {
         request: Request<MessageDeleteRequest>,
     ) -> Result<Response<Empty>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        move_to_trash_or_delete_messages_directly(req.account_id, &req.into()).await?;
+        move_to_trash(req.account_id, &req.into()).await?;
         Ok(Response::new(Empty::default()))
     }
 

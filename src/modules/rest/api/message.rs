@@ -11,9 +11,7 @@ use crate::modules::message::content::{
     retrieve_email_content, FullMessageContent, MessageContentRequest,
 };
 use crate::modules::message::copy::{copy_mailbox_messages, MailboxTransferRequest};
-use crate::modules::message::delete::{
-    move_to_trash_or_delete_messages_directly, MessageDeleteRequest,
-};
+use crate::modules::message::delete::{move_to_trash, MessageDeleteRequest};
 use crate::modules::message::flag::{modify_flags, FlagMessageRequest};
 use crate::modules::message::full::retrieve_full_email;
 use crate::modules::message::list::{
@@ -88,7 +86,7 @@ impl MessageApi {
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(move_to_trash_or_delete_messages_directly(account_id, &payload.0).await?)
+        Ok(move_to_trash(account_id, &payload.0).await?)
     }
 
     /// Updates flags on messages in a mailbox for the specified account.

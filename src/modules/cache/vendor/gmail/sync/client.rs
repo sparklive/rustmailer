@@ -147,7 +147,7 @@ impl GmailClient {
             });
         }
         let access_token = Self::get_access_token(account_id).await?;
-        client.post(url, &access_token, &body).await?;
+        client.post(url, &access_token, Some(&body)).await?;
         Ok(())
     }
 
@@ -253,6 +253,23 @@ impl GmailClient {
         Ok(message)
     }
 
+    pub async fn move_to_trash(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}/trash",
+            mid
+        );
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        client
+            .post(url.as_str(), &access_token, None::<&()>)
+            .await?;
+        Ok(())
+    }
+
     pub async fn get_full_messages(
         account_id: u64,
         use_proxy: Option<u64>,
@@ -330,7 +347,7 @@ impl GmailClient {
         let url = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
-        let value = client.post(url, &access_token, &body).await?;
+        let value = client.post(url, &access_token, Some(&body)).await?;
         Ok(value)
     }
 }

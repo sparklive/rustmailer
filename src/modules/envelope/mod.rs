@@ -9,7 +9,7 @@ use ahash::AHashSet;
 pub mod detect;
 pub mod extractor;
 
-pub(crate) fn generate_uid_set(uids: Vec<u32>) -> String {
+pub fn generate_uid_set(uids: Vec<u32>) -> String {
     // Insert elements into HashSet to remove duplicates
     let unique_uids: AHashSet<_> = uids.into_iter().collect();
 

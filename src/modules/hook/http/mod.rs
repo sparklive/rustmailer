@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use dashmap::DashMap;
-use http::header::{AUTHORIZATION, CONTENT_TYPE};
+use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
 use http::StatusCode;
 use serde::Serialize;
 use tracing::error;
@@ -219,26 +219,29 @@ impl HttpClient {
     }
 
     /// Wrapper around the Gmail API `POST` request.
-    pub async fn post<T: Serialize + ?Sized>(
+    pub async fn post(
         &self,
         url: &str,
         access_token: &str,
-        body: &T,
+        body: Option<&impl Serialize>,
     ) -> RustMailerResult<serde_json::Value> {
-        let res = self
+        let mut builder = self
             .client
             .post(url)
             .header(AUTHORIZATION, format!("Bearer {}", access_token))
-            .header(CONTENT_TYPE, "application/json")
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| {
-                raise_error!(
-                    format!("Request failed: {:#?}", e),
-                    ErrorCode::InternalError
-                )
-            })?;
+            .header(CONTENT_TYPE, "application/json");
+        if let Some(body) = body {
+            builder = builder.json(body);
+        } else {
+            builder = builder.header(CONTENT_LENGTH, 0);
+        }
+
+        let res = builder.send().await.map_err(|e| {
+            raise_error!(
+                format!("Request failed: {:#?}", e),
+                ErrorCode::InternalError
+            )
+        })?;
 
         if res.status().is_success() {
             let json: serde_json::Value = res.json().await.map_err(|e| {
