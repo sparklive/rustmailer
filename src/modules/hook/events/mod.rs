@@ -206,7 +206,7 @@ impl RustMailerEvent {
                 account_id: id!(64),
                 account_email: account_email.clone(),
                 mailbox_name: "INBOX".into(),
-                uid: 1003,
+                uid: Some(1003),
                 from: Some(addr("sender@example.com")),
                 to: Some(vec![addr("recipient@example.com")]),
                 message_id: Some("<msg101@server.com>".into()),
@@ -215,6 +215,7 @@ impl RustMailerEvent {
                 date: Some(timestamp),
                 flags_added: vec![EnvelopeFlag::new(EmailFlag::Seen, None).to_string()],
                 flags_removed: vec![EnvelopeFlag::new(EmailFlag::Flagged, None).to_string()],
+                mid: None
             }
         );
 

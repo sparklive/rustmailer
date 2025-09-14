@@ -153,7 +153,7 @@ impl EnvelopeFlagsManager {
                                     account_id: account.id,
                                     account_email: account.email.clone(),
                                     mailbox_name: current.mailbox_name,
-                                    uid,
+                                    uid: Some(uid),
                                     from: current.from,
                                     to: current.to,
                                     message_id: current.message_id,
@@ -162,6 +162,7 @@ impl EnvelopeFlagsManager {
                                     date: current.date,
                                     flags_added: added,
                                     flags_removed: removed,
+                                    mid: None,
                                 }),
                             ),
                         ))

@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use ahash::{AHashSet, HashSet};
+use ahash::{AHashMap, AHashSet, HashSet};
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
@@ -24,7 +24,7 @@ use crate::{
         hook::{
             channel::{Event, EVENT_CHANNEL},
             events::{
-                payload::{Attachment, EmailAddedToFolder},
+                payload::{Attachment, EmailAddedToFolder, EmailFlagsChanged},
                 EventPayload, EventType, RustMailerEvent,
             },
             task::EventHookTask,
@@ -112,12 +112,19 @@ pub fn find_existing_remote_labels(
         .collect()
 }
 
+#[derive(Debug, Default)]
+struct LabelChange {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+
 pub async fn apply_history(
     account: &AccountV2,
     label: &GmailLabels,
     history_list: Vec<History>,
 ) -> RustMailerResult<()> {
     for history in history_list {
+        let mut label_changes: AHashMap<String, LabelChange> = AHashMap::new();
         // -- labels_added
         for item in history.labels_added {
             let current =
@@ -125,8 +132,20 @@ pub async fn apply_history(
             match current {
                 Some(mut current) => {
                     let mut merged: HashSet<String> = current.label_ids.into_iter().collect();
+                    let mut actually_added = Vec::new();
                     if let Some(to_add) = &item.label_ids {
+                        for l in to_add {
+                            if !merged.contains(l) {
+                                actually_added.push(l.clone());
+                            }
+                        }
                         merged.extend(to_add.iter().cloned());
+                    }
+                    if !actually_added.is_empty() {
+                        let entry = label_changes
+                            .entry(item.message.id.clone())
+                            .or_insert_with(|| LabelChange::default());
+                        entry.added.extend(actually_added);
                     }
                     current.label_ids = merged.into_iter().collect();
                     GmailEnvelope::upsert(current).await?;
@@ -146,11 +165,24 @@ pub async fn apply_history(
             match current {
                 Some(mut current) => {
                     if let Some(to_remove) = &item.label_ids {
+                        let mut actually_removed = Vec::new();
                         if to_remove.contains(&label.id.to_string()) {
                             GmailEnvelope::delete(account.id, label.id, &current.id).await?;
                         } else {
-                            current.label_ids.retain(|id| !to_remove.contains(id));
+                            current.label_ids.retain(|id| {
+                                let keep = !to_remove.contains(id);
+                                if !keep {
+                                    actually_removed.push(id.clone());
+                                }
+                                keep
+                            });
                             GmailEnvelope::upsert(current).await?;
+                        }
+                        if !actually_removed.is_empty() {
+                            let entry = label_changes
+                                .entry(item.message.id.clone())
+                                .or_insert_with(|| LabelChange::default());
+                            entry.removed.extend(actually_removed);
                         }
                     }
                 }
@@ -162,6 +194,44 @@ pub async fn apply_history(
                 }
             }
         }
+
+        if !label_changes.is_empty() {
+            if !account.minimal_sync()
+                && EventHookTask::is_watching_email_flags_changed(account.id).await?
+            {
+                for entry in label_changes {
+                    if let Some(current) =
+                        GmailEnvelope::find(account.id, label.id, entry.0.as_str()).await?
+                    {
+                        EVENT_CHANNEL
+                            .queue(Event::new(
+                                account.id,
+                                &account.email,
+                                RustMailerEvent::new(
+                                    EventType::EmailFlagsChanged,
+                                    EventPayload::EmailFlagsChanged(EmailFlagsChanged {
+                                        account_id: account.id,
+                                        account_email: account.email.clone(),
+                                        mailbox_name: current.label_name,
+                                        uid: None,
+                                        from: current.from,
+                                        to: current.to,
+                                        message_id: current.message_id,
+                                        subject: current.subject,
+                                        internal_date: Some(current.internal_date),
+                                        date: current.date,
+                                        flags_added: entry.1.added,
+                                        flags_removed: entry.1.removed,
+                                        mid: Some(entry.0),
+                                    }),
+                                ),
+                            ))
+                            .await;
+                    }
+                }
+            }
+        }
+
         let len = history.messages_added.len();
         let mut handles: Vec<JoinHandle<Option<GmailEnvelope>>> = Vec::with_capacity(len);
         // -- messages_added

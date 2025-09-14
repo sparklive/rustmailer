@@ -103,7 +103,9 @@ pub struct EmailFlagsChanged {
     /// Name of the mailbox (folder) containing the email.
     pub mailbox_name: String,
     /// Unique identifier (UID) of the email within the mailbox.
-    pub uid: u32,
+    pub uid: Option<u32>,
+    /// Unique identifier (UID) of the email within the mailbox.
+    pub mid: Option<String>,
     /// Optional sender address of the email.
     pub from: Option<Addr>,
     /// Optional list of recipient addresses (To field) for the email.
