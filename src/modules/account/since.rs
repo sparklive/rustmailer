@@ -145,7 +145,7 @@ impl RelativeDate {
 
     pub fn calculate_gmail_date(&self) -> RustMailerResult<String> {
         let date = self.compute_date()?;
-        Ok(date.format("/%Y/%m/%d").to_string())
+        Ok(date.format("%Y/%m/%d").to_string())
     }
 }
 

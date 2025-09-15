@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use itertools::Itertools;
 use native_db::Database;
-use tracing::{debug, warn};
+use tracing::warn;
 
 use crate::{
     modules::{
@@ -101,7 +101,7 @@ impl NativeDbTaskStore {
 
         let elapsed = start.elapsed();
         RUSTMAILER_TASK_FETCH_DURATION.observe(elapsed.as_secs_f64());
-        debug!("Time taken to fetch task from native_db: {:#?}", elapsed);
+        //debug!("Time taken to fetch task from native_db: {:#?}", elapsed);
 
         Ok(result.into_iter().map(Into::into).collect())
     }
