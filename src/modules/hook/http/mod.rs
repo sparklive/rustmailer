@@ -224,6 +224,7 @@ impl HttpClient {
         url: &str,
         access_token: &str,
         body: Option<&impl Serialize>,
+        expect_json_response: bool,
     ) -> RustMailerResult<serde_json::Value> {
         let mut builder = self
             .client
@@ -244,13 +245,17 @@ impl HttpClient {
         })?;
 
         if res.status().is_success() {
-            let json: serde_json::Value = res.json().await.map_err(|e| {
-                raise_error!(
-                    format!("Failed to parse response: {:#?}", e),
-                    ErrorCode::InternalError
-                )
-            })?;
-            Ok(json)
+            if expect_json_response {
+                let json: serde_json::Value = res.json().await.map_err(|e| {
+                    raise_error!(
+                        format!("Failed to parse response: {:#?}", e),
+                        ErrorCode::InternalError
+                    )
+                })?;
+                Ok(json)
+            } else {
+                Ok(serde_json::Value::Null)
+            }
         } else {
             let status = res.status();
             let text = res.text().await.map_err(|e| {

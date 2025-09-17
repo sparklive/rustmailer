@@ -15,13 +15,13 @@ use crate::modules::{
         append::AppendReplyToDraftRequest,
         attachment::AttachmentRequest,
         content::{AttachmentInfo, FullMessageContent, MessageContentRequest, PlainText},
-        copy::MailboxTransferRequest,
         delete::MessageDeleteRequest,
         flag::{FlagAction, FlagMessageRequest},
         search::payload::{
             Condition, Conditions, Logic, MessageSearch, MessageSearchRequest, Operator,
             UnifiedSearchRequest,
         },
+        transfer::MailboxTransferRequest,
     },
     rest::response::DataPage,
 };
@@ -29,9 +29,10 @@ use crate::modules::{
 impl From<rustmailer_grpc::MailboxTransferRequest> for MailboxTransferRequest {
     fn from(value: rustmailer_grpc::MailboxTransferRequest) -> Self {
         Self {
-            uids: value.uids,
+            uids: Some(value.uids).filter(|v| !v.is_empty()),
             current_mailbox: value.current_mailbox,
             target_mailbox: value.target_mailbox,
+            mids: Some(value.mids).filter(|v| !v.is_empty()),
         }
     }
 }

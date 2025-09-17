@@ -11,12 +11,11 @@ use crate::modules::{envelope::MinimalEnvelopeMeta, error::RustMailerResult};
 
 pub mod attachment;
 pub mod content;
-pub mod copy;
+pub mod transfer;
 pub mod delete;
 pub mod flag;
 pub mod full;
 pub mod list;
-pub mod mv;
 pub mod search;
 pub mod append;
 

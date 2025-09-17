@@ -562,16 +562,24 @@ service MailboxService {
   rpc UpdateMailbox(MailboxUpdateRequest) returns (Empty);
 }
 
-// MailboxTransferRequest is used to move or copy messages between mailboxes.
+// MailboxTransferRequest is used to move or copy messages between mailboxes or labels.
 message MailboxTransferRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // A list of unique identifiers (UIDs) of the messages to transfer.
+  // A list of unique identifiers (UIDs) of the messages to transfer (IMAP accounts only).
+  // Ignored for Gmail API accounts.
   repeated uint32 uids = 2;
-  // The name of the mailbox from which to transfer messages.
-  string current_mailbox = 3;
-  // The name of the target mailbox to which messages will be transferred.
-  string target_mailbox = 4;
+  // A list of Gmail API message IDs of the messages to transfer (Gmail API accounts only).
+  // Ignored for IMAP accounts.
+  repeated string mids = 3;
+  // The name of the mailbox or label from which to transfer messages.
+  // For IMAP: decoded human-readable mailbox name (e.g., "INBOX").
+  // For Gmail API: the label name.
+  string current_mailbox = 4;
+  // The name of the target mailbox or label to which messages will be transferred.
+  // For IMAP: decoded human-readable mailbox name (e.g., "INBOX").
+  // For Gmail API: the label name.
+  string target_mailbox = 5;
 }
 
 // MessageDeleteRequest is used to delete messages from a mailbox.

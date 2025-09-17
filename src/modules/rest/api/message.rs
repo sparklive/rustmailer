@@ -10,15 +10,16 @@ use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentR
 use crate::modules::message::content::{
     retrieve_email_content, FullMessageContent, MessageContentRequest,
 };
-use crate::modules::message::copy::{copy_mailbox_messages, MailboxTransferRequest};
 use crate::modules::message::delete::{move_to_trash, MessageDeleteRequest};
 use crate::modules::message::flag::{modify_flags, FlagMessageRequest};
 use crate::modules::message::full::retrieve_full_email;
 use crate::modules::message::list::{
     get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
 };
-use crate::modules::message::mv::move_mailbox_messages;
 use crate::modules::message::search::payload::{MessageSearchRequest, UnifiedSearchRequest};
+use crate::modules::message::transfer::{
+    transfer_messages, MailboxTransferRequest, MessageTransfer,
+};
 use crate::modules::rest::api::ApiTags;
 use crate::modules::rest::response::DataPage;
 use crate::modules::rest::ApiResult;
@@ -48,7 +49,7 @@ impl MessageApi {
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(move_mailbox_messages(account_id, &payload.0).await?)
+        Ok(transfer_messages(account_id, &payload.0, MessageTransfer::Move).await?)
     }
 
     /// Copies messages from one mailbox to another for the specified account.
@@ -67,7 +68,7 @@ impl MessageApi {
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(copy_mailbox_messages(account_id, &payload.0).await?)
+        Ok(transfer_messages(account_id, &payload.0, MessageTransfer::Copy).await?)
     }
 
     /// Deletes messages from a mailbox or moves them to the trash for the specified account.

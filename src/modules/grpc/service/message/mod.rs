@@ -19,7 +19,6 @@ use crate::modules::grpc::service::rustmailer_grpc::{
 use crate::modules::message::append::AppendReplyToDraftRequest as RustMailerAppendReplyToDraftRequest;
 use crate::modules::message::attachment::retrieve_email_attachment;
 use crate::modules::message::content::retrieve_email_content;
-use crate::modules::message::copy::copy_mailbox_messages;
 use crate::modules::message::delete::move_to_trash;
 use crate::modules::message::flag::modify_flags;
 use crate::modules::message::flag::FlagMessageRequest as RustMailerFlagMessageRequest;
@@ -27,9 +26,9 @@ use crate::modules::message::full::retrieve_full_email;
 use crate::modules::message::list::{
     get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
 };
-use crate::modules::message::mv::move_mailbox_messages;
 use crate::modules::message::search::payload::MessageSearchRequest as RustMailerMessageSearchRequest;
 use crate::modules::message::search::payload::UnifiedSearchRequest as RustMailerUnifiedSearchRequest;
+use crate::modules::message::transfer::{transfer_messages, MessageTransfer};
 use crate::raise_error;
 use poem_grpc::{Request, Response, Status};
 use tokio::io::AsyncReadExt;
@@ -45,7 +44,7 @@ impl MessageService for RustMailerMessageService {
         request: Request<MailboxTransferRequest>,
     ) -> Result<Response<Empty>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        move_mailbox_messages(req.account_id, &req.into()).await?;
+        transfer_messages(req.account_id, &req.into(), MessageTransfer::Move).await?;
         Ok(Response::new(Empty::default()))
     }
 
@@ -54,7 +53,7 @@ impl MessageService for RustMailerMessageService {
         request: Request<MailboxTransferRequest>,
     ) -> Result<Response<Empty>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        copy_mailbox_messages(req.account_id, &req.into()).await?;
+        transfer_messages(req.account_id, &req.into(), MessageTransfer::Copy).await?;
         Ok(Response::new(Empty::default()))
     }
 
