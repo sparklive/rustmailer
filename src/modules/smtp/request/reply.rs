@@ -83,7 +83,7 @@ pub struct ReplyEmailRequest {
     /// Configuration options for controlling the email sending process.
     ///
     /// This required field specifies settings such as scheduling, or retry policies for sending the reply.
-    pub send_control: SendControl,
+    pub send_control: Option<SendControl>,
 }
 
 impl EmailBuilder for ReplyEmailRequest {
@@ -106,8 +106,10 @@ impl EmailBuilder for ReplyEmailRequest {
             }
         }
 
-        if let Err(mut send_control_error) = self.send_control.validate() {
-            errors.append(&mut send_control_error);
+        if let Some(send_control) = &self.send_control {
+            if let Err(mut send_control_error) = send_control.validate() {
+                errors.append(&mut send_control_error);
+            }
         }
 
         if let Some(timezone) = &self.timezone {
@@ -160,10 +162,13 @@ impl EmailBuilder for ReplyEmailRequest {
         builder = self.apply_content(builder, &envelope, account).await?;
         builder = self.apply_attachments(builder, account).await?;
 
-        let send_at = self.send_control.send_at;
-        if let Some(send_at) = send_at {
-            builder = builder.date(send_at / 1000)
+        if let Some(send_control) = &self.send_control {
+            let send_at = send_control.send_at;
+            if let Some(send_at) = send_at {
+                builder = builder.date(send_at / 1000)
+            }
         }
+
         EmailHandler::schedule_task(
             account,
             Some(subject.clone()),
@@ -173,7 +178,7 @@ impl EmailBuilder for ReplyEmailRequest {
             self.attachments.as_ref().map_or(0, |v| v.len()),
             builder,
             self.send_control.clone(),
-            self.send_control.send_at,
+            self.send_control.as_ref().and_then(|c| c.send_at),
             Some(AnswerEmail {
                 reply: true,
                 mailbox: self.mailbox_name.clone(),

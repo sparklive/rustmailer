@@ -54,12 +54,7 @@ impl TryFrom<rustmailer_grpc::SendEmailRequest> for SendEmailRequest {
                     Some(new_headers)
                 }
             },
-            send_control: {
-                value
-                    .send_control
-                    .ok_or("field 'send_control' missing")?
-                    .try_into()?
-            },
+            send_control: value.send_control.map(|c| c.try_into()).transpose()?,
         })
     }
 }
@@ -102,12 +97,7 @@ impl TryFrom<rustmailer_grpc::ReplyEmailRequest> for ReplyEmailRequest {
             timezone: value.timezone,
             include_original: value.include_original,
             include_all_attachments: value.include_all_attachments,
-            send_control: {
-                value
-                    .send_control
-                    .ok_or("field 'send_control' missing")?
-                    .try_into()?
-            },
+            send_control: { value.send_control.map(|c| c.try_into()).transpose()? },
         })
     }
 }
@@ -149,12 +139,7 @@ impl TryFrom<rustmailer_grpc::ForwardEmailRequest> for ForwardEmailRequest {
                 .transpose()?,
             include_original: value.include_original,
             include_all_attachments: value.include_all_attachments,
-            send_control: {
-                value
-                    .send_control
-                    .ok_or("field 'send_control' missing")?
-                    .try_into()?
-            },
+            send_control: { value.send_control.map(|c| c.try_into()).transpose()? },
         })
     }
 }

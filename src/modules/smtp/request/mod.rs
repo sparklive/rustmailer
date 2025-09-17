@@ -758,7 +758,7 @@ impl EmailHandler {
         bcc: Option<Vec<EmailAddress>>,
         attachment_count: usize,
         builder: MessageBuilder<'_>,
-        send_control: SendControl,
+        send_control: Option<SendControl>,
         send_at: Option<i64>,
         answer_email: Option<AnswerEmail>,
     ) -> RustMailerResult<()> {
@@ -769,8 +769,10 @@ impl EmailHandler {
             )
         })?;
         // Skip sending if dry_run is enabled; used for testing or simulation.
-        if let Some(true) = send_control.dry_run {
-            return Ok(());
+        if let Some(send_control) = &send_control {
+            if let Some(true) = send_control.dry_run {
+                return Ok(());
+            }
         }
 
         let cache_key = generate_token!(128);

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    base64_encode, encode_mailbox_name,
+    base64_encode_url_safe, encode_mailbox_name,
     modules::{
         account::{entity::MailerType, v2::AccountV2},
         cache::vendor::gmail::sync::{
@@ -243,7 +243,7 @@ impl AppendReplyToDraftRequest {
             )
         })?;
 
-        let raw_encoded = base64_encode!(&message.body);
+        let raw_encoded = base64_encode_url_safe!(&message.body);
         let body = json!({
             "message": {
                 "threadId": envelope.gmail_thread_id,

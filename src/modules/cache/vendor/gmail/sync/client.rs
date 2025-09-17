@@ -350,4 +350,19 @@ impl GmailClient {
         let value = client.post(url, &access_token, Some(&body)).await?;
         Ok(value)
     }
+
+    pub async fn send_email(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        raw_encoded: String,
+    ) -> RustMailerResult<serde_json::Value> {
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let body = json!({
+            "raw": raw_encoded
+        });
+        let value = client.post(url, &access_token, Some(&body)).await?;
+        Ok(value)
+    }
 }

@@ -5,7 +5,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::modules::account::entity::MailerType;
 use crate::modules::cache::disk::DISK_CACHE;
+use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerResult;
 use crate::modules::hook::channel::{Event, EVENT_CHANNEL};
@@ -18,7 +20,7 @@ use crate::modules::metrics::{
     RUSTMAILER_EMAIL_SENT_TOTAL, SUCCESS,
 };
 use crate::modules::smtp::executor::SmtpExecutor;
-use crate::raise_error;
+use crate::{base64_encode_url_safe, raise_error};
 
 use crate::modules::scheduler::{
     retry::{RetryPolicy, RetryStrategy},
@@ -50,7 +52,7 @@ pub struct SmtpTask {
     pub cc: Option<Vec<String>>,
     pub bcc: Option<Vec<String>>,
     pub attachment_count: usize,
-    pub control: SendControl,
+    pub control: Option<SendControl>,
     pub cache_key: String,
     pub answer_email: Option<AnswerEmail>,
 }
@@ -64,7 +66,7 @@ pub struct AnswerEmail {
 
 impl SmtpTask {
     async fn build_message<'a>(
-        envelope: &'a Option<MailEnvelope>,
+        envelope: Option<&'a MailEnvelope>,
         body: &'a [u8],
         from: String,
         recipients: &[String],
@@ -95,6 +97,109 @@ impl SmtpTask {
 
         message
     }
+
+    async fn load_email_body(&self) -> RustMailerResult<Vec<u8>> {
+        let mut reader = DISK_CACHE
+            .get_cache(&self.cache_key)
+            .await?
+            .ok_or_else(|| {
+                raise_error!(
+                    "failed to get cache reader to load email body.".into(),
+                    ErrorCode::InternalError
+                )
+            })?;
+        let mut body = Vec::new();
+        reader.read_to_end(&mut body).await.map_err(|e| {
+            raise_error!(
+                format!("failed to load email body from disk cache. {:#?}", e),
+                ErrorCode::InternalError
+            )
+        })?;
+        Ok(body)
+    }
+
+    fn record_send_failure_metrics(start: Instant) {
+        let elapsed = start.elapsed();
+        RUSTMAILER_EMAIL_SEND_DURATION_SECONDS
+            .with_label_values(&[FAILURE])
+            .observe(elapsed.as_secs_f64());
+        RUSTMAILER_EMAIL_SENT_TOTAL
+            .with_label_values(&[FAILURE])
+            .inc();
+    }
+
+    async fn handle_email_send_success(
+        &self,
+        start: Instant,
+        body_len: usize,
+    ) -> RustMailerResult<()> {
+        let elapsed = start.elapsed();
+        RUSTMAILER_EMAIL_SEND_DURATION_SECONDS
+            .with_label_values(&[SUCCESS])
+            .observe(elapsed.as_secs_f64());
+        RUSTMAILER_EMAIL_SENT_TOTAL
+            .with_label_values(&[SUCCESS])
+            .inc();
+        RUSTMAILER_EMAIL_SENT_BYTES.inc_by(body_len as u64);
+        if EventHookTask::is_watching_email_sent_success(self.account_id).await? {
+            EVENT_CHANNEL
+                .queue(Event::new(
+                    self.account_id,
+                    &self.account_email,
+                    RustMailerEvent::new(
+                        EventType::EmailSentSuccess,
+                        EventPayload::EmailSentSuccess(EmailSentSuccess {
+                            account_id: self.account_id,
+                            account_email: self.account_email.clone(),
+                            from: self.from.clone(),
+                            to: self.to.clone(),
+                            subject: self.subject.clone(),
+                            message_id: self.message_id.clone(),
+                        }),
+                    ),
+                ))
+                .await;
+        }
+        Ok(())
+    }
+
+    async fn finalize_sent_email(&self, body: &[u8]) -> RustMailerResult<()> {
+        if let Some(answer_email) = &self.answer_email {
+            EmailHandler::mark_message_answered(
+                self.account_id,
+                &answer_email.mailbox,
+                answer_email.uid,
+            )
+            .await?;
+        }
+
+        if let Some(send_control) = &self.control {
+            send_control
+                .save_to_sent_if_needed(self.account_id, body)
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn build_message_with_optional_params<'a>(
+        &'a self,
+        body: &'a [u8],
+        params: &'a Option<(Parameters<'a>, Parameters<'a>)>,
+    ) -> Message<'a> {
+        let envelope_opt = self.control.as_ref().and_then(|c| c.envelope.as_ref());
+        if let Some((mail_params, rcpt_params)) = params {
+            Self::build_message(
+                envelope_opt,
+                body,
+                self.from.clone(),
+                &self.to,
+                Some((mail_params, rcpt_params)),
+            )
+            .await
+        } else {
+            Self::build_message(envelope_opt, body, self.from.clone(), &self.to, None).await
+        }
+    }
 }
 
 impl Task for SmtpTask {
@@ -107,44 +212,68 @@ impl Task for SmtpTask {
     }
 
     fn retry_policy(&self) -> RetryPolicy {
-        match &self.control.retry_policy {
-            Some(retry_policy) => RetryPolicy {
-                strategy: match retry_policy.strategy {
+        if let Some(control) = &self.control {
+            if let Some(rp) = &control.retry_policy {
+                let strategy = match rp.strategy {
                     Strategy::Linear => RetryStrategy::Linear {
-                        interval: retry_policy.seconds,
+                        interval: rp.seconds,
                     },
-                    Strategy::Exponential => RetryStrategy::Exponential {
-                        base: retry_policy.seconds,
-                    },
-                },
-                max_retries: Some(retry_policy.max_retries),
-            },
-            None => RetryPolicy {
-                strategy: RetryStrategy::Linear { interval: 2 },
-                max_retries: Some(10),
-            },
+                    Strategy::Exponential => RetryStrategy::Exponential { base: rp.seconds },
+                };
+                return RetryPolicy {
+                    strategy,
+                    max_retries: Some(rp.max_retries),
+                };
+            }
+        }
+
+        RetryPolicy {
+            strategy: RetryStrategy::Linear { interval: 2 },
+            max_retries: Some(10),
         }
     }
 
     fn run(self, _task_id: u64) -> TaskFuture {
         Box::pin(async move {
+            let account = AccountV2::get(self.account_id).await?;
             let start = Instant::now();
-            let (executor, params) = match self.control.mta {
-                Some(mta) => {
+            let body = self.load_email_body().await?;
+
+            if let Some(control) = &self.control {
+                if let Some(mta) = control.mta {
                     let mta = Mta::get(mta).await?.ok_or_else(|| {
                         raise_error!("MTA not found.".into(), ErrorCode::ResourceNotFound)
                     })?;
                     let executor = RUST_MAIL_CONTEXT.mta(mta.id).await?;
                     let params = if mta.dsn_capable {
-                        let params = self.control.build_dsn_params()?;
+                        let params = control.build_dsn_params()?;
                         Some(params)
                     } else {
                         None
                     };
-                    (executor, params)
+
+                    let message = self
+                        .build_message_with_optional_params(&body, &params)
+                        .await;
+                    match send_email(executor, message).await {
+                        Ok(()) => {
+                            self.handle_email_send_success(start, body.len()).await?;
+                            if matches!(account.mailer_type, MailerType::ImapSmtp) {
+                                self.finalize_sent_email(&body).await?;
+                            }
+
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            Self::record_send_failure_metrics(start);
+                            return Err(e);
+                        }
+                    }
                 }
-                None => {
-                    let account = AccountV2::get(self.account_id).await?;
+            }
+
+            match account.mailer_type {
+                MailerType::ImapSmtp => {
                     let executor = RUST_MAIL_CONTEXT.smtp(account.id).await?;
 
                     let dsn_capable = if let Some(dsn_capable) = &account.dsn_capable {
@@ -157,105 +286,41 @@ impl Task for SmtpTask {
                     };
 
                     let params = if dsn_capable {
-                        let params = self.control.build_dsn_params()?;
-                        Some(params)
+                        self.control
+                            .as_ref()
+                            .map(|c| c.build_dsn_params())
+                            .transpose()?
                     } else {
                         None
                     };
-                    (executor, params)
+
+                    let message = self
+                        .build_message_with_optional_params(&body, &params)
+                        .await;
+                    match send_email(executor, message).await {
+                        Ok(()) => {
+                            self.handle_email_send_success(start, body.len()).await?;
+                            self.finalize_sent_email(&body).await
+                        }
+                        Err(e) => {
+                            Self::record_send_failure_metrics(start);
+                            Err(e)
+                        }
+                    }
                 }
-            };
-
-            let mut reader = DISK_CACHE
-                .get_cache(&self.cache_key)
-                .await?
-                .ok_or_else(|| {
-                    raise_error!(
-                        "failed to get cache reader to load email body.".into(),
-                        ErrorCode::InternalError
-                    )
-                })?;
-            let mut body = Vec::new();
-            reader.read_to_end(&mut body).await.map_err(|e| {
-                raise_error!(
-                    format!("failed to load email body from disk cache. {:#?}", e),
-                    ErrorCode::InternalError
-                )
-            })?;
-
-            let message = if let Some((mail_params, rcpt_params)) = &params {
-                Self::build_message(
-                    &self.control.envelope,
-                    &body,
-                    self.from.clone(),
-                    &self.to,
-                    Some((mail_params, rcpt_params)),
-                )
-                .await
-            } else {
-                Self::build_message(
-                    &self.control.envelope,
-                    &body,
-                    self.from.clone(),
-                    &self.to,
-                    None,
-                )
-                .await
-            };
-            match send_email(executor, message).await {
-                Ok(()) => {
-                    let elapsed = start.elapsed();
-                    RUSTMAILER_EMAIL_SEND_DURATION_SECONDS
-                        .with_label_values(&[SUCCESS])
-                        .observe(elapsed.as_secs_f64());
-                    RUSTMAILER_EMAIL_SENT_TOTAL
-                        .with_label_values(&[SUCCESS])
-                        .inc();
-                    RUSTMAILER_EMAIL_SENT_BYTES.inc_by(body.len() as u64);
-                    if EventHookTask::is_watching_email_sent_success(self.account_id).await? {
-                        EVENT_CHANNEL
-                            .queue(Event::new(
-                                self.account_id,
-                                &self.account_email,
-                                RustMailerEvent::new(
-                                    EventType::EmailSentSuccess,
-                                    EventPayload::EmailSentSuccess(EmailSentSuccess {
-                                        account_id: self.account_id,
-                                        account_email: self.account_email.clone(),
-                                        from: self.from.clone(),
-                                        to: self.to.clone(),
-                                        subject: self.subject.clone(),
-                                        message_id: self.message_id.clone(),
-                                    }),
-                                ),
-                            ))
+                MailerType::GmailApi => {
+                    let envelope_opt = self.control.as_ref().and_then(|c| c.envelope.as_ref());
+                    let message =
+                        Self::build_message(envelope_opt, &body, self.from.clone(), &self.to, None)
                             .await;
+                    let raw_encoded = base64_encode_url_safe!(&message.body);
+                    match gmail_send_email(self.account_id, account.use_proxy, raw_encoded).await {
+                        Ok(()) => self.handle_email_send_success(start, body.len()).await,
+                        Err(e) => {
+                            Self::record_send_failure_metrics(start);
+                            Err(e)
+                        }
                     }
-
-                    if let Some(answer_email) = &self.answer_email {
-                        EmailHandler::mark_message_answered(
-                            self.account_id,
-                            &answer_email.mailbox,
-                            answer_email.uid,
-                        )
-                        .await?;
-                    }
-
-                    self.control
-                        .save_to_sent_if_needed(self.account_id, &body)
-                        .await?;
-
-                    Ok(())
-                }
-                Err(e) => {
-                    let elapsed = start.elapsed();
-                    RUSTMAILER_EMAIL_SEND_DURATION_SECONDS
-                        .with_label_values(&[FAILURE])
-                        .observe(elapsed.as_secs_f64());
-                    RUSTMAILER_EMAIL_SENT_TOTAL
-                        .with_label_values(&[FAILURE])
-                        .inc();
-                    Err(e)
                 }
             }
         })
@@ -264,4 +329,13 @@ impl Task for SmtpTask {
 
 async fn send_email(executor: Arc<SmtpExecutor>, message: Message<'_>) -> RustMailerResult<()> {
     executor.send_email(message).await
+}
+
+async fn gmail_send_email(
+    account_id: u64,
+    use_proxy: Option<u64>,
+    raw_encoded: String,
+) -> RustMailerResult<()> {
+    GmailClient::send_email(account_id, use_proxy, raw_encoded).await?;
+    Ok(())
 }

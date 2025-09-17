@@ -75,7 +75,7 @@ pub struct SendEmailRequest {
     /// Configuration options for controlling the email sending process.
     ///
     /// This required field specifies settings such as scheduling, or retry policies for sending the email.
-    pub send_control: SendControl,
+    pub send_control: Option<SendControl>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
@@ -181,8 +181,10 @@ impl EmailBuilder for SendEmailRequest {
             }
         }
 
-        if let Err(mut send_control_error) = self.send_control.validate() {
-            errors.append(&mut send_control_error);
+        if let Some(send_control) = &self.send_control {
+            if let Err(mut send_control_error) = send_control.validate() {
+                errors.append(&mut send_control_error);
+            }
         }
 
         if errors.is_empty() {
@@ -216,27 +218,28 @@ impl EmailBuilder for SendEmailRequest {
             }
             let mut tracker: Option<EmailTracker> = None;
 
-            if let Some(true) = self.send_control.enable_tracking {
-                if SETTINGS.rustmailer_email_tracking_enabled {
-                    let campaign_id = self
-                        .send_control
-                        .campaign_id
-                        .clone()
-                        .unwrap_or_else(|| "default".to_string());
+            if let Some(send_control) = &self.send_control {
+                if let Some(true) = send_control.enable_tracking {
+                    if SETTINGS.rustmailer_email_tracking_enabled {
+                        let campaign_id = send_control
+                            .campaign_id
+                            .clone()
+                            .unwrap_or_else(|| "default".to_string());
 
-                    let recipient_address = recipient
-                        .to
-                        .first()
-                        .map(|r| r.address.clone())
-                        .unwrap_or_default();
+                        let recipient_address = recipient
+                            .to
+                            .first()
+                            .map(|r| r.address.clone())
+                            .unwrap_or_default();
 
-                    tracker = Some(EmailTracker::new(
-                        campaign_id,
-                        message_id.clone(),
-                        recipient_address,
-                        account_id.into(),
-                        account.email.clone(),
-                    ));
+                        tracker = Some(EmailTracker::new(
+                            campaign_id,
+                            message_id.clone(),
+                            recipient_address,
+                            account_id.into(),
+                            account.email.clone(),
+                        ));
+                    }
                 }
             }
 
@@ -247,9 +250,12 @@ impl EmailBuilder for SendEmailRequest {
                         .await?
                 }
             };
-            let send_at = recipient.send_at.or(self.send_control.send_at);
-            if let Some(send_at) = send_at {
-                builder = builder.date(send_at / 1000)
+
+            if let Some(send_control) = &self.send_control {
+                let send_at = recipient.send_at.or(send_control.send_at);
+                if let Some(send_at) = send_at {
+                    builder = builder.date(send_at / 1000)
+                }
             }
 
             EmailHandler::schedule_task(
@@ -261,7 +267,9 @@ impl EmailBuilder for SendEmailRequest {
                 self.attachments.as_ref().map_or(0, |v| v.len()),
                 builder,
                 self.send_control.clone(),
-                recipient.send_at.or(self.send_control.send_at),
+                recipient
+                    .send_at
+                    .or_else(|| self.send_control.as_ref().and_then(|c| c.send_at)),
                 None,
             )
             .await?;

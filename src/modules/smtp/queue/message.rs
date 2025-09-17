@@ -108,12 +108,19 @@ impl TryFrom<&TaskMetaEntity> for SendEmailTask {
             bcc: smtp_task.bcc,
             attachment_count: smtp_task.attachment_count,
             cache_key: smtp_task.cache_key,
-            envelope: smtp_task.control.envelope,
-            save_to_sent: smtp_task.control.save_to_sent.unwrap_or(false),
-            sent_folder: smtp_task.control.sent_folder,
-            send_at: smtp_task.control.send_at,
-            mta: smtp_task.control.mta,
-            dsn: smtp_task.control.dsn,
+            envelope: smtp_task.control.as_ref().and_then(|c| c.envelope.clone()),
+            save_to_sent: smtp_task
+                .control
+                .as_ref()
+                .and_then(|c| c.save_to_sent)
+                .unwrap_or(false),
+            sent_folder: smtp_task
+                .control
+                .as_ref()
+                .and_then(|c| c.sent_folder.clone()),
+            send_at: smtp_task.control.as_ref().and_then(|c| c.send_at),
+            mta: smtp_task.control.as_ref().and_then(|c| c.mta),
+            dsn: smtp_task.control.as_ref().and_then(|c| c.dsn.clone()),
             reply: smtp_task.answer_email.as_ref().map(|a| a.reply),
             mailbox: smtp_task.answer_email.as_ref().map(|a| a.mailbox.clone()),
             uid: smtp_task.answer_email.as_ref().map(|a| a.uid),
