@@ -290,6 +290,26 @@ impl GmailClient {
         Ok(message)
     }
 
+    pub async fn get_raw_messages(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+    ) -> RustMailerResult<FullMessage> {
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}?format=raw",
+            mid
+        );
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.get(url.as_str(), &access_token).await?;
+        let message = serde_json::from_value::<FullMessage>(value)
+            .map_err(|e| raise_error!(format!(
+                "Failed to deserialize Gmail API response into FullMessage: {:#?}. Possible model mismatch or API change.",
+                e
+            ), ErrorCode::InternalError))?;
+        Ok(message)
+    }
+
     pub async fn get_attachments(
         account_id: u64,
         use_proxy: Option<u64>,

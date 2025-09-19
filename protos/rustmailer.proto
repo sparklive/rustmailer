@@ -816,14 +816,16 @@ message FetchMessageAttachmentRequest {
   optional string filename = 7;
 }
 
-// FetchFullMessageRequest is used to fetch the complete raw content of an email message.
-message FetchFullMessageRequest {
+// FetchRawMessageRequest is used to fetch the complete raw content of an email message.
+message FetchRawMessageRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // The name of the mailbox containing the message.
-  string mailbox_name = 2;
-  // The unique identifier (UID) of the message.
-  uint32 uid = 3;
+  // The name of the mailbox containing the message. (IMAP only)
+  optional string mailbox_name = 2;
+  // The unique identifier (UID) of the message. (IMAP only)
+  optional uint32 uid = 3;
+  // The Gmail message ID of the email to fetch. (Gmail API only)
+  optional string mid = 4;
 }
 
 // MessageSearch represents a search query for email messages, which can be a single condition or a logical combination of conditions.
@@ -1134,7 +1136,7 @@ service MessageService {
   // Fetches the raw content of a specific attachment from an email message.
   rpc FetchMessageAttachment(FetchMessageAttachmentRequest) returns (ByteResponse);
   // Fetches the complete raw EML content of an email message.
-  rpc FetchFullMessage(FetchFullMessageRequest) returns (ByteResponse);
+  rpc FetchRawMessage(FetchRawMessageRequest) returns (ByteResponse);
   // Searches for messages within a mailbox based on specified criteria.
   rpc MessageSearch(MessageSearchRequest) returns (PagedMessages);
   // Performs a unified search across mail accounts and messages.

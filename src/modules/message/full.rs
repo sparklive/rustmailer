@@ -3,9 +3,10 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::{
+    base64_decode_url_safe,
     modules::{
-        account::v2::AccountV2,
-        cache::disk::DISK_CACHE,
+        account::{entity::MailerType, v2::AccountV2},
+        cache::{disk::DISK_CACHE, vendor::gmail::sync::client::GmailClient},
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
     },
@@ -26,17 +27,55 @@ pub struct FullMessageRequest {
     pub max_length: Option<usize>,
 }
 
-fn full_email_diskcache_key(account_id: u64, mailbox_name: &str, uid: u32) -> String {
-    format!("full_email_{}_{}_{}", account_id, mailbox_name, uid)
+fn raw_email_diskcache_key(account_id: u64, mailbox_name: &str, uid: u32) -> String {
+    format!("imap_raw_email_{}_{}_{}", account_id, mailbox_name, uid)
 }
 
-pub async fn retrieve_full_email(
+fn gmail_raw_email_diskcache_key(account_id: u64, mid: &str) -> String {
+    format!("gmail_raw_email_{}_{}", account_id, mid)
+}
+
+pub async fn retrieve_raw_email(
     account_id: u64,
-    mailbox: String,
+    mailbox: Option<&str>,
+    uid: Option<u32>,
+    mid: Option<&str>,
+) -> RustMailerResult<cacache::Reader> {
+    let account = AccountV2::check_account_active(account_id, false).await?;
+    match account.mailer_type {
+        MailerType::ImapSmtp => {
+            let mailbox = mailbox.ok_or_else(|| {
+                raise_error!(
+                    "Missing required parameter: `mailbox` for IMAP/SMTP".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            let uid = uid.ok_or_else(|| {
+                raise_error!(
+                    "Missing required parameter: `uid` for IMAP/SMTP".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            retrieve_imap_raw_email(account_id, mailbox, uid).await
+        }
+        MailerType::GmailApi => {
+            let mid = mid.ok_or_else(|| {
+                raise_error!(
+                    "Missing required parameter: `mid` for Gmail API".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })?;
+            retrieve_gmail_raw_email(&account, mid).await
+        }
+    }
+}
+
+async fn retrieve_imap_raw_email(
+    account_id: u64,
+    mailbox: &str,
     uid: u32,
 ) -> RustMailerResult<cacache::Reader> {
-    AccountV2::check_account_active(account_id, false).await?;
-    let meta = get_minimal_meta(account_id, &mailbox, uid).await?;
+    let meta = get_minimal_meta(account_id, mailbox, uid).await?;
     if meta.size > MAX_EMAIL_TOTAL_SIZE {
         return Err(raise_error!(format!(
             "Message size {} bytes exceeds maximum allowed size of {} bytes (UID: {}, Mailbox: '{}')",
@@ -47,18 +86,18 @@ pub async fn retrieve_full_email(
         ), ErrorCode::ExceedsLimitation));
     }
 
-    let cache_key = full_email_diskcache_key(account_id, &mailbox, uid);
+    let cache_key = raw_email_diskcache_key(account_id, mailbox, uid);
     if let Some(reader) = DISK_CACHE.get_cache(&cache_key).await? {
         return Ok(reader);
     }
 
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     let fetch = executor
-        .uid_fetch_full_message(uid.to_string().as_str(), &mailbox)
+        .uid_fetch_full_message(uid.to_string().as_str(), mailbox)
         .await?
         .ok_or_else(|| {
             raise_error!(
-                format!("No message found for UID {} in mailbox {}", uid, &mailbox),
+                format!("No message found for UID {} in mailbox {}", uid, mailbox),
                 ErrorCode::ImapUnexpectedResult
             )
         })?;
@@ -67,13 +106,51 @@ pub async fn retrieve_full_email(
         raise_error!(
             format!(
                 "Message UID {} in mailbox {} is missing a body",
-                uid, &mailbox
+                uid, mailbox
             ),
             ErrorCode::ImapUnexpectedResult
         )
     })?;
 
     DISK_CACHE.put_cache(&cache_key, body, false).await?;
+    DISK_CACHE
+        .get_cache(&cache_key)
+        .await?
+        .ok_or_else(|| raise_error!("Unexpected cache miss".into(), ErrorCode::InternalError))
+}
+
+async fn retrieve_gmail_raw_email(
+    account: &AccountV2,
+    mid: &str,
+) -> RustMailerResult<cacache::Reader> {
+    let meta = GmailClient::get_message(account.id, account.use_proxy, mid).await?;
+    if meta.size_estimate > MAX_EMAIL_TOTAL_SIZE {
+        return Err(raise_error!(
+            format!(
+                "Message size {} bytes exceeds maximum allowed size of {} bytes (mid: {})",
+                meta.size_estimate, MAX_EMAIL_TOTAL_SIZE, mid
+            ),
+            ErrorCode::ExceedsLimitation
+        ));
+    }
+
+    let cache_key = gmail_raw_email_diskcache_key(account.id, mid);
+    if let Some(reader) = DISK_CACHE.get_cache(&cache_key).await? {
+        return Ok(reader);
+    }
+
+    let data = GmailClient::get_raw_messages(account.id, account.use_proxy, mid).await?;
+    let raw = data
+        .raw
+        .ok_or_else(|| raise_error!("".into(), ErrorCode::InternalError))?;
+    let data = base64_decode_url_safe!(raw).map_err(|e| {
+        raise_error!(
+            format!("Failed to decode base64_content: {}", e),
+            ErrorCode::InternalError
+        )
+    })?;
+
+    DISK_CACHE.put_cache(&cache_key, &data, false).await?;
     DISK_CACHE
         .get_cache(&cache_key)
         .await?

@@ -12,7 +12,7 @@ use crate::modules::message::content::{
 };
 use crate::modules::message::delete::{move_to_trash, MessageDeleteRequest};
 use crate::modules::message::flag::{modify_flags, FlagMessageRequest};
-use crate::modules::message::full::retrieve_full_email;
+use crate::modules::message::full::retrieve_raw_email;
 use crate::modules::message::list::{
     get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
 };
@@ -258,20 +258,22 @@ impl MessageApi {
 
     /// Fetches the full content of a specific email for the given account.
     #[oai(
-        path = "/full-message/:account_id",
+        path = "/raw-message/:account_id",
         method = "get",
-        operation_id = "fetch_full_message"
+        operation_id = "fetch_raw_message"
     )]
-    async fn fetch_full_message(
+    async fn fetch_raw_message(
         &self,
         /// The ID of the account owning the mailbox.
         account_id: Path<u64>,
         /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").
         /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
         /// so no manual decoding is required.
-        mailbox: Query<String>,
+        mailbox: Query<Option<String>>,
         /// The IMAP UID of the email to fetch.
-        uid: Query<u32>,
+        uid: Query<Option<u32>>,
+        /// The Gmail message ID of the email to fetch.
+        mid: Query<Option<String>>,
         /// An optional filename for the attachment (defaults to a timestamped `.elm` file).
         filename: Query<Option<String>>,
         context: ClientContext,
@@ -279,7 +281,16 @@ impl MessageApi {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
         let filename = filename.0.unwrap_or(format!("{}.elm", current_datetime!()));
-        let reader = retrieve_full_email(account_id, mailbox.0, uid.0).await?;
+        let mailbox_opt = mailbox.0.as_ref().map(|m| m.trim().to_owned());
+        let mid_opt = mid.0.as_ref().map(|m| m.trim().to_owned());
+
+        let reader = retrieve_raw_email(
+            account_id,
+            mailbox_opt.as_deref(),
+            uid.0,
+            mid_opt.as_deref(),
+        )
+        .await?;
         let body = Body::from_async_read(reader);
         let attachment = Attachment::new(body)
             .attachment_type(AttachmentType::Attachment)

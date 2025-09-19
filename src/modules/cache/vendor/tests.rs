@@ -13,14 +13,14 @@ use serde_json::{json, Value};
 use std::{borrow::Cow, time::Duration};
 
 use crate::{
-    base64_encode,
+    base64_encode, base64_encode_url_safe,
     modules::{
         cache::{
             imap::v2::EmailEnvelopeV3,
             vendor::gmail::{
                 model::{
                     history::HistoryList,
-                    messages::{MessageList, MessageMeta, PartBody},
+                    messages::{FullMessage, MessageList, MessageMeta, PartBody},
                 },
                 sync::envelope::GmailEnvelope,
             },
@@ -44,7 +44,7 @@ async fn access_token() -> String {
     grpc_client.set_send_compressed(CompressionEncoding::GZIP);
 
     let request = GetOAuth2TokensRequest {
-        account_id: 3436285658349684,
+        account_id: 2499101108918052,
     };
 
     let mut request = poem_grpc::Request::new(request);
@@ -67,9 +67,10 @@ async fn test1() {
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels/Label_6886728075529239043";
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=SENT&maxResults=20";
-    let url =
-        "https://gmail.googleapis.com/gmail/v1/users/me/messages/1987883d362411ec?format=full";
+
     let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
+    let url =
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/19961e858d35c4e6?format=full";
     let mut builder = reqwest::ClientBuilder::new()
         .user_agent(rustmailer_version!())
         .timeout(Duration::from_secs(10))
@@ -387,6 +388,43 @@ async fn test8() {
         // let body: Value = res.json().await.unwrap();
         // let json = serde_json::to_string_pretty(&body).unwrap();
         // println!("Response = {}", json);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn test9() {
+    let access_token = access_token().await;
+    let url = format!(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/19961e858d35c4e6?format=raw"
+    );
+    let mut builder = reqwest::ClientBuilder::new()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10));
+
+    let proxy_obj = reqwest::Proxy::all("socks5://127.0.0.1:22308").unwrap();
+    builder = builder
+        .redirect(reqwest::redirect::Policy::none())
+        .proxy(proxy_obj);
+    let client = builder.build().unwrap();
+
+    let res = client
+        .get(url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Value = res.json().await.unwrap();
+        let json = serde_json::to_string_pretty(&body).unwrap();
+        println!("Response = {}", json);
+
+        let full_message: FullMessage = serde_json::from_value(body).unwrap();
+        println!("Response = {:#?}", full_message);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
     }

@@ -12,7 +12,7 @@ use crate::modules::grpc::service::rustmailer_grpc::{
     ListThreadsRequest, MessageContentResponse, PagedMessages, UnifiedSearchRequest,
 };
 use crate::modules::grpc::service::rustmailer_grpc::{
-    Empty, FetchFullMessageRequest, FetchMessageAttachmentRequest, FetchMessageContentRequest,
+    Empty, FetchMessageAttachmentRequest, FetchMessageContentRequest, FetchRawMessageRequest,
     FlagMessageRequest, ListMessagesRequest, MailboxTransferRequest, MessageDeleteRequest,
     MessageSearchRequest, MessageService,
 };
@@ -22,7 +22,7 @@ use crate::modules::message::content::retrieve_email_content;
 use crate::modules::message::delete::move_to_trash;
 use crate::modules::message::flag::modify_flags;
 use crate::modules::message::flag::FlagMessageRequest as RustMailerFlagMessageRequest;
-use crate::modules::message::full::retrieve_full_email;
+use crate::modules::message::full::retrieve_raw_email;
 use crate::modules::message::list::{
     get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
 };
@@ -137,12 +137,18 @@ impl MessageService for RustMailerMessageService {
         Ok(Response::new(ByteResponse { data: buffer }))
     }
 
-    async fn fetch_full_message(
+    async fn fetch_raw_message(
         &self,
-        request: Request<FetchFullMessageRequest>,
+        request: Request<FetchRawMessageRequest>,
     ) -> Result<Response<ByteResponse>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        let mut reader = retrieve_full_email(req.account_id, req.mailbox_name, req.uid).await?;
+        let mut reader = retrieve_raw_email(
+            req.account_id,
+            req.mailbox_name.as_deref(),
+            req.uid,
+            req.mid.as_deref(),
+        )
+        .await?;
 
         let mut buffer = Vec::new();
         reader

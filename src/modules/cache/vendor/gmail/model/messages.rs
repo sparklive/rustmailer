@@ -206,14 +206,14 @@ pub struct FullMessage {
     #[serde(rename = "labelIds")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub label_ids: Vec<String>,
-    pub payload: MessagePart,
+    pub payload: Option<MessagePart>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub raw: Option<String>,
     #[serde(rename = "sizeEstimate")]
-    pub size_estimate: i64,
-    pub snippet: String,
+    pub size_estimate: Option<i64>,
+    pub snippet: Option<String>,
     #[serde(rename = "threadId")]
-    pub thread_id: String,
+    pub thread_id: Option<String>,
 }
 
 impl TryFrom<FullMessage> for FullMessageContent {
@@ -222,7 +222,15 @@ impl TryFrom<FullMessage> for FullMessageContent {
     fn try_from(value: FullMessage) -> Result<Self, Self::Error> {
         let mut message_content = FullMessageContent::default();
         let mut attachments = Vec::new();
-        walk_part(&value.payload, &mut message_content, &mut attachments)?;
+        let payload = value
+            .payload
+            .ok_or_else(|| raise_error!(
+                "Missing `payload` field in Gmail API response; this usually indicates an unexpected API change or abnormal response".into(), 
+                ErrorCode::InternalError
+            )
+        )?;
+
+        walk_part(&payload, &mut message_content, &mut attachments)?;
         message_content.attachments = Some(attachments);
         Ok(message_content)
     }
