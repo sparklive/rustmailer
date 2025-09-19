@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::{entity::MailerType, v2::AccountV2},
         cache::{imap::v2::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
         error::{code::ErrorCode, RustMailerResult},
         smtp::{
@@ -34,8 +34,14 @@ pub struct ReplyEmailRequest {
     pub mailbox_name: String,
     /// The UID of the message being replied to.
     ///
-    /// This identifies the specific message in the mailbox.
-    pub uid: u32,
+    /// This identifies the specific message in the mailbox for **IMAP accounts**.
+    /// Should be `None` when using Gmail API accounts.
+    pub uid: Option<u32>,
+    /// The message ID of the message being replied to.
+    ///
+    /// This is used for **Gmail API accounts** instead of IMAP UID.
+    /// Should be `None` when using IMAP accounts.
+    pub mid: Option<String>,
     /// The plain text body of the reply email.
     ///
     /// This field is optional and can be used to provide plain text content.
@@ -130,7 +136,38 @@ impl EmailBuilder for ReplyEmailRequest {
 
     async fn build(&self, account_id: u64) -> RustMailerResult<()> {
         let account = &AccountV2::get(account_id).await?;
-        let envelope = EmailHandler::get_envelope(account, &self.mailbox_name, self.uid).await?;
+        self.validate().await?;
+
+        let (envelope, answer_email) = match account.mailer_type {
+            MailerType::ImapSmtp => {
+                let uid = self.uid.ok_or_else(|| {
+                    raise_error!(
+                        "Missing required field `uid` for IMAP account".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                })?;
+                let envelope = EmailHandler::get_envelope(account, &self.mailbox_name, uid).await?;
+                (
+                    envelope,
+                    Some(AnswerEmail {
+                        reply: true,
+                        mailbox: self.mailbox_name.clone(),
+                        uid,
+                    }),
+                )
+            }
+            MailerType::GmailApi => {
+                let mid = self.mid.as_ref().ok_or_else(|| {
+                    raise_error!(
+                        "Missing required field `mid` for Gmail API account".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                })?;
+                let envelope =
+                    EmailHandler::get_gmail_envelope(account, &self.mailbox_name, mid).await?;
+                (envelope, None)
+            }
+        };
 
         let from = Address::new_address(
             account.name.as_ref().map(|n| Cow::Owned(n.to_string())),
@@ -179,11 +216,7 @@ impl EmailBuilder for ReplyEmailRequest {
             builder,
             self.send_control.clone(),
             self.send_control.as_ref().and_then(|c| c.send_at),
-            Some(AnswerEmail {
-                reply: true,
-                mailbox: self.mailbox_name.clone(),
-                uid: self.uid,
-            }),
+            answer_email,
         )
         .await?;
         Ok(())

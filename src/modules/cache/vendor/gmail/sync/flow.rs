@@ -77,7 +77,7 @@ pub async fn fetch_and_save_since_date(
                             tokio::spawn(async move {
                                 // Permit will be released automatically when this task finishes
                                 let _permit = permit;
-                                GmailClient::get_messages(account_id, use_proxy, &msg.id).await
+                                GmailClient::get_message(account_id, use_proxy, &msg.id).await
                             });
 
                         handles.push(handle);
@@ -177,7 +177,7 @@ pub async fn fetch_and_save_full_label(
                             tokio::spawn(async move {
                                 // Permit will be released automatically when this task finishes
                                 let _permit = permit;
-                                GmailClient::get_messages(account_id, use_proxy, &msg.id).await
+                                GmailClient::get_message(account_id, use_proxy, &msg.id).await
                             });
 
                         handles.push(handle);

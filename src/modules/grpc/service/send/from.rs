@@ -98,6 +98,7 @@ impl TryFrom<rustmailer_grpc::ReplyEmailRequest> for ReplyEmailRequest {
             include_original: value.include_original,
             include_all_attachments: value.include_all_attachments,
             send_control: { value.send_control.map(|c| c.try_into()).transpose()? },
+            mid: value.mid,
         })
     }
 }
@@ -140,6 +141,7 @@ impl TryFrom<rustmailer_grpc::ForwardEmailRequest> for ForwardEmailRequest {
             include_original: value.include_original,
             include_all_attachments: value.include_all_attachments,
             send_control: { value.send_control.map(|c| c.try_into()).transpose()? },
+            mid: value.mid,
         })
     }
 }

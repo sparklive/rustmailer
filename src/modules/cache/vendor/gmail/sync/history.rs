@@ -243,7 +243,7 @@ pub async fn apply_history(
                 if !item.message.label_ids.contains(&label.label_id) {
                     return None;
                 }
-                let message_data = match GmailClient::get_messages(
+                let message_data = match GmailClient::get_message(
                     account_id,
                     use_proxy.clone(),
                     &item.message.id,

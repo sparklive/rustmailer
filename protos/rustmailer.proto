@@ -1788,65 +1788,77 @@ message SendEmailRequest {
 // ReplyEmailRequest defines the parameters for replying to an existing email.
 message ReplyEmailRequest {
   // The name of the mailbox containing the original message.
-  string mailbox_name = 1;
-  // The UID of the original message to which to reply.
-  uint32 uid = 2;
+  string mailbox_name = 1;  
+  // The UID of the message being replied to.
+  // This identifies the specific message in the mailbox for **IMAP accounts**.
+  // Should be `None` when using Gmail API accounts.
+  optional uint32 uid = 2;
+  // The message ID of the message being replied to.
+  // This is used for **Gmail API accounts** instead of IMAP UID.
+  // Should be `None` when using IMAP accounts.
+  optional string mid = 3;
   // Optional: The plain text content of the reply.
-  optional string text = 3;
+  optional string text = 4;
   // Optional: The HTML content of the reply.
-  optional string html = 4;
+  optional string html = 5;
   // Optional: A preview text for the reply.
-  optional string preview = 5;
+  optional string preview = 6;
   // A map of custom headers for the reply.
-  map<string, HeaderValue> headers = 6;
+  map<string, HeaderValue> headers = 7;
   // If true, replies to all recipients (To, CC) of the original email.
-  bool reply_all = 7;
+  bool reply_all = 8;
   // A list of attachments to include in the reply.
-  repeated MailAttachment attachments = 8;
+  repeated MailAttachment attachments = 9;
   // A list of additional CC recipients for the reply.
-  repeated EmailAddress cc = 9;
+  repeated EmailAddress cc = 10;
   // A list of additional BCC recipients for the reply.
-  repeated EmailAddress bcc = 10;
+  repeated EmailAddress bcc = 11;
   // Optional: The timezone for date headers in the reply.
-  optional string timezone = 11;
+  optional string timezone = 12;
   // If true, includes the original message content in the reply.
-  bool include_original = 12;
+  bool include_original = 13;
   // If true, includes all attachments from the original message in the reply.
-  bool include_all_attachments = 13;
+  bool include_all_attachments = 14;
   // Controls the sending process, including retry policies and DSN.
-  SendControl send_control = 14;
+  SendControl send_control = 15;
 }
 
 // ForwardEmailRequest defines the parameters for forwarding an existing email.
 message ForwardEmailRequest {
   // The name of the mailbox containing the original message.
   string mailbox_name = 1;
-  // The UID of the original message to forward.
-  uint32 uid = 2;
+  // The UID of the message being replied to.
+  // This identifies the specific message in the mailbox for **IMAP accounts**.
+  // Should be `None` when using Gmail API accounts.
+  optional uint32 uid = 2;
+  // The message ID of the message being replied to.
+  // This is used for **Gmail API accounts** instead of IMAP UID.
+  // Should be `None` when using IMAP accounts.
+  optional string mid = 3;
   // A list of primary recipients (To) for the forwarded email.
-  repeated EmailAddress to = 3;
+  repeated EmailAddress to = 4;
   // A list of carbon copy (CC) recipients for the forwarded email.
-  repeated EmailAddress cc = 4;
+  repeated EmailAddress cc = 5;
   // A list of blind carbon copy (BCC) recipients for the forwarded email.
-  repeated EmailAddress bcc = 5;
+  repeated EmailAddress bcc = 6;
   // Optional: The plain text content to add to the forwarded email.
-  optional string text = 6;
+  optional string text = 7;
   // Optional: The HTML content to add to the forwarded email.
-  optional string html = 7;
+  optional string html = 8;
   // Optional: A preview text for the forwarded email.
-  optional string preview = 8;
+  optional string preview = 9;
   // A map of custom headers for the forwarded email.
-  map<string, HeaderValue> headers = 9;
+  map<string, HeaderValue> headers = 10;
   // Optional: The timezone for date headers in the forwarded email.
-  optional string timezone = 10;
+  optional string timezone = 11;
   // A list of attachments to include in the forwarded email.
-  repeated MailAttachment attachments = 11;
+  repeated MailAttachment attachments = 12;
   // If true, includes the original message content in the forwarded email.
-  bool include_original = 12;
+  bool include_original = 13;
   // If true, includes all attachments from the original message in the forwarded email.
-  bool include_all_attachments = 13;
+  bool include_all_attachments = 14;
   // Controls the sending process, including retry policies and DSN.
-  SendControl send_control = 14;
+  SendControl send_control = 15;
 }
 
 // EmailTask represents a single email sending task managed by the system.

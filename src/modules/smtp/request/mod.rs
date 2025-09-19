@@ -10,6 +10,9 @@ use crate::modules::cache::imap::mailbox::EmailFlag;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::mailbox::MailBox;
 use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
+use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
+use crate::modules::cache::vendor::gmail::sync::labels::GmailLabels;
 use crate::modules::common::Addr;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::envelope::extractor::extract_envelope;
@@ -627,6 +630,25 @@ impl EmailHandler {
         retrieve_email_content(account.id, request, false)
             .await
             .map(Some)
+    }
+
+    pub async fn get_gmail_envelope(
+        account: &AccountV2,
+        label_name: &str,
+        mid: &str,
+    ) -> RustMailerResult<EmailEnvelopeV3> {
+        let map = GmailClient::label_map(account.id, account.use_proxy).await?;
+        if let Ok(label) = GmailLabels::get_by_name(account.id, label_name).await {
+            if !account.minimal_sync() {
+                let envelope = GmailEnvelope::find(account.id, label.id, mid).await?;
+                if let Some(envelope) = envelope {
+                    return Ok(envelope.into_v3(&map));
+                }
+            }
+        }
+        let message = GmailClient::get_message(account.id, account.use_proxy, mid).await?;
+        let envelope: GmailEnvelope = message.try_into()?;
+        Ok(envelope.into_v3(&map))
     }
 
     pub async fn get_envelope(

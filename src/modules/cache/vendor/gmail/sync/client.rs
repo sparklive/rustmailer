@@ -233,7 +233,7 @@ impl GmailClient {
         Ok(list)
     }
 
-    pub async fn get_messages(
+    pub async fn get_message(
         account_id: u64,
         use_proxy: Option<u64>,
         mid: &str,
