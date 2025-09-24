@@ -915,6 +915,9 @@ enum Conditions {
   UNKEYWORD = 31;
   // Messages that do not have the \Seen flag set.
   UNSEEN = 32;
+  // This is a full Gmail search expression, only available for Gmail API accounts.
+  // Messages with a specific header containing the specified text  
+  GMAIL_SEARCH = 33;
 }
 
 // Logic defines a logical operator (AND, OR, NOT) applied to child search conditions.
@@ -939,16 +942,22 @@ enum Operator {
 message MessageSearchRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // The name of the mailbox to search within.
-  string mailbox_name = 2;
+  // The name of the mailbox to search in
+  // - For **IMAP accounts**, this field is **required** and specifies which mailbox
+  //   (e.g. `INBOX`, `Sent`, or a custom folder) the search will run against.
+  // - For **Gmail API accounts**, this field is **optional**. If provided, it is treated
+  //   as a label name and will override any label filter specified in the `query` string.
+  optional string mailbox_name = 2;
   // The search query.
   MessageSearch search = 3;
-  // The requested page number (1-based).
-  uint64 page = 4;
+  // The token for fetching the next page of results in pagination.
+  // - If `None`, this indicates that the first page should be returned.
+  // - If `Some(token)`, the page corresponding to this token will be fetched.
+  optional string next_page_token = 4;
   // The number of messages to return per page.
   uint64 page_size = 5;
-  // If true, results will be returned in descending order.
-  bool desc = 6;
+  // If true, results will be returned in descending order. imap account only
+  optional bool desc = 6;
 }
 
 /// Request structure for unified message search across accounts.
@@ -1024,6 +1033,23 @@ message GetThreadMessagesRequest {
 message PagedMessages {
   // Optional: The current page number being returned.
   optional uint64 current_page = 1;
+  // Optional: The number of items per page.
+  optional uint64 page_size = 2;
+  // The total number of items available across all pages.
+  uint64 total_items = 3;
+  // The list of EmailEnvelope items for the current page.
+  repeated EmailEnvelope items = 4;
+  // Optional: The total number of pages available.
+  optional uint64 total_pages = 5;
+}
+
+// CursorDataPage represents a collection of EmailEnvelope messages
+// returned using cursor-based pagination rather than numeric page numbers.
+message CursorDataPage {
+  // A cursor used for pagination (returned by the previous response).
+  // Pass this token to retrieve the next page of results.
+  // If `None`, there are no more pages available.
+  optional string next_page_token = 1;
   // Optional: The number of items per page.
   optional uint64 page_size = 2;
   // The total number of items available across all pages.
@@ -1138,7 +1164,7 @@ service MessageService {
   // Fetches the complete raw EML content of an email message.
   rpc FetchRawMessage(FetchRawMessageRequest) returns (ByteResponse);
   // Searches for messages within a mailbox based on specified criteria.
-  rpc MessageSearch(MessageSearchRequest) returns (PagedMessages);
+  rpc MessageSearch(MessageSearchRequest) returns (CursorDataPage);
   // Performs a unified search across mail accounts and messages.
   rpc UnifiedSearch(UnifiedSearchRequest) returns (PagedMessages);
   // Creates a reply draft email linked to an existing message thread.

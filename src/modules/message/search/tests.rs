@@ -4,11 +4,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
-    use crate::modules::{
-        cache::imap::sync::flow::generate_uid_sequence_hashset,
-        message::search::payload::{Condition, Conditions, Logic, MessageSearch, Operator},
+    use crate::modules::message::search::payload::{
+        Condition, Conditions, Logic, MessageSearch, Operator,
     };
     fn cond(condition: Conditions, value: &str) -> MessageSearch {
         MessageSearch::Condition(Condition {

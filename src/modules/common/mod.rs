@@ -2,6 +2,8 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::base64_encode_url_safe;
+
 use super::error::code::ErrorCode;
 use super::error::RustMailerError;
 use mail_parser::{Addr as ImapAddr, Address as ImapAddress};

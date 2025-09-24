@@ -8,8 +8,9 @@ use crate::modules::common::auth::ClientContext;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::grpc::auth::require_account_access;
 use crate::modules::grpc::service::rustmailer_grpc::{
-    AppendReplyToDraftRequest, ByteResponse, EmailEnvelopeList, GetThreadMessagesRequest,
-    ListThreadsRequest, MessageContentResponse, PagedMessages, UnifiedSearchRequest,
+    AppendReplyToDraftRequest, ByteResponse, CursorDataPage, EmailEnvelopeList,
+    GetThreadMessagesRequest, ListThreadsRequest, MessageContentResponse, PagedMessages,
+    UnifiedSearchRequest,
 };
 use crate::modules::grpc::service::rustmailer_grpc::{
     Empty, FetchMessageAttachmentRequest, FetchMessageContentRequest, FetchRawMessageRequest,
@@ -162,17 +163,24 @@ impl MessageService for RustMailerMessageService {
     async fn message_search(
         &self,
         request: Request<MessageSearchRequest>,
-    ) -> Result<Response<PagedMessages>, Status> {
+    ) -> Result<Response<CursorDataPage>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
         let account_id = req.account_id;
-        let page = req.page;
+        let next_page_token = req.next_page_token.clone();
         let page_size = req.page_size;
         let desc = req.desc;
         let request: RustMailerMessageSearchRequest = req
             .try_into()
             .map_err(|e: &'static str| raise_error!(e.to_string(), ErrorCode::InvalidParameter))?;
 
-        let result = request.search(account_id, page, page_size, desc).await?;
+        let result = request
+            .search_impl(
+                account_id,
+                next_page_token.as_deref(),
+                page_size,
+                desc.unwrap_or(true),
+            )
+            .await?;
         Ok(Response::new(result.into()))
     }
 

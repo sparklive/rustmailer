@@ -9,9 +9,12 @@ use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
 use crate::modules::common::paginated::paginate_vec;
+use crate::modules::common::parallel::run_with_limit;
 use crate::modules::database::Paginated;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::message::search::cache::IMAP_SEARCH_CACHE;
+use crate::modules::rest::response::CursorDataPage;
+use crate::{base64_decode_url_safe, base64_encode_url_safe};
 use crate::{
     encode_mailbox_name,
     modules::{
@@ -82,7 +85,10 @@ pub enum Conditions {
     Flagged,
     /// Messages with the specified text in the FROM field  
     From,
+    /// This is a full Gmail search expression, only available for Gmail API accounts.
     /// Messages with a specific header containing the specified text  
+    GmailSeacrch,
+    /// Search emails by a specific header value.
     Header,
     /// Messages with the specified keyword flag set  
     Keyword,
@@ -245,6 +251,12 @@ impl MessageSearch {
                     Conditions::Unflagged => "UNFLAGGED".into(),
                     Conditions::Unkeyword => format!("UNKEYWORD {}", Self::quote_value(value)?),
                     Conditions::Unseen => "UNSEEN".into(),
+                    Conditions::GmailSeacrch => {
+                        return Err(raise_error!(
+                            "This condition is only supported for Gmail API accounts".into(),
+                            ErrorCode::InvalidParameter
+                        ));
+                    }
                 };
                 Ok(command)
             }
@@ -306,6 +318,34 @@ impl MessageSearch {
                     }
                 }
             },
+        }
+    }
+
+    pub fn to_gmail_api_search_command(&self) -> RustMailerResult<String> {
+        const ERR_MSG: &str = r#"Invalid GmailSeacrch condition format.
+            The JSON must include:
+            {
+                "type": "Condition",
+                "condition": "GmailSeacrch",
+                "value": "from:example@example.com OR subject:\"Invoice\" after:2025/01/01"
+            }
+            - "type" must be "Condition"
+            - "condition" must be "GmailSeacrch"
+            - "value" must be a full Gmail API search query
+            "#;
+
+        match self {
+            Self::Condition(condition) => match condition.condition {
+                Conditions::GmailSeacrch => {
+                    let value = condition
+                        .value
+                        .as_deref()
+                        .ok_or_else(|| raise_error!(ERR_MSG.into(), ErrorCode::InvalidParameter))?;
+                    Ok(value.into())
+                }
+                _ => Err(raise_error!(ERR_MSG.into(), ErrorCode::InvalidParameter)),
+            },
+            Self::Logic(_) => Err(raise_error!(ERR_MSG.into(), ErrorCode::InvalidParameter)),
         }
     }
 
@@ -415,63 +455,194 @@ impl MessageSearch {
 pub struct MessageSearchRequest {
     /// The search criteria to apply (can be a simple condition or complex logical expression)  
     pub search: MessageSearch,
-    /// The name of the mailbox to search in  
-    pub mailbox: String,
+    /// The name of the mailbox to search in
+    /// - For **IMAP accounts**, this field is **required** and specifies which mailbox
+    ///   (e.g. `INBOX`, `Sent`, or a custom folder) the search will run against.
+    /// - For **Gmail API accounts**, this field is **optional**. If provided, it is treated
+    ///   as a label name and will override any label filter specified in the `query` string.
+    pub mailbox: Option<String>,
 }
 
 impl MessageSearchRequest {
-    fn cache_key(
+    fn imap_search_cache_key(
         &self,
         account_id: u64,
-        page: u64,
         page_size: u64,
         desc: bool,
+        mailbox: &str,
         search_query: &str,
     ) -> String {
         format!(
-            "{}_{}_{}_{}_{}_{}",
-            account_id, self.mailbox, page, page_size, desc, search_query
+            "{}_{}_{}_{}_{}",
+            account_id, mailbox, page_size, desc, search_query
         )
     }
-    pub async fn search(
+
+    pub async fn search_impl(
         &self,
         account_id: u64,
-        page: u64,
+        next_page_token: Option<&str>,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
         let account = AccountV2::check_account_active(account_id, false).await?;
-        self.search_remote(&account, page, page_size, desc).await
+        match account.mailer_type {
+            MailerType::ImapSmtp => {
+                self.imap_search_impl(&account, next_page_token, page_size, desc)
+                    .await
+            }
+            MailerType::GmailApi => {
+                self.gmail_api_search_impl(&account, next_page_token, page_size)
+                    .await
+            }
+        }
     }
 
-    async fn search_remote(
+    async fn gmail_api_search_impl(
         &self,
         account: &AccountV2,
-        page: u64,
+        next_page_token: Option<&str>,
         page_size: u64,
-        desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
-        // Validate page and page_size
-        if page == 0 || page_size == 0 {
+    ) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+        if page_size == 0 {
             return Err(raise_error!(
-                "Both page and page_size must be greater than 0.".into(),
+                "page_size must be greater than 0.".into(),
                 ErrorCode::InvalidParameter
             ));
         }
-        if page_size > 1000 {
+        if page_size > 500 {
             return Err(raise_error!(
-                "The page_size exceeds the maximum allowed limit of 1000.".into(),
+                "The page_size exceeds the maximum allowed limit of 500.".into(),
                 ErrorCode::InvalidParameter
             ));
         }
 
+        let query = self.search.to_gmail_api_search_command()?;
+        let label_map: AHashMap<String, String> =
+            GmailClient::reverse_label_map(account.id, account.use_proxy, false).await?;
+
+        let label_id = match self.mailbox.as_deref() {
+            Some(name) => label_map.get(name).cloned().map(Some).ok_or_else(|| {
+                raise_error!(
+                    format!("Label '{}' not found in Gmail account", name),
+                    ErrorCode::InvalidParameter
+                )
+            })?,
+            None => None,
+        };
+
+        let message_list = GmailClient::search_messages(
+            account.id,
+            account.use_proxy,
+            label_id.as_deref(),
+            next_page_token,
+            Some(query.as_str()),
+            page_size,
+        )
+        .await?;
+
+        let total = message_list.result_size_estimate.ok_or_else(|| {
+            raise_error!(
+                "Missing 'resultSizeEstimate' in Gmail API response".into(),
+                ErrorCode::InternalError
+            )
+        })?;
+
+        let messages = message_list.messages;
+        let messages = match messages {
+            Some(ref msgs) if !msgs.is_empty() => msgs,
+            _ => {
+                return Ok(CursorDataPage {
+                    next_page_token: None,
+                    page_size: Some(page_size),
+                    total_items: 0,
+                    items: vec![],
+                    total_pages: Some(0),
+                })
+            }
+        };
+
+        let account_id = account.id;
+        let use_proxy = account.use_proxy;
+        let next_page_token = message_list.next_page_token;
+        let batch_messages = run_with_limit(5, messages.iter().cloned(), move |index| async move {
+            GmailClient::get_message(account_id, use_proxy, &index.id).await
+        })
+        .await?;
+
+        let envelopes: Vec<EmailEnvelopeV3> = batch_messages
+            .into_iter()
+            .map(|m| {
+                let mut envelope: GmailEnvelope = m.try_into()?;
+                envelope.account_id = account_id;
+                Ok(envelope.into_v3(&label_map))
+            })
+            .collect::<RustMailerResult<Vec<EmailEnvelopeV3>>>()?;
+
+        let total_pages = (total as f64 / page_size as f64).ceil() as u64;
+
+        Ok(CursorDataPage {
+            next_page_token,
+            page_size: Some(page_size),
+            total_items: total,
+            items: envelopes,
+            total_pages: Some(total_pages),
+        })
+    }
+
+    async fn imap_search_impl(
+        &self,
+        account: &AccountV2,
+        next_page_token: Option<&str>,
+        page_size: u64,
+        desc: bool,
+    ) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+        // Validate page and page_size
+        if page_size == 0 {
+            return Err(raise_error!(
+                "page_size must be greater than 0.".into(),
+                ErrorCode::InvalidParameter
+            ));
+        }
+        if page_size > 500 {
+            return Err(raise_error!(
+                "The page_size exceeds the maximum allowed limit of 500.".into(),
+                ErrorCode::InvalidParameter
+            ));
+        }
+
+        let page = match next_page_token {
+            Some(next_page_token) => {
+                let decoded = base64_decode_url_safe!(next_page_token)
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .and_then(|s| s.parse::<u64>().ok());
+
+                decoded.ok_or_else(|| {
+                    raise_error!(
+                        "Invalid next_page_token: not a valid page token".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                })?
+            }
+            None => 1,
+        };
+        let mailbox = self.mailbox.as_deref().ok_or_else(|| {
+            raise_error!(
+                "IMAP accounts must specify a mailbox (e.g. INBOX, Sent, or custom folder)".into(),
+                ErrorCode::InvalidParameter
+            )
+        })?;
+
         let search_query = self.search.to_imap_command(true)?;
+
         info!(
             "Executing remote search for account_id: {}, mailbox: {}, with query: {}",
-            account.id, self.mailbox, &search_query
+            account.id, mailbox, &search_query
         );
         let excutor = RUST_MAIL_CONTEXT.imap(account.id).await?;
-        let cache_key = self.cache_key(account.id, page, page_size, desc, &search_query);
+        let cache_key =
+            self.imap_search_cache_key(account.id, page_size, desc, mailbox, &search_query);
 
         // Attempt to retrieve from cache
         if let Some(v) = IMAP_SEARCH_CACHE.get(&cache_key).await {
@@ -480,8 +651,8 @@ impl MessageSearchRequest {
             let total_pages = (total as f64 / page_size as f64).ceil() as u64;
 
             if page > total_pages {
-                return Ok(DataPage::new(
-                    Some(page),
+                return Ok(CursorDataPage::new(
+                    None,
                     Some(page_size),
                     total,
                     Some(total_pages),
@@ -493,18 +664,24 @@ impl MessageSearchRequest {
             let fetches = excutor
                 .uid_fetch_meta(
                     current_page_uids,
-                    encode_mailbox_name!(&self.mailbox).as_str(),
+                    encode_mailbox_name!(mailbox).as_str(),
                     false,
                 )
                 .await?;
             let mut envelopes = Vec::new();
             for fetch in fetches {
-                let envelope = extract_envelope(&fetch, account.id, &self.mailbox)?;
+                let envelope = extract_envelope(&fetch, account.id, mailbox)?;
                 envelopes.push(envelope);
             }
 
-            return Ok(DataPage::new(
-                Some(page),
+            let next_page_token = if page == total_pages {
+                None
+            } else {
+                Some(base64_encode_url_safe!((page + 1).to_string()))
+            };
+
+            return Ok(CursorDataPage::new(
+                next_page_token,
                 Some(page_size),
                 total,
                 Some(total_pages),
@@ -514,14 +691,14 @@ impl MessageSearchRequest {
 
         // Cache miss, perform search and fetch data
         let uid_sets = excutor
-            .uid_search(&encode_mailbox_name!(self.mailbox), &search_query)
+            .uid_search(&encode_mailbox_name!(mailbox), &search_query)
             .await?;
         if uid_sets.is_empty() {
             IMAP_SEARCH_CACHE
                 .set(cache_key, Arc::new((vec![], 0)))
                 .await;
-            return Ok(DataPage::new(
-                Some(page),
+            return Ok(CursorDataPage::new(
+                None,
                 Some(page_size),
                 0,
                 None,
@@ -538,8 +715,8 @@ impl MessageSearchRequest {
             .await;
 
         if page > total_pages {
-            return Ok(DataPage::new(
-                Some(page),
+            return Ok(CursorDataPage::new(
+                None,
                 Some(page_size),
                 total_items,
                 Some(total_pages),
@@ -549,20 +726,21 @@ impl MessageSearchRequest {
 
         let current_page_uids = &pages[(page - 1) as usize];
         let fetches = excutor
-            .uid_fetch_meta(
-                current_page_uids,
-                &encode_mailbox_name!(self.mailbox),
-                false,
-            )
+            .uid_fetch_meta(current_page_uids, &encode_mailbox_name!(mailbox), false)
             .await?;
         let mut envelopes = Vec::new();
         for fetch in fetches {
-            let envelope = extract_envelope(&fetch, account.id, &self.mailbox)?;
+            let envelope = extract_envelope(&fetch, account.id, mailbox)?;
             envelopes.push(envelope);
         }
+        let next_page_token = if page == total_pages {
+            None
+        } else {
+            Some(base64_encode_url_safe!((page + 1).to_string()))
+        };
 
-        Ok(DataPage::new(
-            Some(page),
+        Ok(CursorDataPage::new(
+            next_page_token,
             Some(page_size),
             total_items,
             Some(total_pages),

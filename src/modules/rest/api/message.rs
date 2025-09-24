@@ -21,7 +21,7 @@ use crate::modules::message::transfer::{
     transfer_messages, MailboxTransferRequest, MessageTransfer,
 };
 use crate::modules::rest::api::ApiTags;
-use crate::modules::rest::response::DataPage;
+use crate::modules::rest::response::{CursorDataPage, DataPage};
 use crate::modules::rest::ApiResult;
 use poem::web::Path;
 use poem::Body;
@@ -308,23 +308,26 @@ impl MessageApi {
         &self,
         /// The ID of the account owning the mailboxes.
         account_id: Path<u64>,
-        /// The page number for pagination (1-based).
-        page: Query<u64>,
+        /// The token for fetching the next page of results in pagination.
+        ///
+        /// - If `None`, this indicates that the first page should be returned.
+        /// - If `Some(token)`, the page corresponding to this token will be fetched.
+        next_page_token: Query<Option<String>>,
         /// The number of messages per page.
         page_size: Query<u64>,
-        /// If `true`, lists results in descending order; otherwise, ascending.
+        /// If `true`, lists results in descending order; otherwise, ascending. imap account only
         desc: Query<Option<bool>>,
         /// specifying the search criteria (e.g., keywords, flags).
         payload: Json<MessageSearchRequest>,
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<CursorDataPage<EmailEnvelopeV3>>> {
         let request = payload.0;
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
         Ok(Json(
             request
-                .search(account_id, page.0, page_size.0, desc)
+                .search_impl(account_id, next_page_token.0.as_deref(), page_size.0, desc)
                 .await?,
         ))
     }

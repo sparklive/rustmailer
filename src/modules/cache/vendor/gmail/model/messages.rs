@@ -32,7 +32,7 @@ pub struct MessageList {
     pub next_page_token: Option<String>,
     #[serde(rename = "resultSizeEstimate")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub result_size_estimate: Option<i64>,
+    pub result_size_estimate: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

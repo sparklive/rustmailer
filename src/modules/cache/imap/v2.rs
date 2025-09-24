@@ -238,7 +238,7 @@ pub struct EmailEnvelopeV3 {
     pub mid: Option<String>,
     /// A list of labels applied to the message.
     ///
-    /// Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").
+    /// Each element is a string representing a Gmail label name (e.g., "INBOX", "UNREAD").
     /// This field reflects the current labels associated with the email.
     ///
     /// Note: This field is populated only for Gmail API accounts. For other account types, it will be empty.

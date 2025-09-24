@@ -9,7 +9,7 @@ use crate::modules::{
         v2::EmailEnvelopeV3,
     },
     common::Addr,
-    grpc::service::rustmailer_grpc::{self, PagedMessages},
+    grpc::service::rustmailer_grpc::{self},
     imap::section::{EmailBodyPart, Encoding, ImapAttachment, Param, PartType, SegmentPath},
     message::{
         append::AppendReplyToDraftRequest,
@@ -23,7 +23,7 @@ use crate::modules::{
         },
         transfer::MailboxTransferRequest,
     },
-    rest::response::DataPage,
+    rest::response::{CursorDataPage, DataPage},
 };
 
 impl From<rustmailer_grpc::MailboxTransferRequest> for MailboxTransferRequest {
@@ -134,7 +134,19 @@ impl TryFrom<rustmailer_grpc::FlagMessageRequest> for FlagMessageRequest {
     }
 }
 
-impl From<DataPage<EmailEnvelopeV3>> for PagedMessages {
+impl From<CursorDataPage<EmailEnvelopeV3>> for rustmailer_grpc::CursorDataPage {
+    fn from(value: CursorDataPage<EmailEnvelopeV3>) -> Self {
+        Self {
+            next_page_token: value.next_page_token,
+            page_size: value.page_size,
+            total_items: value.total_items,
+            items: value.items.into_iter().map(Into::into).collect(),
+            total_pages: value.total_pages,
+        }
+    }
+}
+
+impl From<DataPage<EmailEnvelopeV3>> for rustmailer_grpc::PagedMessages {
     fn from(value: DataPage<EmailEnvelopeV3>) -> Self {
         Self {
             current_page: value.current_page,
@@ -576,6 +588,7 @@ impl TryFrom<i32> for Conditions {
             30 => Ok(Conditions::Unflagged),
             31 => Ok(Conditions::Unkeyword),
             32 => Ok(Conditions::Unseen),
+            33 => Ok(Conditions::GmailSeacrch),
             _ => Err("Invalid value for Conditions"),
         }
     }

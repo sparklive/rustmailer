@@ -10,4 +10,4 @@ use ahash::AHashMap;
 use crate::modules::common::lru::TimedLruCache;
 
 pub static GMAIL_LABELS_CACHE: LazyLock<TimedLruCache<u64, AHashMap<String, String>>> =
-    LazyLock::new(|| TimedLruCache::new(100, Duration::from_secs(3600)));
+    LazyLock::new(|| TimedLruCache::new(100, Duration::from_secs(60)));
