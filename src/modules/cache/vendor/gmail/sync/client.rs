@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use serde_json::json;
+use url::Url;
 
 use crate::{
     modules::{
@@ -222,14 +223,60 @@ impl GmailClient {
         let access_token = Self::get_access_token(account_id).await?;
         let value = client.get(url.as_str(), &access_token).await?;
         let list = serde_json::from_value::<MessageList>(value).map_err(|e| {
-        raise_error!(
-            format!(
-                "Failed to deserialize Gmail API response into MessageList: {:#?}. Possible model mismatch or API change.",
-                e
-            ),
-            ErrorCode::InternalError
-        )
-    })?;
+            raise_error!(
+                format!(
+                    "Failed to deserialize Gmail API response into MessageList: {:#?}. Possible model mismatch or API change.",
+                    e
+                ),
+                ErrorCode::InternalError
+            )
+        })?;
+        Ok(list)
+    }
+
+    pub async fn search_messages(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        label_id: Option<&str>,
+        page_token: Option<&str>,
+        query: Option<&str>,
+        max_results: u64,
+    ) -> RustMailerResult<MessageList> {
+        let mut url = Url::parse("https://gmail.googleapis.com/gmail/v1/users/me/messages")
+            .map_err(|e| {
+                raise_error!(
+                    format!("Failed to parse base URL: {}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+
+        {
+            let mut pairs = url.query_pairs_mut();
+            pairs.append_pair("maxResults", &max_results.to_string());
+
+            if let Some(query) = query {
+                pairs.append_pair("q", query);
+            }
+            if let Some(label_id) = label_id {
+                pairs.append_pair("labelIds", label_id);
+            }
+            if let Some(page_token) = page_token {
+                pairs.append_pair("pageToken", page_token);
+            }
+        }
+
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.get(url.as_str(), &access_token).await?;
+        let list = serde_json::from_value::<MessageList>(value).map_err(|e| {
+            raise_error!(
+                format!(
+                    "Failed to deserialize Gmail API response into MessageList: {:#?}. Possible model mismatch or API change.",
+                    e
+                ),
+                ErrorCode::InternalError
+            )
+        })?;
         Ok(list)
     }
 
@@ -253,20 +300,19 @@ impl GmailClient {
         Ok(message)
     }
 
-    pub async fn move_to_trash(
+    pub async fn batch_delete(
         account_id: u64,
         use_proxy: Option<u64>,
-        mid: &str,
+        mids: &[String],
     ) -> RustMailerResult<()> {
-        let url = format!(
-            "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}/trash",
-            mid
-        );
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchDelete";
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
-        client
-            .post(url.as_str(), &access_token, None::<&()>, true)
-            .await?;
+        let body = json!({
+          "ids": mids
+        });
+
+        client.post(url, &access_token, Some(&body), false).await?;
         Ok(())
     }
 

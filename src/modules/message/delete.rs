@@ -6,7 +6,6 @@ use crate::modules::account::entity::MailerType;
 use crate::modules::account::v2::AccountV2;
 use crate::modules::cache::imap::mailbox::{AttributeEnum, MailBox};
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
-use crate::modules::common::parallel::run_with_limit;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::{envelope::generate_uid_set, error::RustMailerResult};
@@ -66,14 +65,7 @@ pub async fn move_to_trash(
 pub async fn gmail_move_to_trash(account: &AccountV2, mids: &[String]) -> RustMailerResult<()> {
     let account_id = account.id;
     let use_proxy = account.use_proxy;
-
-    run_with_limit(5, mids.iter().cloned(), move |mid| async move {
-        GmailClient::move_to_trash(account_id, use_proxy, &mid).await?;
-        Ok(())
-    })
-    .await?;
-
-    Ok(())
+    GmailClient::batch_delete(account_id, use_proxy, mids).await
 }
 
 async fn move_to_trash_or_delete_messages_directly(
