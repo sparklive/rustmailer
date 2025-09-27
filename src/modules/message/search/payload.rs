@@ -2,19 +2,20 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::base64_encode_url_safe;
 use crate::modules::account::entity::MailerType;
 use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
 use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
+use crate::modules::common::decode_page_token;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::common::parallel::run_with_limit;
 use crate::modules::database::Paginated;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::message::search::cache::IMAP_SEARCH_CACHE;
 use crate::modules::rest::response::CursorDataPage;
-use crate::{base64_decode_url_safe, base64_encode_url_safe};
 use crate::{
     encode_mailbox_name,
     modules::{
@@ -611,22 +612,7 @@ impl MessageSearchRequest {
             ));
         }
 
-        let page = match next_page_token {
-            Some(next_page_token) => {
-                let decoded = base64_decode_url_safe!(next_page_token)
-                    .ok()
-                    .and_then(|bytes| String::from_utf8(bytes).ok())
-                    .and_then(|s| s.parse::<u64>().ok());
-
-                decoded.ok_or_else(|| {
-                    raise_error!(
-                        "Invalid next_page_token: not a valid page token".into(),
-                        ErrorCode::InvalidParameter
-                    )
-                })?
-            }
-            None => 1,
-        };
+        let page = decode_page_token(next_page_token)?;
         let mailbox = self.mailbox.as_deref().ok_or_else(|| {
             raise_error!(
                 "IMAP accounts must specify a mailbox (e.g. INBOX, Sent, or custom folder)".into(),

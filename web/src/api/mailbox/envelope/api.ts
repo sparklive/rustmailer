@@ -9,13 +9,39 @@ import axiosInstance from "@/api/axiosInstance";
 import { EmailEnvelope } from "@/features/mailbox/data/schema";
 import { saveAs } from 'file-saver';
 
-export const list_messages = async (accountId: number, mailbox: string, page: number, page_size: number, remote: boolean) => {
-    const response = await axiosInstance.get<PaginatedResponse<EmailEnvelope>>(`/api/v1/list-messages/${accountId}?mailbox=${mailbox}&page=${page}&page_size=${page_size}&desc=true&remote=${remote}`);
+export const list_messages = async (accountId: number, mailbox: string, page_size: number, remote: boolean, next_page_token?: string) => {
+    const params = new URLSearchParams({
+        mailbox,
+        page_size: String(page_size),
+        desc: "true",
+        remote: String(remote),
+    });
+    if (next_page_token) {
+        params.append("next_page_token", next_page_token);
+    }
+
+    const response = await axiosInstance.get<PaginatedResponse<EmailEnvelope>>(
+        `/api/v1/list-messages/${accountId}?${params.toString()}`
+    );
     return response.data;
 };
 
-export const search_messages = async (accountId: number, page: number, page_size: number, remote: boolean, data: Record<string, any>) => {
-    const response = await axiosInstance.post<PaginatedResponse<EmailEnvelope>>(`/api/v1/search-message/${accountId}?page=${page}&page_size=${page_size}&desc=true&remote=${remote}`, data);
+export const search_messages = async (accountId: number, page_size: number, remote: boolean, data: Record<string, any>, next_page_token?: string) => {
+    const params = new URLSearchParams({
+        page_size: String(page_size),
+        desc: "true",
+        remote: String(remote),
+    });
+
+    if (next_page_token) {
+        params.append("next_page_token", next_page_token);
+    }
+
+    const response = await axiosInstance.post<PaginatedResponse<EmailEnvelope>>(
+        `/api/v1/search-message/${accountId}?${params.toString()}`,
+        data
+    );
+
     return response.data;
 };
 

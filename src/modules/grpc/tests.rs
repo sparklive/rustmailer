@@ -37,7 +37,7 @@ async fn test1() {
     let request = ListMessagesRequest {
         account_id: id!(64),
         mailbox_name: "INBOX".into(),
-        page: 1,
+        next_page_token: None,
         page_size: 10,
         remote: false,
         desc: true,

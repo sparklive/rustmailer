@@ -85,13 +85,13 @@ impl MessageService for RustMailerMessageService {
     async fn list_messages(
         &self,
         request: Request<ListMessagesRequest>,
-    ) -> Result<Response<PagedMessages>, Status> {
+    ) -> Result<Response<CursorDataPage>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
 
         let result = list_messages_in_mailbox(
             req.account_id,
             &req.mailbox_name,
-            req.page,
+            req.next_page_token.as_deref(),
             req.page_size,
             req.remote,
             req.desc,

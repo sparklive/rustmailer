@@ -125,14 +125,17 @@ impl MessageApi {
         mailbox: Query<String>,
         /// fetches messages from the IMAP server; otherwise, uses local data.
         remote: Query<Option<bool>>,
-        /// The page number for pagination (1-based).
-        page: Query<u64>,
+        /// The token for fetching the next page of results in pagination.
+        ///
+        /// - If `None`, this indicates that the first page should be returned.
+        /// - If `Some(token)`, the page corresponding to this token will be fetched.
+        next_page_token: Query<Option<String>>,
         /// The number of messages per page.
         page_size: Query<u64>,
         /// lists messages in descending order; otherwise, ascending. internal date
         desc: Query<Option<bool>>,
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<CursorDataPage<EmailEnvelopeV3>>> {
         let remote = remote.0.unwrap_or(false);
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
@@ -142,7 +145,7 @@ impl MessageApi {
             list_messages_in_mailbox(
                 account_id,
                 mailbox.0.trim(),
-                page.0,
+                next_page_token.0.as_deref(),
                 page_size.0,
                 remote,
                 desc,

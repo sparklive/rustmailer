@@ -40,6 +40,7 @@ import { EnvelopeDeleteDialog } from "./delete-dialog"
 import { useFlagMessageMutation } from "@/hooks/use-flag-messages"
 import { EnvelopeFilterDialog } from "./envelope-filter-dialog"
 import Logo from '@/assets/logo.svg'
+import { PaginatedResponse } from "@/api"
 
 interface MailProps {
     defaultLayout: number[] | undefined
@@ -51,7 +52,7 @@ interface MailProps {
 interface ListMessagesOptions {
     accountId: number | undefined;
     mailbox: string | undefined;
-    page: number;
+    next_page_token: string | undefined;
     page_size: number;
     remote: boolean;
     filter?: FilterForm;
@@ -114,22 +115,44 @@ function buildPayload(filterForm: FilterForm): any {
     };
 }
 
-const useListMessages = ({ accountId, mailbox, page, page_size, remote, filter }: ListMessagesOptions) => {
-    return useQuery({
-        queryKey: ['mailbox-list-messages', `${accountId}`, mailbox, page, page_size, remote, filter],
-        queryFn: () => {
-            if (filter) {
-                const payload = {
-                    mailbox: mailbox!,
-                    search: buildPayload(filter)
-                };
-                return search_messages(accountId!, page, page_size, remote, payload);
-            }
-            return list_messages(accountId!, mailbox!, page, page_size, remote);
-        },
-        enabled: !!accountId && !!mailbox,
-    });
-};
+// const useListMessages = ({ accountId, mailbox, page, page_size, remote, filter }: ListMessagesOptions) => {
+//     return useQuery({
+//         queryKey: ['mailbox-list-messages', `${accountId}`, mailbox, page, page_size, remote, filter],
+//         queryFn: () => {
+//             if (filter) {
+//                 const payload = {
+//                     mailbox: mailbox!,
+//                     search: buildPayload(filter)
+//                 };
+//                 return search_messages(accountId!, page, page_size, remote, payload);
+//             }
+//             return list_messages(accountId!, mailbox!, page, page_size, remote);
+//         },
+//         enabled: !!accountId && !!mailbox,
+//     });
+// };
+
+
+export async function listMessagesAPI({
+    accountId,
+    mailbox,
+    next_page_token,
+    page_size,
+    remote,
+    filter
+}: ListMessagesOptions) {
+    if (filter) {
+        const payload = {
+            mailbox,
+            search: buildPayload(filter)
+        };
+        return await search_messages(accountId!, page_size, remote, payload, next_page_token);
+    }
+
+    return await list_messages(accountId!, mailbox!, page_size, remote, next_page_token);
+}
+
+
 
 export function Mail({
     defaultLayout = [20, 80],
@@ -143,6 +166,14 @@ export function Mail({
     const [selectedAccountId, setSelectedAccountId] = React.useState<number | undefined>(lastSelectedAccountId);
     const [selectedEvelope, setSelectedEvelope] = React.useState<EmailEnvelope | undefined>(undefined);
     const [useIMAP, setUseIMAP] = React.useState<boolean>(false);
+
+    const [envelopes, setEnvelopes] = React.useState<PaginatedResponse<EmailEnvelope> | undefined>(undefined);
+    const [isMessagesLoading, setIsMessagesLoading] = React.useState<boolean>(false);
+    const [isError, setIsError] = React.useState<boolean>(false);
+    const [error, setError] = React.useState<any>(undefined);
+    // const [pageTokenMap, setPageTokenMap] = React.useState<Record<number, string | undefined>>({});
+    const pageTokenMapRef = React.useRef<Record<number, string | undefined>>({});
+
     const [page, setPage] = React.useState(0);
     const [pageSize, setPageSize] = React.useState(10);
     const [selectedUids, setSelectedUids] = React.useState<number[]>([]);
@@ -159,14 +190,48 @@ export function Mail({
         enabled: !!selectedAccountId,
     })
 
-    const { data: envelopes, isLoading: isMessagesLoading, isError, error } = useListMessages({
-        accountId: selectedAccountId,
-        mailbox: selectedMailbox?.name,
-        page: page + 1,
-        page_size: pageSize,
-        remote: useIMAP,
-        filter: currentFilter
-    });
+
+    React.useEffect(() => {
+        if (!selectedAccountId || !selectedMailbox) {
+            return;
+        }
+
+        (async () => {
+            setIsMessagesLoading(true);
+            setIsError(false);
+            setError(undefined);
+            const next_page_token = pageTokenMapRef.current[page];
+            try {
+                const data = await listMessagesAPI({
+                    accountId: selectedAccountId,
+                    mailbox: selectedMailbox?.name,
+                    page_size: pageSize,
+                    remote: useIMAP,
+                    filter: currentFilter,
+                    next_page_token
+                });
+                setEnvelopes(data);
+                pageTokenMapRef.current = {
+                    ...pageTokenMapRef.current,
+                    [page + 1]: data.next_page_token ?? undefined,
+                };
+            } catch (error) {
+                setIsError(true);
+                setError(error);
+            } finally {
+                setIsMessagesLoading(false)
+            }
+        })();
+    }, [selectedAccountId, selectedMailbox, page, pageSize, useIMAP, currentFilter])
+
+    // const { data: envelopes, isLoading: isMessagesLoading, isError, error } = useListMessages({
+    //     accountId: selectedAccountId,
+    //     mailbox: selectedMailbox?.name,
+    //     page: page + 1,
+    //     page_size: pageSize,
+    //     remote: useIMAP,
+    //     filter: currentFilter
+    // });
 
     const triggerUpdate = (mailbox: string) => {
         queryClient.refetchQueries({
@@ -187,11 +252,8 @@ export function Mail({
                     mailbox: selectedMailbox?.name,
                     search: buildPayload(data)
                 };
-                const result = await search_messages(selectedAccountId, 1, 10, useIMAP, payload);
-                queryClient.setQueryData(
-                    ['mailbox-list-messages', selectedAccountId, selectedMailbox?.name, 1, 10, useIMAP, data],
-                    result
-                );
+                const result = await search_messages(selectedAccountId, 10, useIMAP, payload);
+                setEnvelopes(result);
             } catch (error) {
                 console.error('Error fetching messages:', error);
                 toast({
@@ -212,7 +274,10 @@ export function Mail({
         setSelectedUids([]);
     }
 
-
+    const hasNextPage = () => {
+        return !!pageTokenMapRef.current[page + 1];
+    }
+    
     const handlePageChange = (newPage: number) => {
         setPage(newPage);
         setSelectedUids([]);
@@ -468,6 +533,7 @@ export function Mail({
                                 {selectedMailbox && <div className="flex justify-center mt-4">
                                     <EnvelopeListPagination
                                         totalItems={envelopes?.total_items ?? 0}
+                                        hasNextPage={hasNextPage}
                                         pageIndex={page}
                                         pageSize={pageSize}
                                         setPageIndex={handlePageChange}

@@ -2,7 +2,9 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::base64_encode_url_safe;
+use crate::base64_decode_url_safe;
+use crate::modules::error::RustMailerResult;
+use crate::raise_error;
 
 use super::error::code::ErrorCode;
 use super::error::RustMailerError;
@@ -22,14 +24,14 @@ use tracing::error;
 pub mod auth;
 pub mod error;
 pub mod log;
+pub mod lru;
 pub mod paginated;
+pub mod parallel;
 pub mod rustls;
 pub mod signal;
 pub mod timeout;
 pub mod tls;
 pub mod validator;
-pub mod lru;
-pub mod parallel;
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Object)]
 pub struct Addr {
@@ -217,5 +219,24 @@ impl ResponseError for RustMailerError {
                 Response::builder().status(self.status()).body(body)
             }
         }
+    }
+}
+
+pub fn decode_page_token(next_page_token: Option<&str>) -> RustMailerResult<u64> {
+    match next_page_token {
+        Some(token) => {
+            let decoded = base64_decode_url_safe!(token)
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .and_then(|s| s.parse::<u64>().ok());
+
+            decoded.ok_or_else(|| {
+                raise_error!(
+                    "Invalid next_page_token: not a valid page token".into(),
+                    ErrorCode::InvalidParameter
+                )
+            })
+        }
+        None => Ok(1),
     }
 }

@@ -68,7 +68,7 @@ export function MailList({
 
     return (
         <div className="grid grid-cols-1 gap-1.5 p-1 sm:p-2">
-            {items.map((item, index) => {
+            {items.map((item) => {
                 const isUnread = item.labels && item.labels.length > 0
                     ? gmail_unread(item)
                     : !seen(item);
@@ -77,7 +77,7 @@ export function MailList({
 
                 return (
                     <div
-                        key={index}
+                        key={item.mid ?? item.uid}
                         className={cn(
                             "flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer",
                             "hover:bg-accent/50",
@@ -91,7 +91,7 @@ export function MailList({
                                 checked={selectedUids.includes(item.uid)}
                                 onCheckedChange={(checked) => handleCheckboxChange(checked, item.uid)}
                                 onClick={(e) => e.stopPropagation()}
-                                className="h-3 w-3 shrink-0"
+                                className="h-4 w-3 shrink-0"
                             />
 
                             <div className="flex items-center gap-1 min-w-0 flex-1">

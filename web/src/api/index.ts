@@ -5,7 +5,7 @@
  */
 
 export interface PaginatedResponse<S> {
-    current_page: number | null;
+    next_page_token: string | null;
     page_size: number | null;
     total_items: number;
     items: S[];

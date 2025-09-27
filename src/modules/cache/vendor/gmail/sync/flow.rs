@@ -43,9 +43,9 @@ pub async fn fetch_and_save_since_date(
             account_id,
             use_proxy,
             &label.label_id,
-            page_token,
+            page_token.as_deref(),
             Some(date),
-            ENVELOPE_BATCH_SIZE,
+            ENVELOPE_BATCH_SIZE as u64,
         )
         .await?;
         // The total number of messages can only be retrieved via an API query
@@ -156,9 +156,9 @@ pub async fn fetch_and_save_full_label(
             account_id,
             use_proxy,
             &label.label_id,
-            page_token,
+            page_token.as_deref(),
             None,
-            ENVELOPE_BATCH_SIZE,
+            ENVELOPE_BATCH_SIZE as u64,
         )
         .await?;
         // Update page_token returned by Gmail API

@@ -202,9 +202,9 @@ impl GmailClient {
         account_id: u64,
         use_proxy: Option<u64>,
         label_id: &str,
-        page_token: Option<String>,
+        page_token: Option<&str>,
         after: Option<&str>,
-        max_results: u32,
+        max_results: u64,
     ) -> RustMailerResult<MessageList> {
         let mut url = format!(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds={}&maxResults={}",

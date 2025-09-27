@@ -231,9 +231,10 @@ export default function License() {
 const FormSchema = z.object({
   license: z
     .string({ required_error: 'License key is required.' })
-    .min(300, { message: "This is not a valid license key." })
-    .max(500, { message: "This is not a valid license key." }),
+    .min(300, { message: "License key is too short. Please check your license." })
+    .max(800, { message: "License key is too long. Please check your license." }),
 });
+
 
 function UploadLicenseForm({ className, close }: React.ComponentProps<"form"> & { close: () => void }) {
   const [open, setOpen] = useState(false);
