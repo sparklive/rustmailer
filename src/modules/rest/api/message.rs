@@ -196,10 +196,6 @@ impl MessageApi {
         &self,
         /// The ID of the account owning the mailbox.
         account_id: Path<u64>,
-        /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").
-        /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
-        /// so no manual decoding is required.
-        mailbox: Query<String>,
         // Thread ID
         thread_id: Query<u64>,
         context: ClientContext,
@@ -208,7 +204,7 @@ impl MessageApi {
         context.require_account_access(account_id)?;
 
         Ok(Json(
-            get_thread_messages(account_id, mailbox.0.trim(), thread_id.0).await?,
+            get_thread_messages(account_id, thread_id.0).await?,
         ))
     }
 

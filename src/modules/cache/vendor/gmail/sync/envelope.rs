@@ -167,7 +167,6 @@ impl GmailEnvelope {
 
     pub async fn get_thread(
         account_id: u64,
-        mailbox_id: u64,
         thread_id: u64,
     ) -> RustMailerResult<Vec<GmailEnvelope>> {
         let envelopes = filter_by_secondary_key_impl::<GmailEnvelope>(
@@ -179,7 +178,7 @@ impl GmailEnvelope {
 
         let mut result = Vec::with_capacity(envelopes.len());
         for e in envelopes {
-            if e.account_id == account_id && e.label_id == mailbox_id {
+            if e.account_id == account_id {
                 result.push(e);
             }
         }

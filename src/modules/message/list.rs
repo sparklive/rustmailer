@@ -345,7 +345,6 @@ pub async fn list_threads_in_mailbox(
 
 pub async fn get_thread_messages(
     account_id: u64,
-    mailbox_name: &str,
     thread_id: u64,
 ) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
     let account = AccountV2::check_account_active(account_id, false).await?;
@@ -361,28 +360,10 @@ pub async fn get_thread_messages(
         ));
     }
 
-    let not_found_err = || {
-        raise_error!(
-            format!(
-                "Mailbox '{}' not found in the synchronized mailbox list for account {}. \
-                This may happen if the mailbox was not selected during synchronization settings \
-                or has been removed from the email server.",
-                mailbox_name, account_id
-            ),
-            ErrorCode::MailBoxNotCached
-        )
-    };
-
     match account.mailer_type {
-        MailerType::ImapSmtp => {
-            let mailbox = MailBox::get(account.id, mailbox_name)
-                .await
-                .map_err(|_| not_found_err())?;
-            EmailEnvelopeV3::get_thread(account_id, mailbox.id, thread_id).await
-        }
+        MailerType::ImapSmtp => EmailEnvelopeV3::get_thread(account_id, thread_id).await,
         MailerType::GmailApi => {
-            let label = GmailLabels::get_by_name(account_id, mailbox_name).await?;
-            let envelopes = GmailEnvelope::get_thread(account_id, label.id, thread_id).await?;
+            let envelopes = GmailEnvelope::get_thread(account_id, thread_id).await?;
             let map = GmailClient::label_map(account_id, account.use_proxy).await?;
             Ok(envelopes.into_iter().map(|e| e.into_v3(&map)).collect())
         }

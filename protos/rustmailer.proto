@@ -1025,10 +1025,8 @@ message ListThreadsRequest {
 message GetThreadMessagesRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // The name of the mailbox to list messages from.
-  string mailbox_name = 2;
   // thread id.
-  uint64 thread_id = 3;
+  uint64 thread_id = 2;
 }
 
 // PagedMessages represents a paginated list of EmailEnvelope messages.

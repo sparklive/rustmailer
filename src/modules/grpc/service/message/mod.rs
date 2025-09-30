@@ -243,8 +243,7 @@ impl MessageService for RustMailerMessageService {
         request: Request<GetThreadMessagesRequest>,
     ) -> Result<Response<EmailEnvelopeList>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        let envelopes =
-            get_thread_messages(req.account_id, &req.mailbox_name, req.thread_id).await?;
+        let envelopes = get_thread_messages(req.account_id, req.thread_id).await?;
 
         Ok(Response::new(EmailEnvelopeList {
             items: envelopes.into_iter().map(|e| e.into()).collect(),

@@ -165,7 +165,7 @@ export function Mail({
     const [selectedMailbox, setSelectedMailbox] = React.useState<MailboxData | undefined>(undefined);
     const [selectedAccountId, setSelectedAccountId] = React.useState<number | undefined>(lastSelectedAccountId);
     const [selectedEvelope, setSelectedEvelope] = React.useState<EmailEnvelope | undefined>(undefined);
-    const [useIMAP, setUseIMAP] = React.useState<boolean>(false);
+    const [remote, setRemote] = React.useState<boolean>(false);
 
     const [envelopes, setEnvelopes] = React.useState<PaginatedResponse<EmailEnvelope> | undefined>(undefined);
     const [isMessagesLoading, setIsMessagesLoading] = React.useState<boolean>(false);
@@ -185,8 +185,8 @@ export function Mail({
     const queryClient = useQueryClient();
 
     const { data: mailboxes, isLoading: isMailboxesLoading } = useQuery({
-        queryKey: ['account-mailboxes', `${selectedAccountId}`, useIMAP],
-        queryFn: () => list_account_mailboxes(selectedAccountId!, useIMAP),
+        queryKey: ['account-mailboxes', `${selectedAccountId}`, remote],
+        queryFn: () => list_account_mailboxes(selectedAccountId!, remote),
         enabled: !!selectedAccountId,
     })
 
@@ -206,7 +206,7 @@ export function Mail({
                     accountId: selectedAccountId,
                     mailbox: selectedMailbox?.name,
                     page_size: pageSize,
-                    remote: useIMAP,
+                    remote: remote,
                     filter: currentFilter,
                     next_page_token
                 });
@@ -222,7 +222,7 @@ export function Mail({
                 setIsMessagesLoading(false)
             }
         })();
-    }, [selectedAccountId, selectedMailbox, page, pageSize, useIMAP, currentFilter])
+    }, [selectedAccountId, selectedMailbox, page, pageSize, remote, currentFilter])
 
     // const { data: envelopes, isLoading: isMessagesLoading, isError, error } = useListMessages({
     //     accountId: selectedAccountId,
@@ -235,7 +235,7 @@ export function Mail({
 
     const triggerUpdate = (mailbox: string) => {
         queryClient.refetchQueries({
-            queryKey: ['mailbox-list-messages', selectedAccountId, mailbox, page + 1, pageSize, useIMAP, currentFilter]
+            queryKey: ['mailbox-list-messages', selectedAccountId, mailbox, page + 1, pageSize, remote, currentFilter]
         });
     }
 
@@ -252,7 +252,7 @@ export function Mail({
                     mailbox: selectedMailbox?.name,
                     search: buildPayload(data)
                 };
-                const result = await search_messages(selectedAccountId, 10, useIMAP, payload);
+                const result = await search_messages(selectedAccountId, 10, remote, payload);
                 setEnvelopes(result);
             } catch (error) {
                 console.error('Error fetching messages:', error);
@@ -355,7 +355,7 @@ export function Mail({
                         )}
                     >
                         <Separator className="mb-2" />
-                        <ScrollArea className='h-[42rem] w-full pr-4 -mr-4 py-1'>
+                        <ScrollArea className='h-[50rem] w-full pr-4 -mr-4 py-1'>
                             <div className="flex flex-row items-center justify-between rounded-lg border p-2 mb-2 h-12">
                                 <div className="space-y-0">
                                     <p className="text-sm text-muted-foreground leading-tight">
@@ -363,10 +363,10 @@ export function Mail({
                                     </p>
                                 </div>
                                 <Switch
-                                    checked={useIMAP}
+                                    checked={remote}
                                     onCheckedChange={(checked) => {
                                         setSelectedMailbox(undefined);
-                                        setUseIMAP(checked);
+                                        setRemote(checked);
                                         setPage(0);
                                         setSelectedMailbox(undefined);
                                     }}

@@ -159,7 +159,6 @@ async fn test5() {
 
     let request = GetThreadMessagesRequest {
         account_id: 6606017263301165,
-        mailbox_name: "INBOX".into(),
         thread_id: 1572863359614161,
     };
 
