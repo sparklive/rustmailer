@@ -38,8 +38,7 @@ fn gmail_raw_email_diskcache_key(account_id: u64, mid: &str) -> String {
 pub async fn retrieve_raw_email(
     account_id: u64,
     mailbox: Option<&str>,
-    uid: Option<u32>,
-    mid: Option<&str>,
+    id: &str,
 ) -> RustMailerResult<cacache::Reader> {
     let account = AccountV2::check_account_active(account_id, false).await?;
     match account.mailer_type {
@@ -50,23 +49,15 @@ pub async fn retrieve_raw_email(
                     ErrorCode::InvalidParameter
                 )
             })?;
-            let uid = uid.ok_or_else(|| {
+            let uid = id.parse::<u32>().ok().ok_or_else(|| {
                 raise_error!(
-                    "Missing required parameter: `uid` for IMAP/SMTP".into(),
+                    "Invalid IMAP UID: `id` must be a numeric string".into(),
                     ErrorCode::InvalidParameter
                 )
             })?;
             retrieve_imap_raw_email(account_id, mailbox, uid).await
         }
-        MailerType::GmailApi => {
-            let mid = mid.ok_or_else(|| {
-                raise_error!(
-                    "Missing required parameter: `mid` for Gmail API".into(),
-                    ErrorCode::InvalidParameter
-                )
-            })?;
-            retrieve_gmail_raw_email(&account, mid).await
-        }
+        MailerType::GmailApi => retrieve_gmail_raw_email(&account, id).await,
     }
 }
 

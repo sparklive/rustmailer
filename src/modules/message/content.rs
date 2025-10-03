@@ -36,14 +36,12 @@ pub struct MessageContentRequest {
     /// - Required for IMAP/SMTP accounts  
     /// - Not used for Gmail API  
     pub mailbox: Option<String>,
-    /// The unique identifier of the message within the mailbox (IMAP UID)  
-    /// - Required for IMAP/SMTP accounts  
-    /// - Not used for Gmail API  
-    pub uid: Option<u32>,
-    /// The message identifier string (Gmail API `id`)  
-    /// - Required for Gmail API accounts  
-    /// - Not used for IMAP/SMTP  
-    pub mid: Option<String>,
+    /// The unique ID of the message, either IMAP UID or Gmail API MID.
+    ///
+    /// - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+    ///   that can be parsed back to a `u32`.
+    /// - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+    pub id: String,
     /// Optional maximum length to retrieve for text parts (useful for large messages)  
     /// - Supported by both IMAP/SMTP and Gmail API  
     pub max_length: Option<usize>,
@@ -67,9 +65,9 @@ impl MessageContentRequest {
                         ErrorCode::InvalidParameter
                     ));
                 }
-                if self.uid.is_none() {
+                if self.id.parse::<u32>().is_err() {
                     return Err(raise_error!(
-                        "`uid` is required for IMAP/SMTP accounts.".into(),
+                        "Invalid IMAP UID: `id` must be a numeric string".into(),
                         ErrorCode::InvalidParameter
                     ));
                 }
@@ -79,29 +77,11 @@ impl MessageContentRequest {
                         ErrorCode::InvalidParameter
                     ));
                 }
-                if self.mid.is_some() {
-                    return Err(raise_error!(
-                        "`mid` must not be set for IMAP/SMTP accounts.".into(),
-                        ErrorCode::InvalidParameter
-                    ));
-                }
             }
             MailerType::GmailApi => {
-                if self.mid.is_none() {
-                    return Err(raise_error!(
-                        "`mid` is required for Gmail API accounts.".into(),
-                        ErrorCode::InvalidParameter
-                    ));
-                }
                 if self.mailbox.is_some() {
                     return Err(raise_error!(
                         "`mailbox` must not be set for Gmail API accounts.".into(),
-                        ErrorCode::InvalidParameter
-                    ));
-                }
-                if self.uid.is_some() {
-                    return Err(raise_error!(
-                        "`uid` must not be set for Gmail API accounts.".into(),
                         ErrorCode::InvalidParameter
                     ));
                 }
@@ -415,9 +395,9 @@ pub async fn retrieve_email_content(
                     ErrorCode::InvalidParameter
                 )
             })?;
-            let uid = request.uid.ok_or_else(|| {
+            let uid = request.id.parse::<u32>().ok().ok_or_else(|| {
                 raise_error!(
-                    "`uid` is required when retrieving IMAP/SMTP message content.".into(),
+                    "Invalid IMAP UID: `id` must be a numeric string".into(),
                     ErrorCode::InvalidParameter
                 )
             })?;
@@ -440,18 +420,8 @@ pub async fn retrieve_email_content(
             .await
         }
         MailerType::GmailApi => {
-            retrieve_gmail_message_content(
-                account_id,
-                request.mid.ok_or_else(|| {
-                    raise_error!(
-                        "`mid` is required when retrieving Gmail API message content.".into(),
-                        ErrorCode::InvalidParameter
-                    )
-                })?,
-                request.max_length,
-                skip_cache,
-            )
-            .await
+            retrieve_gmail_message_content(account_id, request.id, request.max_length, skip_cache)
+                .await
         }
     }
 }

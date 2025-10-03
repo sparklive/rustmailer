@@ -34,8 +34,8 @@ use crate::modules::{
     token::AccessToken,
 };
 
+/// Metadata database instance
 pub struct DatabaseManager {
-    /// Metadata database instance
     meta_db: Arc<Database<'static>>,
     /// Task scheduling database instance
     tasks_db: Arc<Database<'static>>,

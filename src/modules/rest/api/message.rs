@@ -269,10 +269,11 @@ impl MessageApi {
         /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
         /// so no manual decoding is required.
         mailbox: Query<Option<String>>,
-        /// The IMAP UID of the email to fetch.
-        uid: Query<Option<u32>>,
-        /// The Gmail message ID of the email to fetch.
-        mid: Query<Option<String>>,
+        /// The unique ID of the message, either IMAP UID or Gmail API MID.
+        /// - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+        ///   that can be parsed back to a `u32`.
+        /// - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+        id: Query<String>,
         /// An optional filename for the attachment (defaults to a timestamped `.elm` file).
         filename: Query<Option<String>>,
         context: ClientContext,
@@ -281,13 +282,12 @@ impl MessageApi {
         context.require_account_access(account_id)?;
         let filename = filename.0.unwrap_or(format!("{}.elm", current_datetime!()));
         let mailbox_opt = mailbox.0.as_ref().map(|m| m.trim().to_owned());
-        let mid_opt = mid.0.as_ref().map(|m| m.trim().to_owned());
+        let id = id.0.trim();
 
         let reader = retrieve_raw_email(
             account_id,
             mailbox_opt.as_deref(),
-            uid.0,
-            mid_opt.as_deref(),
+            id
         )
         .await?;
         let body = Body::from_async_read(reader);

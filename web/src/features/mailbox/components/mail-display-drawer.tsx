@@ -163,9 +163,9 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
       if (currentEnvelope.mid) {
         setLoading(true);
         let payload: {
-          mid: string;
+          id: string;
         } = {
-          mid: currentEnvelope.mid
+          id: currentEnvelope.mid
         };
         loadMessageMutation.mutate({ accountId: currentAccountId!, payload })
       } else {
@@ -191,12 +191,12 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
         inlineAttachments = currentEnvelope.attachments.filter(attachment => attachment.inline === true);
       }
       let payload: {
-        uid: number;
+        id: string;
         mailbox: string | undefined;
         sections: EmailBodyPart[];
         inline?: Attachment[]; // Declare inline as an optional field
       } = {
-        uid: currentEnvelope.uid,
+        id: currentEnvelope.uid.toString(),
         mailbox: currentMailbox?.name,
         sections: [emailbody],
       };

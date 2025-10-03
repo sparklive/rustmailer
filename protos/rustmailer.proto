@@ -566,35 +566,35 @@ service MailboxService {
 message MailboxTransferRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // A list of unique identifiers (UIDs) of the messages to transfer (IMAP accounts only).
-  // Ignored for Gmail API accounts.
-  repeated uint32 uids = 2;
-  // A list of Gmail API message IDs of the messages to transfer (Gmail API accounts only).
-  // Ignored for IMAP accounts.
-  repeated string mids = 3;
+  // A list of unique message identifiers as strings.
+  // - For IMAP accounts, each UID is converted to a numeric string (parseable back to `u32`).
+  // - For Gmail API accounts, each element is a message ID (`mid`) returned by the API.
+  // Unifying them as strings simplifies handling across different backends.
+  repeated string ids = 2;
   // The name of the mailbox or label from which to transfer messages.
   // For IMAP: decoded human-readable mailbox name (e.g., "INBOX").
   // For Gmail API: the label name.
-  string current_mailbox = 4;
+  string current_mailbox = 3;
   // The name of the target mailbox or label to which messages will be transferred.
   // For IMAP: decoded human-readable mailbox name (e.g., "INBOX").
   // For Gmail API: the label name.
-  string target_mailbox = 5;
+  string target_mailbox = 4;
 }
 
 // MessageDeleteRequest is used to delete messages from a mailbox.
 message MessageDeleteRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  /// A list of unique identifiers (UIDs) of the messages to be deleted (IMAP only).
-  repeated uint32 uids = 2;
-  /// A list of Gmail message IDs of the messages to be deleted (Gmail API only).
-  repeated string mids = 3;
+  // A list of unique message identifiers as strings.
+  // - For IMAP accounts, each UID is converted to a numeric string (parseable back to `u32`).
+  // - For Gmail API accounts, each element is a message ID (`mid`) returned by the API.
+  // Unifying them as strings simplifies handling across different backends.
+  repeated string ids = 2;
   /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").  (IMAP only)
   /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
   /// so no manual decoding is required.
   /// In Gmail API, this field is not required and can be set to `None`.
-  optional string mailbox_name = 4;
+  optional string mailbox_name = 3;
 }
 
 // FlagMessageRequest is used to update flags on messages within a mailbox.
@@ -781,39 +781,37 @@ message FetchMessageContentRequest {
   uint64 account_id = 1;
   // The name of the mailbox containing the message.
   optional string mailbox_name = 2;
-  // The unique identifier (UID) of the message.
-  optional uint32 uid = 3;
+  // The unique ID of the message, either IMAP UID or Gmail API MID.
+  // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+  //   that can be parsed back to a `u32`.
+  // - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+  string id = 3;
   // Optional: The maximum length of content to fetch.
   optional uint64 max_length = 4;
   // A list of specific body sections to fetch.
   repeated EmailBodyPart sections = 5;
   // A list of inline attachments to fetch.
   repeated ImapAttachment inline = 6;
-  // The Gmail API message ID (Gmail API accounts only)
-  // This is the `id` returned by `list messages` and used by `get message`.
-  // For IMAP accounts, this field is ignored.
-  optional string mid = 7;
 }
 
 // FetchMessageAttachmentRequest is used to fetch a specific attachment from an email message.
 message FetchMessageAttachmentRequest {
   // The ID of the account.
   uint64 account_id = 1;
-  // The unique identifier (UID) of the message.
-  optional uint32 uid = 2;
+  // The unique ID of the message, either IMAP UID or Gmail API MID.
+  // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+  //   that can be parsed back to a `u32`.
+  // - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+  string id = 2;
   // The name of the mailbox containing the message.
   optional string mailbox_name = 3;
   // The attachment to fetch, identified by its data.
   optional ImapAttachment attachment = 4;
-  // The message identifier string (Gmail API `id`) 
-  // - Required for Gmail API accounts
-  // - Not used for IMAP/SMTP     
-  optional string mid = 5;
   // Gmail API only: attachment info used to fetch it via Gmail API.
-  optional AttachmentInfo attachment_info = 6;
+  optional AttachmentInfo attachment_info = 5;
   // Optional: The filename of the attachment.  
   // - Gmail API only.  
-  optional string filename = 7;
+  optional string filename = 6;
 }
 
 // FetchRawMessageRequest is used to fetch the complete raw content of an email message.
@@ -822,10 +820,11 @@ message FetchRawMessageRequest {
   uint64 account_id = 1;
   // The name of the mailbox containing the message. (IMAP only)
   optional string mailbox_name = 2;
-  // The unique identifier (UID) of the message. (IMAP only)
-  optional uint32 uid = 3;
-  // The Gmail message ID of the email to fetch. (Gmail API only)
-  optional string mid = 4;
+  // The unique ID of the message, either IMAP UID or Gmail API MID.
+  // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+  //   that can be parsed back to a `u32`.
+  // - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+  string id = 3;
 }
 
 // MessageSearch represents a search query for email messages, which can be a single condition or a logical combination of conditions.
@@ -1121,10 +1120,11 @@ message AppendReplyToDraftRequest {
     // - For IMAP accounts, this is the mailbox name where the source message resides.
     // - For Gmail API accounts, this refers to the label name associated with the source message.
     string mailbox_name = 2;
-    // The UID of the message being replied to (IMAP accounts only)
-    // For IMAP accounts, this identifies the specific message in the mailbox.
-    // For Gmail API accounts, this field is ignored.
-    optional uint32 uid = 3;
+    // The unique ID of the message, either IMAP UID or Gmail API MID.
+    // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+    //   that can be parsed back to a `u32`.
+    // - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+    string id = 3;
     // Optional preview text for the reply email
     optional string preview = 4;
     // Optional plain text body of the reply email
@@ -1135,10 +1135,6 @@ message AppendReplyToDraftRequest {
     // For example: "[Gmail]/Drafts".
     // For Gmail API accounts, this field is ignored.
     optional string draft_folder_path = 7;
-    // The Gmail API message ID (Gmail API accounts only)
-    // This is the `id` returned by `list messages` and used by `get message`.
-    // For IMAP accounts, this field is ignored.
-    optional string mid = 8;
 }
 
 // MessageService provides APIs for interacting with email messages.
@@ -1817,76 +1813,70 @@ message SendEmailRequest {
 message ReplyEmailRequest {
   // The name of the mailbox containing the original message.
   string mailbox_name = 1;  
-  // The UID of the message being replied to.
-  // This identifies the specific message in the mailbox for **IMAP accounts**.
-  // Should be `None` when using Gmail API accounts.
-  optional uint32 uid = 2;
-  // The message ID of the message being replied to.
-  // This is used for **Gmail API accounts** instead of IMAP UID.
-  // Should be `None` when using IMAP accounts.
-  optional string mid = 3;
+  // The unique ID of the message, either IMAP UID or Gmail API MID.
+  // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+  //   that can be parsed back to a `u32`.
+  // - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+  string id = 2;
   // Optional: The plain text content of the reply.
-  optional string text = 4;
+  optional string text = 3;
   // Optional: The HTML content of the reply.
-  optional string html = 5;
+  optional string html = 4;
   // Optional: A preview text for the reply.
-  optional string preview = 6;
+  optional string preview = 5;
   // A map of custom headers for the reply.
-  map<string, HeaderValue> headers = 7;
+  map<string, HeaderValue> headers = 6;
   // If true, replies to all recipients (To, CC) of the original email.
-  bool reply_all = 8;
+  bool reply_all = 7;
   // A list of attachments to include in the reply.
-  repeated MailAttachment attachments = 9;
+  repeated MailAttachment attachments = 8;
   // A list of additional CC recipients for the reply.
-  repeated EmailAddress cc = 10;
+  repeated EmailAddress cc = 9;
   // A list of additional BCC recipients for the reply.
-  repeated EmailAddress bcc = 11;
+  repeated EmailAddress bcc = 10;
   // Optional: The timezone for date headers in the reply.
-  optional string timezone = 12;
+  optional string timezone = 11;
   // If true, includes the original message content in the reply.
-  bool include_original = 13;
+  bool include_original = 12;
   // If true, includes all attachments from the original message in the reply.
-  bool include_all_attachments = 14;
+  bool include_all_attachments = 13;
   // Controls the sending process, including retry policies and DSN.
-  SendControl send_control = 15;
+  SendControl send_control = 14;
 }
 
 // ForwardEmailRequest defines the parameters for forwarding an existing email.
 message ForwardEmailRequest {
   // The name of the mailbox containing the original message.
   string mailbox_name = 1;
-  // The UID of the message being replied to.
-  // This identifies the specific message in the mailbox for **IMAP accounts**.
-  // Should be `None` when using Gmail API accounts.
-  optional uint32 uid = 2;
-  // The message ID of the message being replied to.
-  // This is used for **Gmail API accounts** instead of IMAP UID.
-  // Should be `None` when using IMAP accounts.
-  optional string mid = 3;
+  // The unique ID of the message, either IMAP UID or Gmail API MID.
+  // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+  //   that can be parsed back to a `u32`.
+  // - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+  string id = 2;
   // A list of primary recipients (To) for the forwarded email.
-  repeated EmailAddress to = 4;
+  repeated EmailAddress to = 3;
   // A list of carbon copy (CC) recipients for the forwarded email.
-  repeated EmailAddress cc = 5;
+  repeated EmailAddress cc = 4;
   // A list of blind carbon copy (BCC) recipients for the forwarded email.
-  repeated EmailAddress bcc = 6;
+  repeated EmailAddress bcc = 5;
   // Optional: The plain text content to add to the forwarded email.
-  optional string text = 7;
+  optional string text = 6;
   // Optional: The HTML content to add to the forwarded email.
-  optional string html = 8;
+  optional string html = 7;
   // Optional: A preview text for the forwarded email.
-  optional string preview = 9;
+  optional string preview = 8;
   // A map of custom headers for the forwarded email.
-  map<string, HeaderValue> headers = 10;
+  map<string, HeaderValue> headers = 9;
   // Optional: The timezone for date headers in the forwarded email.
-  optional string timezone = 11;
+  optional string timezone = 10;
   // A list of attachments to include in the forwarded email.
-  repeated MailAttachment attachments = 12;
+  repeated MailAttachment attachments = 11;
   // If true, includes the original message content in the forwarded email.
-  bool include_original = 13;
+  bool include_original = 12;
   // If true, includes all attachments from the original message in the forwarded email.
-  bool include_all_attachments = 14;
+  bool include_all_attachments = 13;
   // Controls the sending process, including retry policies and DSN.
-  SendControl send_control = 15;
+  SendControl send_control = 14;
 }
 
 // EmailTask represents a single email sending task managed by the system.

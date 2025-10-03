@@ -29,10 +29,9 @@ use crate::modules::{
 impl From<rustmailer_grpc::MailboxTransferRequest> for MailboxTransferRequest {
     fn from(value: rustmailer_grpc::MailboxTransferRequest) -> Self {
         Self {
-            uids: Some(value.uids).filter(|v| !v.is_empty()),
+            ids: value.ids,
             current_mailbox: value.current_mailbox,
             target_mailbox: value.target_mailbox,
-            mids: Some(value.mids).filter(|v| !v.is_empty()),
         }
     }
 }
@@ -40,9 +39,8 @@ impl From<rustmailer_grpc::MailboxTransferRequest> for MailboxTransferRequest {
 impl From<rustmailer_grpc::MessageDeleteRequest> for MessageDeleteRequest {
     fn from(value: rustmailer_grpc::MessageDeleteRequest) -> Self {
         Self {
-            uids: Some(value.uids).filter(|v| !v.is_empty()),
+            ids: value.ids,
             mailbox: value.mailbox_name,
-            mids: Some(value.mids).filter(|v| !v.is_empty()),
         }
     }
 }
@@ -389,7 +387,7 @@ impl TryFrom<rustmailer_grpc::FetchMessageContentRequest> for MessageContentRequ
     fn try_from(value: rustmailer_grpc::FetchMessageContentRequest) -> Result<Self, Self::Error> {
         Ok(Self {
             mailbox: value.mailbox_name,
-            uid: value.uid,
+            id: value.id,
             max_length: value.max_length.map(|m| m as usize),
             sections: (!value.sections.is_empty())
                 .then(|| {
@@ -409,7 +407,6 @@ impl TryFrom<rustmailer_grpc::FetchMessageContentRequest> for MessageContentRequ
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,
-            mid: value.mid,
         })
     }
 }
@@ -473,10 +470,9 @@ impl TryFrom<rustmailer_grpc::FetchMessageAttachmentRequest> for AttachmentReque
         value: rustmailer_grpc::FetchMessageAttachmentRequest,
     ) -> Result<Self, Self::Error> {
         Ok(Self {
-            uid: value.uid,
+            id: value.id,
             mailbox: value.mailbox_name,
             attachment: value.attachment.map(|a| a.try_into()).transpose()?,
-            mid: value.mid,
             attachment_info: value.attachment_info.map(|a| a.into()),
             filename: value.filename,
         })
@@ -609,12 +605,11 @@ impl From<rustmailer_grpc::AppendReplyToDraftRequest> for AppendReplyToDraftRequ
     fn from(value: rustmailer_grpc::AppendReplyToDraftRequest) -> Self {
         Self {
             mailbox_name: value.mailbox_name,
-            uid: value.uid,
+            id: value.id,
             preview: value.preview,
             text: value.text,
             html: value.html,
             draft_folder_path: value.draft_folder_path,
-            mid: value.mid,
         }
     }
 }

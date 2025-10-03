@@ -15,10 +15,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct MessageDeleteRequest {
-    /// A list of unique identifiers (UIDs) of the messages to be deleted (IMAP only).
-    pub uids: Option<Vec<u32>>,
-    /// A list of Gmail message IDs of the messages to be deleted (Gmail API only).
-    pub mids: Option<Vec<String>>,
+    /// A list of unique message identifiers as strings.
+    ///
+    /// - For IMAP accounts, each UID is converted to a numeric string (parseable back to `u32`).
+    /// - For Gmail API accounts, each element is a message ID (`mid`) returned by the API.
+    /// Unifying them as strings simplifies handling across different backends.
+    pub ids: Vec<String>,
     /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").  (IMAP only)
     /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
     /// so no manual decoding is required.
@@ -41,24 +43,29 @@ pub async fn move_to_trash(
                 )
             })?;
 
-            let uids = request.uids.as_deref().ok_or_else(|| {
-                raise_error!(
-                    "IMAP request missing required field 'uids'".into(),
+            if request.ids.is_empty() {
+                return Err(raise_error!(
+                    "`ids` must contain at least one element".into(),
                     ErrorCode::InvalidParameter
-                )
-            })?;
+                ));
+            }
 
-            move_to_trash_or_delete_messages_directly(account_id, uids, mailbox).await
+            let uids: Vec<u32> = request
+                .ids
+                .iter()
+                .map(|id| {
+                    id.parse::<u32>().map_err(|_| {
+                        raise_error!(
+                            format!("Invalid IMAP UID: '{}', must be a numeric string", id),
+                            ErrorCode::InvalidParameter
+                        )
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+
+            move_to_trash_or_delete_messages_directly(account_id, &uids, mailbox).await
         }
-        MailerType::GmailApi => {
-            let mids = request.mids.as_deref().ok_or_else(|| {
-                raise_error!(
-                    "Gmail request missing required field 'mids'".into(),
-                    ErrorCode::InvalidParameter
-                )
-            })?;
-            gmail_move_to_trash(&account, mids).await
-        }
+        MailerType::GmailApi => gmail_move_to_trash(&account, &request.ids).await,
     }
 }
 

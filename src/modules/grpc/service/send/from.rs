@@ -65,7 +65,7 @@ impl TryFrom<rustmailer_grpc::ReplyEmailRequest> for ReplyEmailRequest {
     fn try_from(value: rustmailer_grpc::ReplyEmailRequest) -> Result<Self, Self::Error> {
         Ok(Self {
             mailbox_name: value.mailbox_name,
-            uid: value.uid,
+            id: value.id,
             text: value.text,
             html: value.html,
             preview: value.preview,
@@ -98,7 +98,6 @@ impl TryFrom<rustmailer_grpc::ReplyEmailRequest> for ReplyEmailRequest {
             include_original: value.include_original,
             include_all_attachments: value.include_all_attachments,
             send_control: { value.send_control.map(|c| c.try_into()).transpose()? },
-            mid: value.mid,
         })
     }
 }
@@ -109,7 +108,7 @@ impl TryFrom<rustmailer_grpc::ForwardEmailRequest> for ForwardEmailRequest {
     fn try_from(value: rustmailer_grpc::ForwardEmailRequest) -> Result<Self, Self::Error> {
         Ok(Self {
             mailbox_name: value.mailbox_name,
-            uid: value.uid,
+            id: value.id,
             to: value.to.into_iter().map(Into::into).collect(),
             cc: (!value.cc.is_empty()).then(|| value.cc.into_iter().map(Into::into).collect()),
             bcc: (!value.bcc.is_empty()).then(|| value.bcc.into_iter().map(Into::into).collect()),
@@ -141,7 +140,6 @@ impl TryFrom<rustmailer_grpc::ForwardEmailRequest> for ForwardEmailRequest {
             include_original: value.include_original,
             include_all_attachments: value.include_all_attachments,
             send_control: { value.send_control.map(|c| c.try_into()).transpose()? },
-            mid: value.mid,
         })
     }
 }

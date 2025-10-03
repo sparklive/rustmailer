@@ -186,12 +186,11 @@ async fn test6() {
     let request = AppendReplyToDraftRequest {
         account_id: 6637484689546669,
         mailbox_name: "INBOX".into(),
-        uid: Some(395),
+        id: "395".into(),
         preview: None,
         text: Some("hello world.".into()),
         html: None,
         draft_folder_path: Some("[Gmail]/Drafts".into()),
-        mid: None,
     };
 
     let mut request = poem_grpc::Request::new(request);
@@ -247,12 +246,11 @@ async fn test8() {
     let request = AppendReplyToDraftRequest {
         account_id: 4391092875701825,
         mailbox_name: "INBOX".into(),
-        uid: None,
         preview: None,
         text: Some("hello world.".into()),
         html: None,
         draft_folder_path: None,
-        mid: Some("1970d297da3c2dd2".into()),
+        id: "1970d297da3c2dd2".into(),
     };
 
     let mut request = poem_grpc::Request::new(request);

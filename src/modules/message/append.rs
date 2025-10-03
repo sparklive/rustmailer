@@ -37,16 +37,12 @@ pub struct AppendReplyToDraftRequest {
     /// - For Gmail API accounts, this refers to the label name associated with the source message.
     /// This is used to locate the message being replied to.
     pub mailbox_name: String,
-    /// The UID of the message being replied to (IMAP accounts only).
+    /// The unique ID of the message, either IMAP UID or Gmail API MID.
     ///
-    /// For IMAP accounts, this identifies the specific message in the mailbox.
-    /// For Gmail API accounts, this field is ignored.
-    pub uid: Option<u32>,
-    /// The Gmail API message ID (Gmail API accounts only), sourced from [`EmailEnvelopeV3::mid`].
-    ///
-    /// This is the `id` returned by `list messages` and used by `get message`.
-    /// For IMAP accounts, this field is ignored.
-    pub mid: Option<String>,
+    /// - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+    ///   that can be parsed back to a `u32`.
+    /// - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+    pub id: String,
     /// A preview text for the reply email.
     ///
     /// This optional field provides a short summary or preview of the reply content.
@@ -79,19 +75,11 @@ impl AppendReplyToDraftRequest {
             ));
         }
 
-        if is_gmail_api {
-            // Gmail API account: mid required
-            if self.mid.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-                return Err(raise_error!(
-                    "mid is required for Gmail API accounts".into(),
-                    ErrorCode::InvalidParameter
-                ));
-            }
-        } else {
+        if !is_gmail_api {
             // IMAP account: uid and draft_folder_path required
-            if self.uid.is_none() {
+            if self.id.parse::<u32>().is_err() {
                 return Err(raise_error!(
-                    "uid is required for IMAP accounts".into(),
+                    "Invalid IMAP UID: `id` must be a numeric string".into(),
                     ErrorCode::InvalidParameter
                 ));
             }
@@ -129,12 +117,7 @@ impl AppendReplyToDraftRequest {
         let envelope = EmailHandler::get_envelope(
             account,
             &self.mailbox_name,
-            self.uid.ok_or_else(|| {
-                raise_error!(
-                    "uid is missing but required for IMAP accounts".into(),
-                    ErrorCode::InternalError
-                )
-            })?,
+            self.id.parse::<u32>().ok().unwrap(),
         )
         .await?;
 
@@ -187,28 +170,17 @@ impl AppendReplyToDraftRequest {
         account_id: u64,
     ) -> RustMailerResult<()> {
         let target_label = GmailLabels::get_by_name(account_id, &self.mailbox_name).await?;
-        let envelope = GmailEnvelope::find(
-            account_id,
-            target_label.id,
-            &self.mid.as_ref().ok_or_else(|| {
+        let envelope = GmailEnvelope::find(account_id, target_label.id, &self.id)
+            .await?
+            .ok_or_else(|| {
                 raise_error!(
-                    "mid is missing but required for Gmail API accounts".into(),
-                    ErrorCode::InternalError
+                    format!(
+                        "Gmail message with id '{}' not found in label '{}' for account {}",
+                        self.id, target_label.name, account_id
+                    ),
+                    ErrorCode::ResourceNotFound
                 )
-            })?,
-        )
-        .await?
-        .ok_or_else(|| {
-            raise_error!(
-                format!(
-                    "Gmail message with id '{}' not found in label '{}' for account {}",
-                    self.mid.as_ref().unwrap(),
-                    target_label.name,
-                    account_id
-                ),
-                ErrorCode::ResourceNotFound
-            )
-        })?;
+            })?;
 
         let from = Address::new_address(
             account.name.as_ref().map(|n| Cow::Owned(n.to_string())),

@@ -32,16 +32,12 @@ pub struct ReplyEmailRequest {
     ///
     /// This is used to locate the source message that is being replied to.
     pub mailbox_name: String,
-    /// The UID of the message being replied to.
+    /// The unique ID of the message, either IMAP UID or Gmail API MID.
     ///
-    /// This identifies the specific message in the mailbox for **IMAP accounts**.
-    /// Should be `None` when using Gmail API accounts.
-    pub uid: Option<u32>,
-    /// The message ID of the message being replied to.
-    ///
-    /// This is used for **Gmail API accounts** instead of IMAP UID.
-    /// Should be `None` when using IMAP accounts.
-    pub mid: Option<String>,
+    /// - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+    ///   that can be parsed back to a `u32`.
+    /// - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+    pub id: String,
     /// The plain text body of the reply email.
     ///
     /// This field is optional and can be used to provide plain text content.
@@ -140,9 +136,9 @@ impl EmailBuilder for ReplyEmailRequest {
 
         let (envelope, answer_email) = match account.mailer_type {
             MailerType::ImapSmtp => {
-                let uid = self.uid.ok_or_else(|| {
+                let uid = self.id.parse::<u32>().ok().ok_or_else(|| {
                     raise_error!(
-                        "Missing required field `uid` for IMAP account".into(),
+                        "Invalid IMAP UID: `id` must be a numeric string".into(),
                         ErrorCode::InvalidParameter
                     )
                 })?;
@@ -157,14 +153,8 @@ impl EmailBuilder for ReplyEmailRequest {
                 )
             }
             MailerType::GmailApi => {
-                let mid = self.mid.as_ref().ok_or_else(|| {
-                    raise_error!(
-                        "Missing required field `mid` for Gmail API account".into(),
-                        ErrorCode::InvalidParameter
-                    )
-                })?;
                 let envelope =
-                    EmailHandler::get_gmail_envelope(account, &self.mailbox_name, mid).await?;
+                    EmailHandler::get_gmail_envelope(account, &self.mailbox_name, &self.id).await?;
                 (envelope, None)
             }
         };

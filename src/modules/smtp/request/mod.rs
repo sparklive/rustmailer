@@ -212,10 +212,9 @@ impl MailAttachment {
         let (mut reader, _) = retrieve_email_attachment(
             account.id,
             AttachmentRequest {
-                uid: Some(attachment_ref.uid),
+                id: attachment_ref.uid.to_string(),
                 mailbox: Some(attachment_ref.mailbox_name.clone()),
                 attachment: Some(attachment_ref.attachment_data.clone()),
-                mid: None,
                 attachment_info: None,
                 filename: None,
             },
@@ -621,11 +620,10 @@ impl EmailHandler {
         });
         let request = MessageContentRequest {
             mailbox: Some(envelope.mailbox_name.clone()),
-            uid: Some(envelope.uid),
+            id: envelope.uid.to_string(),
             max_length: None,
             sections: Some(body_meta.clone()),
             inline: inline_attachments,
-            mid: None,
         };
         retrieve_email_content(account.id, request, false)
             .await

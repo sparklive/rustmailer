@@ -26,19 +26,18 @@ const MAX_ATTACHMENT_SIZE: usize = 52_428_800; // 50MB
 /// Represents a request to fetch an attachment from a message in a mailbox.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct AttachmentRequest {
-    /// IMAP only: The UID of the message containing the attachment.
-    /// Not used for Gmail API accounts.
-    pub uid: Option<u32>,
     /// IMAP only: The name of the mailbox where the message is located.
     /// Not used for Gmail API accounts.
     pub mailbox: Option<String>,
     /// IMAP only: The metadata describing the attachment to fetch.
     /// Not used for Gmail API accounts.
     pub attachment: Option<ImapAttachment>,
-    /// The message identifier string (Gmail API `id`)  
-    /// - Required for Gmail API accounts  
-    /// - Not used for IMAP/SMTP  
-    pub mid: Option<String>,
+    /// The unique ID of the message, either IMAP UID or Gmail API MID.
+    ///
+    /// - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
+    ///   that can be parsed back to a `u32`.
+    /// - For Gmail API accounts, this is the message ID (`mid`) returned by the API.
+    pub id: String,
     /// Gmail API only: attachment info used to fetch it via Gmail API.
     /// Not used for IMAP accounts.
     pub attachment_info: Option<AttachmentInfo>,
@@ -51,25 +50,25 @@ impl AttachmentRequest {
     pub fn validate(&self, account: &AccountV2) -> RustMailerResult<()> {
         match account.mailer_type {
             MailerType::ImapSmtp => {
-                if self.uid.is_none() || self.mailbox.is_none() || self.attachment.is_none() {
+                if self.mailbox.is_none() || self.attachment.is_none() {
                     return Err(raise_error!(
-                    format!(
-                        "Current account type is `ImapSmtp`. Downloading attachments requires `uid`, `mailbox`, and `attachment` metadata."
-                    ),
-                    ErrorCode::InvalidParameter
-                ));
+                        format!(
+                            "Current account type is `ImapSmtp`. Downloading attachments requires `uid`, `mailbox`, and `attachment` metadata."
+                        ),
+                        ErrorCode::InvalidParameter
+                    ));
+                }
+                if self.id.parse::<u32>().is_err() {
+                    return Err(raise_error!(
+                        "Invalid IMAP UID: `id` must be a numeric string".into(),
+                        ErrorCode::InvalidParameter
+                    ));
                 }
             }
             MailerType::GmailApi => {
                 if self.attachment_info.is_none() {
                     return Err(raise_error!(
                         "Current account type is `Gmail API`. Downloading attachments requires `attachment_info`.".into(),
-                        ErrorCode::InvalidParameter
-                    ));
-                }
-                if self.mid.is_none() {
-                    return Err(raise_error!(
-                        "Current account type is `Gmail API`. Downloading attachments requires `mid`.".into(),
                         ErrorCode::InvalidParameter
                     ));
                 }
@@ -151,9 +150,9 @@ pub async fn retrieve_email_attachment(
                     ErrorCode::InvalidParameter
                 )
             })?;
-            let uid = request.uid.ok_or_else(|| {
+            let uid = request.id.parse::<u32>().ok().ok_or_else(|| {
                 raise_error!(
-                    "`uid` is required when retrieving attachments for IMAP/SMTP accounts.".into(),
+                    "Invalid IMAP UID: `id` must be a numeric string".into(),
                     ErrorCode::InvalidParameter
                 )
             })?;
@@ -162,13 +161,6 @@ pub async fn retrieve_email_attachment(
             Ok((reader, filename))
         }
         MailerType::GmailApi => {
-            let mid = request.mid.as_ref().ok_or_else(|| {
-                raise_error!(
-                    "`mid` is required when retrieving attachments for Gmail API accounts.".into(),
-                    ErrorCode::InvalidParameter
-                )
-            })?;
-
             let attachment_info = request.attachment_info.as_ref().ok_or_else(|| {
                 raise_error!(
                     "`attachment_info` is required when retrieving attachments for Gmail API accounts.".into(),
@@ -176,7 +168,7 @@ pub async fn retrieve_email_attachment(
                 )
             })?;
             let filename = request.filename;
-            let reader = retrieve_gmail_attachment(&account, &mid, &attachment_info).await?;
+            let reader = retrieve_gmail_attachment(&account, &request.id, &attachment_info).await?;
             Ok((reader, filename))
         }
     }

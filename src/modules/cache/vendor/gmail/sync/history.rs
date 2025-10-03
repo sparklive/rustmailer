@@ -243,16 +243,13 @@ pub async fn apply_history(
                 if !item.message.label_ids.contains(&label.label_id) {
                     return None;
                 }
-                let message_data = match GmailClient::get_message(
-                    account_id,
-                    use_proxy.clone(),
-                    &item.message.id,
-                )
-                .await
-                {
-                    Ok(msg) => msg,
-                    Err(_) => return None,
-                };
+                let message_data =
+                    match GmailClient::get_message(account_id, use_proxy.clone(), &item.message.id)
+                        .await
+                    {
+                        Ok(msg) => msg,
+                        Err(_) => return None,
+                    };
                 if !message_data.label_ids.contains(&label.label_id) {
                     return None;
                 }
@@ -277,6 +274,12 @@ pub async fn apply_history(
         }
         // save to local envelope cache and build some index
         if !messages_added.is_empty() {
+            info!(
+                "Gmail Api Account {} synced {} new messages in label '{}'",
+                account.id,
+                messages_added.len(),
+                &label.name
+            );
             GmailEnvelope::save_envelopes(messages_added.clone()).await?;
             if EventHookTask::is_watching_email_add_event(account.id).await? {
                 dispatch_new_email_notification(account, messages_added).await?;

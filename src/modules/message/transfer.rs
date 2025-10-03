@@ -18,12 +18,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct MailboxTransferRequest {
-    /// A list of unique identifiers (UIDs) for the messages to be moved (IMAP accounts only).
-    /// For Gmail API accounts, this field is ignored.
-    pub uids: Option<Vec<u32>>,
-    /// A list of Gmail API message IDs for the messages to be moved (Gmail API accounts only).
-    /// For IMAP accounts, this field is ignored.
-    pub mids: Option<Vec<String>>,
+    /// A list of unique message identifiers as strings.
+    ///
+    /// - For IMAP accounts, each UID is converted to a numeric string (parseable back to `u32`).
+    /// - For Gmail API accounts, each element is a message ID (`mid`) returned by the API.
+    /// Unifying them as strings simplifies handling across different backends.
+    pub ids: Vec<String>,
     /// The name of the mailbox from which the messages will be moved.
     /// For IMAP: the decoded, human-readable name of the mailbox (e.g., "INBOX").
     /// For Gmail API: represents the label name.
@@ -51,19 +51,27 @@ pub async fn transfer_messages(
 
     match account.mailer_type {
         MailerType::ImapSmtp => {
-            let uids = payload.uids.as_ref().ok_or_else(|| {
-                raise_error!(
-                    "IMAP copy requires `uids`, but none were provided".into(),
-                    ErrorCode::InvalidParameter
-                )
-            })?;
-            if uids.is_empty() {
+            if payload.ids.is_empty() {
                 return Err(raise_error!(
-                    "IMAP copy requires at least one UID".into(),
+                    "`ids` must contain at least one element".into(),
                     ErrorCode::InvalidParameter
                 ));
             }
-            let uid_set = generate_uid_set(uids.clone());
+
+            let uids: Vec<u32> = payload
+                .ids
+                .iter()
+                .map(|id| {
+                    id.parse::<u32>().map_err(|_| {
+                        raise_error!(
+                            format!("Invalid IMAP UID: '{}', must be a numeric string", id),
+                            ErrorCode::InvalidParameter
+                        )
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+
+            let uid_set = generate_uid_set(uids);
             let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
             // Encode the mailbox names using UTF-7 encoding
             let current_mailbox = encode_mailbox_name!(payload.current_mailbox.clone());
@@ -93,12 +101,7 @@ pub async fn transfer_messages(
             }
         }
         MailerType::GmailApi => {
-            let mids = payload.mids.as_ref().ok_or_else(|| {
-                raise_error!(
-                    "Gmail API copy requires `mids`, but none were provided".into(),
-                    ErrorCode::InvalidParameter
-                )
-            })?;
+            let mids = &payload.ids;
 
             if mids.is_empty() {
                 return Err(raise_error!(
@@ -107,10 +110,10 @@ pub async fn transfer_messages(
                 ));
             }
 
-            if mids.len() > 1000 {
+            if mids.len() > 500 {
                 return Err(raise_error!(
                     format!(
-                        "Gmail API batchModify supports at most 1000 message IDs, got {}",
+                        "Gmail API batchModify supports at most 500 message IDs, got {}",
                         mids.len()
                     ),
                     ErrorCode::InvalidParameter

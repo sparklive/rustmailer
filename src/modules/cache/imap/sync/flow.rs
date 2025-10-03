@@ -803,14 +803,13 @@ async fn process_email_added_events(
             Some(sections) => {
                 let request = MessageContentRequest {
                     mailbox: Some(remote.name.clone()),
-                    uid: Some(envelope.uid),
+                    id: envelope.uid.to_string(),
                     max_length: Some(SETTINGS.rustmailer_max_email_content_length as usize),
                     sections: Some(sections),
                     inline: envelope
                         .attachments
                         .as_ref()
                         .map(|att| att.iter().filter(|a| a.inline).cloned().collect()),
-                    mid: None,
                 };
                 retrieve_email_content(account.id, request, true).await?
             }

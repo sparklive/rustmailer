@@ -246,7 +246,6 @@ fn parse_original_message_headers(message: &Message<'_>) -> Option<RawEmailHeade
     let part = rfc822_header_part?;
 
     let sub_message = part.is_message().then(|| part.message()).flatten()?;
-
     if sub_message.is_empty() {
         return None;
     }

@@ -143,13 +143,8 @@ impl MessageService for RustMailerMessageService {
         request: Request<FetchRawMessageRequest>,
     ) -> Result<Response<ByteResponse>, Status> {
         let req = require_account_access(request, |r| r.account_id)?;
-        let mut reader = retrieve_raw_email(
-            req.account_id,
-            req.mailbox_name.as_deref(),
-            req.uid,
-            req.mid.as_deref(),
-        )
-        .await?;
+        let mut reader =
+            retrieve_raw_email(req.account_id, req.mailbox_name.as_deref(), &req.id).await?;
 
         let mut buffer = Vec::new();
         reader
