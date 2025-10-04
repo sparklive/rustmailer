@@ -105,6 +105,7 @@ cargo build --release
 
 ### 🐳 Prefer Docker?
 ![Docker Image Size](https://img.shields.io/docker/image-size/rustmailer/rustmailer/latest?label=Docker%20image%20size)
+
 If you don’t want to build manually, you can follow the Docker-based installation guide here:
 📄 [Install via Docker](https://rustmailer.com/docs/install/docker)
 ```shell
