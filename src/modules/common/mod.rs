@@ -163,10 +163,10 @@ impl<'x> From<Addr> for SmtpAddress<'x> {
     }
 }
 
-#[derive(Serialize)]
-pub struct ErrorResponse {
-    pub message: String,
-}
+// #[derive(Serialize)]
+// pub struct ErrorResponse {
+//     pub message: String,
+// }
 
 #[inline]
 fn create_rust_mailer_error(message: &str, code: ErrorCode) -> RustMailerError {

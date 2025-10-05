@@ -12,20 +12,20 @@ use crate::{
     },
     raise_error,
 };
-use poem_openapi::Object;
-use serde::{Deserialize, Serialize};
+// use poem_openapi::Object;
+// use serde::{Deserialize, Serialize};
 
 use crate::modules::message::get_minimal_meta;
 
 const MAX_EMAIL_TOTAL_SIZE: u32 = 55 * 1024 * 1024; // 55 MB
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
-pub struct FullMessageRequest {
-    pub mailbox: String,
-    pub filename: String,
-    pub uid: u32,
-    pub max_length: Option<usize>,
-}
+// #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
+// pub struct FullMessageRequest {
+//     pub mailbox: String,
+//     pub filename: String,
+//     pub uid: u32,
+//     pub max_length: Option<usize>,
+// }
 
 fn raw_email_diskcache_key(account_id: u64, mailbox_name: &str, uid: u32) -> String {
     format!("imap_raw_email_{}_{}_{}", account_id, mailbox_name, uid)
