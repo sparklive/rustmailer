@@ -43,7 +43,6 @@ import Logo from '@/assets/logo.svg'
 import { PaginatedResponse } from "@/api"
 import { useMoveMessageMutation } from "@/hooks/use-move-messages"
 import { useCopyMessageMutation } from "@/hooks/use-copy-messages"
-import { number } from "zod"
 
 interface MailProps {
     defaultLayout: number[] | undefined
