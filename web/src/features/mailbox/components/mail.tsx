@@ -41,6 +41,9 @@ import { useFlagMessageMutation } from "@/hooks/use-flag-messages"
 import { EnvelopeFilterDialog } from "./envelope-filter-dialog"
 import Logo from '@/assets/logo.svg'
 import { PaginatedResponse } from "@/api"
+import { useMoveMessageMutation } from "@/hooks/use-move-messages"
+import { useCopyMessageMutation } from "@/hooks/use-copy-messages"
+import { number } from "zod"
 
 interface MailProps {
     defaultLayout: number[] | undefined
@@ -176,12 +179,15 @@ export function Mail({
 
     const [page, setPage] = React.useState(0);
     const [pageSize, setPageSize] = React.useState(10);
-    const [selectedUids, setSelectedUids] = React.useState<number[]>([]);
-    const [deleteUids, setDeleteUids] = React.useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+    const [deleteIds, setDeleteIds] = React.useState<string[]>([]);
     const [currentFilter, setCurrentFilter] = React.useState<FilterForm | undefined>(undefined);
     const [isSearching, setIsSearching] = React.useState(false);
     // const [customFlags, setCustomFlags] = React.useState<string[]>([]);
     const { mutate: flagMessage } = useFlagMessageMutation();
+    const { mutate: moveMessage } = useMoveMessageMutation();
+    const { mutate: copyMessage } = useCopyMessageMutation();
+
     const queryClient = useQueryClient();
 
     const { data: mailboxes, isLoading: isMailboxesLoading } = useQuery({
@@ -190,6 +196,8 @@ export function Mail({
         enabled: !!selectedAccountId,
     })
 
+
+    const isGmailApi = envelopes?.items.some(item => item.mid && item.uid === 0);
 
     React.useEffect(() => {
         if (!selectedAccountId || !selectedMailbox) {
@@ -245,7 +253,7 @@ export function Mail({
             try {
                 setPage(0);
                 setPageSize(10);
-                setSelectedUids([]);
+                setSelectedIds([]);
                 setCurrentFilter(data);
 
                 const payload = {
@@ -271,48 +279,66 @@ export function Mail({
         setCurrentFilter(undefined);
         setPage(0);
         setPageSize(10);
-        setSelectedUids([]);
+        setSelectedIds([]);
     }
 
     const hasNextPage = () => {
         return !!pageTokenMapRef.current[page + 1];
     }
-    
+
     const handlePageChange = (newPage: number) => {
         setPage(newPage);
-        setSelectedUids([]);
+        setSelectedIds([]);
     }
 
 
     const handlePageSizeChange = (newSize: number) => {
         setPage(0);
         setPageSize(newSize);
-        setSelectedUids([]);
+        setSelectedIds([]);
     }
 
     const handleMarkFolderRead = () => {
         if (selectedAccountId && selectedMailbox) {
-            let payload = {
-                uids: selectedUids,
-                mailbox: selectedMailbox?.name,
-                action: {
-                    add: [{ flag: "Seen" }]
-                }
-            };
-            flagMessage({ accountId: selectedAccountId, payload })
+            if (isGmailApi) {
+                let payload = {
+                    ids: selectedIds,
+                    current_mailbox: "UNREAD",
+                    target_mailbox: selectedMailbox?.name
+                };
+                moveMessage({ accountId: selectedAccountId, payload })
+            } else {
+                let payload = {
+                    uids: selectedIds.map(id => Number(id)),
+                    mailbox: selectedMailbox?.name,
+                    action: {
+                        add: [{ flag: "Seen" }]
+                    }
+                };
+                flagMessage({ accountId: selectedAccountId, payload })
+            }
         }
     }
 
     const handleMarkFolderUnread = () => {
         if (selectedAccountId && selectedMailbox) {
-            let payload = {
-                uids: selectedUids,
-                mailbox: selectedMailbox?.name,
-                action: {
-                    remove: [{ flag: "Seen" }]
-                }
-            };
-            flagMessage({ accountId: selectedAccountId, payload })
+            if (isGmailApi) {
+                let payload = {
+                    ids: selectedIds,
+                    current_mailbox: selectedMailbox?.name,
+                    target_mailbox: "UNREAD"
+                };
+                copyMessage({ accountId: selectedAccountId, payload })
+            } else {
+                let payload = {
+                    uids: selectedIds.map(id => Number(id)),
+                    mailbox: selectedMailbox?.name,
+                    action: {
+                        remove: [{ flag: "Seen" }]
+                    }
+                };
+                flagMessage({ accountId: selectedAccountId, payload })
+            }
         }
     }
 
@@ -327,7 +353,7 @@ export function Mail({
     }, [isError, error]);
 
     return (
-        <MailboxProvider value={{ open, setOpen, currentMailbox: selectedMailbox, setCurrentMailbox: setSelectedMailbox, currentEnvelope: selectedEvelope, setCurrentEnvelope: setSelectedEvelope, deleteUids, setDeleteUids }}>
+        <MailboxProvider value={{ open, setOpen, currentMailbox: selectedMailbox, setCurrentMailbox: setSelectedMailbox, currentEnvelope: selectedEvelope, setCurrentEnvelope: setSelectedEvelope, deleteIds, setDeleteIds }}>
             <TooltipProvider delayDuration={0}>
                 <ResizablePanelGroup
                     direction="horizontal"
@@ -377,7 +403,7 @@ export function Mail({
                                     localStorage.setItem('mailbox:selectedAccountId', `${accountId}`);
                                     setSelectedAccountId(accountId);
                                     setSelectedMailbox(undefined);
-                                    setSelectedUids([]);
+                                    setSelectedIds([]);
                                 }} defaultAccountId={lastSelectedAccountId} />
                             </div>
                             <Separator className="mt-2" />
@@ -407,7 +433,7 @@ export function Mail({
                                     onSelectChange={(item) => {
                                         if (item) {
                                             setSelectedMailbox(mailboxes?.find(m => m.id === parseInt(item.id, 10)))
-                                            setSelectedUids([]);
+                                            setSelectedIds([]);
                                             setPage(0);
                                         } else {
                                             setSelectedMailbox(undefined)
@@ -425,20 +451,20 @@ export function Mail({
                                 <h2 className="text-xl font-bold cursor-pointer hover:underline" onClick={() => setOpen("mailbox")}>
                                     {selectedMailbox?.name}
                                 </h2>
-                                {selectedUids.length > 0 && <Dot className="ml-2 text-sm text-muted-foreground" />}
-                                {selectedUids.length > 0 && <div className="ml-2 text-sm text-muted-foreground">
-                                    {selectedUids.length} {selectedUids.length > 1 ? 'emails' : 'email'} selected
+                                {selectedIds.length > 0 && <Dot className="ml-2 text-sm text-muted-foreground" />}
+                                {selectedIds.length > 0 && <div className="ml-2 text-sm text-muted-foreground">
+                                    {selectedIds.length} {selectedIds.length > 1 ? 'emails' : 'email'} selected
                                 </div>}
                             </div>
                             <Separator />
                             <div className="flex flex-wrap items-center gap-2 px-4 py-2">
                                 <div className="ml-3 w-10">
-                                    {selectedUids.length > 0 ? (
+                                    {selectedIds.length > 0 ? (
                                         <div
                                             className="peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setSelectedUids([]);
+                                                setSelectedIds([]);
                                             }}
                                         >
                                             <div className="flex items-center justify-center h-full">
@@ -450,7 +476,11 @@ export function Mail({
                                             className="peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setSelectedUids(envelopes?.items.map((e) => e.uid) ?? []);
+                                                if (isGmailApi) {
+                                                    setSelectedIds(envelopes?.items.map((e) => e.mid!) ?? []);
+                                                } else {
+                                                    setSelectedIds(envelopes?.items.map((e) => e.uid.toString()) ?? []);
+                                                }
                                             }}
                                         />
                                     )}
@@ -465,7 +495,7 @@ export function Mail({
                                         Clear Filters
                                     </Button>
                                 )}
-                                {selectedUids.length > 0 && (
+                                {selectedIds.length > 0 && (
                                     <>
                                         <Separator orientation="vertical" className="mx-1 h-6" />
                                         <MoveTo
@@ -474,26 +504,28 @@ export function Mail({
                                             accountId={selectedAccountId!}
                                             mailbox={selectedMailbox?.name}
                                             triggerUpdate={triggerUpdate}
-                                            selectedUids={selectedUids}
-                                            setSelectedUids={setSelectedUids}
+                                            selectedIds={selectedIds}
+                                            setSelectedIds={setSelectedIds}
                                         />
                                         <Separator orientation="vertical" className="mx-1 h-6" />
                                         <Button variant="outline" className="flex items-center" onClick={() => setOpen('move-to-trash')}>
                                             <Trash2 />
                                             Delete
                                         </Button>
-                                        <Separator orientation="vertical" className="mx-1 h-6" />
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" className="flex items-center">
-                                                    <Flag />
-                                                    Flag
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-96" align="start">
-                                                <CustomFlagInput selectedAccountId={selectedAccountId} selectedMailbox={selectedMailbox} selectedUids={selectedUids} />
-                                            </PopoverContent>
-                                        </Popover>
+                                        {!isGmailApi && <>
+                                            <Separator orientation="vertical" className="mx-1 h-6" />
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className="flex items-center">
+                                                        <Flag />
+                                                        Flag
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-96" align="start">
+                                                    <CustomFlagInput selectedAccountId={selectedAccountId} selectedMailbox={selectedMailbox} selectedUids={selectedIds.map(id => Number(id))} />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </>}
                                         <Separator orientation="vertical" className="mx-1 h-6" />
                                         <Button variant="outline" className="flex items-center" onClick={handleMarkFolderRead}>
                                             <MailOpen />
@@ -521,10 +553,10 @@ export function Mail({
                                         return dateB - dateA;
                                     })}
                                     setOpen={setOpen}
-                                    setDeleteUids={setDeleteUids}
+                                    setDeleteIds={setDeleteIds}
                                     currentEnvelope={selectedEvelope}
-                                    setSelectedUids={setSelectedUids}
-                                    selectedUids={selectedUids}
+                                    setSelectedIds={setSelectedIds}
+                                    selectedIds={selectedIds}
                                     onEnvelopeChanged={(envelope) => {
                                         setOpen('display');
                                         setSelectedEvelope(envelope);
@@ -568,7 +600,7 @@ export function Mail({
                 open={open === 'display'}
                 setOpen={setOpen}
                 onOpenChange={() => setOpen('display')}
-                setDeleteUids={setDeleteUids}
+                setDeleteIds={setDeleteIds}
                 currentEnvelope={selectedEvelope}
                 currentMailbox={selectedMailbox}
                 currentAccountId={selectedAccountId}
@@ -577,11 +609,11 @@ export function Mail({
             <EnvelopeDeleteDialog
                 key='envelope-move-to-trash'
                 open={open === 'move-to-trash'}
-                deleteUids={deleteUids}
-                setDeleteUids={setDeleteUids}
+                deleteIds={deleteIds}
+                setDeleteIds={setDeleteIds}
                 accountId={selectedAccountId}
                 mailbox={selectedMailbox?.name}
-                selectedUids={selectedUids}
+                selectedIds={selectedIds}
                 onOpenChange={() => setOpen('move-to-trash')}
             />
             <EnvelopeFilterDialog

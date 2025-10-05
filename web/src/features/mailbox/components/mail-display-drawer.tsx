@@ -29,6 +29,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { MailboxData } from '@/api/mailbox/api'
 import { AxiosError } from 'axios'
 import { EmailAction, EmailActionDialog } from './email-action-dialog'
+import { useMoveMessageMutation } from '@/hooks/use-move-messages'
+import { useCopyMessageMutation } from '@/hooks/use-copy-messages'
 
 interface MultilinesProps {
   title: string,
@@ -69,11 +71,11 @@ interface Props {
   currentEnvelope?: EmailEnvelope | undefined
   currentMailbox?: MailboxData | undefined
   currentAccountId?: number | undefined
-  setDeleteUids: React.Dispatch<React.SetStateAction<number[]>>;
+  setDeleteIds: React.Dispatch<React.SetStateAction<string[]>>;
   setOpen: (str: MailboxDialogType | null) => void
 }
 
-export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope, setDeleteUids, currentMailbox, currentAccountId }: Props) {
+export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope, setDeleteIds, currentMailbox, currentAccountId }: Props) {
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
 
@@ -86,6 +88,11 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
   const [dialogAction, setDialogAction] = useState<EmailAction>('reply');
 
   const { mutate: flagMessage } = useFlagMessageMutation();
+  const { mutate: moveMessage } = useMoveMessageMutation();
+  const { mutate: copyMessage } = useCopyMessageMutation();
+
+  const isGmailApi = currentEnvelope?.mid && currentEnvelope?.uid === 0;
+
   const downloadMutation = useMutation({
     mutationFn: ({ accountId, fileName, payload }: { accountId: number, fileName: string | undefined, payload: Record<string, any> }) => download_attachment(accountId, fileName, payload),
     retry: false,
@@ -135,8 +142,9 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
 
   const onDownload = (attachment: Attachment) => {
     if (currentEnvelope) {
+
       let payload = {
-        uid: currentEnvelope.uid,
+        id: isGmailApi ? currentEnvelope.mid! : currentEnvelope.uid.toString(),
         mailbox: currentMailbox?.name,
         attachment
       };
@@ -210,33 +218,51 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
 
   const onMarkAsRead = () => {
     if (currentEnvelope) {
-      let payload = {
-        uids: [currentEnvelope.uid],
-        mailbox: currentMailbox?.name,
-        action: {
-          add: [{ flag: "Seen" }]
-        }
-      };
-      flagMessage({ accountId: currentAccountId!, payload })
+      if (isGmailApi) {
+        let payload = {
+          ids: [currentEnvelope.mid!],
+          current_mailbox: "UNREAD",
+          target_mailbox: currentMailbox?.name
+        };
+        moveMessage({ accountId: currentAccountId!, payload })
+      } else {
+        let payload = {
+          uids: [currentEnvelope.uid],
+          mailbox: currentMailbox?.name,
+          action: {
+            add: [{ flag: "Seen" }]
+          }
+        };
+        flagMessage({ accountId: currentAccountId!, payload })
+      }
     }
   }
 
   const onMarkAsUnread = () => {
     if (currentEnvelope) {
-      let payload = {
-        uids: [currentEnvelope.uid],
-        mailbox: currentMailbox?.name,
-        action: {
-          remove: [{ flag: "Seen" }]
-        }
-      };
-      flagMessage({ accountId: currentAccountId!, payload })
+      if (isGmailApi) {
+        let payload = {
+          ids: [currentEnvelope.mid!],
+          current_mailbox: currentMailbox?.name,
+          target_mailbox: "UNREAD"
+        };
+        copyMessage({ accountId: currentAccountId!, payload })
+      } else {
+        let payload = {
+          uids: [currentEnvelope.uid],
+          mailbox: currentMailbox?.name,
+          action: {
+            remove: [{ flag: "Seen" }]
+          }
+        };
+        flagMessage({ accountId: currentAccountId!, payload })
+      }
     }
   }
 
   const handleDelete = () => {
     if (currentEnvelope) {
-      setDeleteUids([currentEnvelope.uid])
+      isGmailApi ? setDeleteIds([currentEnvelope.mid!]) : setDeleteIds([currentEnvelope.uid.toString()])
       setOpen('move-to-trash')
     }
   }
@@ -294,7 +320,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
 
   async function downloadEmlFile() {
     const filename = currentEnvelope?.subject || 'email_message';
-    if (!currentAccountId || !currentEnvelope?.mailbox_name || !currentEnvelope?.uid) {
+    if (!currentAccountId || !currentEnvelope?.mailbox_name || !currentEnvelope) {
       toast({
         title: 'Download failed',
         description: 'Cannot download - missing required message information',
@@ -310,7 +336,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
       });
 
       // Fetch the message
-      await get_full_message(currentAccountId!, currentEnvelope?.mailbox_name, currentEnvelope?.uid, filename);
+      await get_full_message(currentAccountId!, currentEnvelope?.mailbox_name, isGmailApi ? currentEnvelope?.mid! : currentEnvelope?.uid.toString(), filename);
       // Optional: Show download complete notification
       toast({
         title: 'Download complete',

@@ -14,14 +14,14 @@ import { delete_messages } from '@/api/mailbox/envelope/api'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  deleteUids: number[],
-  setDeleteUids: React.Dispatch<React.SetStateAction<number[]>>;
+  deleteIds: string[],
+  setDeleteIds: React.Dispatch<React.SetStateAction<string[]>>;
   accountId?: number,
   mailbox?: string,
-  selectedUids: number[],
+  selectedIds: string[],
 }
 
-export function EnvelopeDeleteDialog({ open, onOpenChange, deleteUids, setDeleteUids, accountId, mailbox, selectedUids }: Props) {
+export function EnvelopeDeleteDialog({ open, onOpenChange, deleteIds, setDeleteIds, accountId, mailbox, selectedIds }: Props) {
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
@@ -30,7 +30,7 @@ export function EnvelopeDeleteDialog({ open, onOpenChange, deleteUids, setDelete
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mailbox-list-messages', accountId, mailbox] });
       onOpenChange(false);
-      setDeleteUids([])
+      setDeleteIds([])
       toast({
         title: 'Messages deleted successfully',
         description: 'The messages have been deleted.',
@@ -48,7 +48,7 @@ export function EnvelopeDeleteDialog({ open, onOpenChange, deleteUids, setDelete
   const handleDelete = () => {
     if (accountId && mailbox) {
       let payload = {
-        uids: deleteUids.length > 0 ? deleteUids : selectedUids,
+        ids: deleteIds.length > 0 ? deleteIds : selectedIds,
         mailbox
       };
       deleteMutation.mutate({ accountId, payload })
@@ -79,7 +79,7 @@ export function EnvelopeDeleteDialog({ open, onOpenChange, deleteUids, setDelete
             Are you sure you want to move{' '}
             <span className='font-bold'>
               {(() => {
-                const emailCount = deleteUids.length > 0 ? deleteUids.length : selectedUids.length;
+                const emailCount = deleteIds.length > 0 ? deleteIds.length : selectedIds.length;
                 return emailCount > 1 ? `this ${emailCount} emails` : 'this email';
               })()}
             </span>{' '}

@@ -122,8 +122,13 @@ export const move_messages = async (accountId: number, payload: Record<string, a
     return response.data;
 };
 
-export const get_full_message = async (accountId: number, mailbox: string, uid: number, subject: string) => {
-    const response = await axiosInstance.get(`/api/v1/full-message/${accountId}?mailbox=${mailbox}&uid=${uid}`, { responseType: 'blob' });
+export const copy_messages = async (accountId: number, payload: Record<string, any>) => {
+    const response = await axiosInstance.post(`/api/v1/copy-messages/${accountId}`, payload);
+    return response.data;
+};
+
+export const get_full_message = async (accountId: number, mailbox: string, id: string, subject: string) => {
+    const response = await axiosInstance.get(`/api/v1/raw-message/${accountId}?mailbox=${mailbox}&id=${id}`, { responseType: 'blob' });
     const blob = new Blob([response.data]);
     let filename = subject.replace(/\.eml$/i, '');
     saveAs(blob, `${filename}.eml`);

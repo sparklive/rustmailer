@@ -19,31 +19,37 @@ interface MailListProps {
     currentEnvelope: EmailEnvelope | undefined
     onEnvelopeChanged: (envelope: EmailEnvelope) => void
     setOpen: (str: MailboxDialogType | null) => void,
-    setSelectedUids: React.Dispatch<React.SetStateAction<number[]>>;
-    setDeleteUids: React.Dispatch<React.SetStateAction<number[]>>;
-    selectedUids: number[];
+    setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
+    setDeleteIds: React.Dispatch<React.SetStateAction<string[]>>;
+    selectedIds: string[];
 }
 
 export function MailList({
     setOpen,
     items,
     currentEnvelope,
-    setDeleteUids,
+    setDeleteIds,
     isLoading,
     onEnvelopeChanged,
-    setSelectedUids,
-    selectedUids
+    setSelectedIds,
+    selectedIds
 }: MailListProps) {
     const handleDelete = (envelope: EmailEnvelope) => {
-        setDeleteUids([envelope.uid]);
+        if (envelope.mid && envelope.uid === 0) {
+            setDeleteIds([envelope.mid!])
+        } else {
+            setDeleteIds([envelope.uid.toString()])
+        }
         setOpen("move-to-trash");
     }
 
-    const handleCheckboxChange = (value: boolean | 'indeterminate', uid: number) => {
+    const isGmailApi = items.some(item => item.mid && item.uid === 0);
+
+    const handleCheckboxChange = (value: boolean | 'indeterminate', id: string) => {
         if (value === true) {
-            setSelectedUids((prev) => [...prev, uid]);
+            setSelectedIds((prev) => [...prev, id]);
         } else if (value === false) {
-            setSelectedUids((prev) => prev.filter((id) => id !== uid));
+            setSelectedIds((prev) => prev.filter((x) => x !== id));
         }
     };
 
@@ -82,14 +88,18 @@ export function MailList({
                             "flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer",
                             "hover:bg-accent/50",
                             currentEnvelope?.uid === item.uid && "bg-accent",
-                            selectedUids.includes(item.uid) && "bg-primary/5"
+                            (isGmailApi ? selectedIds.includes(item.mid!) : selectedIds.includes(item.uid.toString())) && "bg-primary/5"
                         )}
                         onClick={() => onEnvelopeChanged(item)}
                     >
                         <div className="flex items-center gap-1.5">
                             <Checkbox
-                                checked={selectedUids.includes(item.uid)}
-                                onCheckedChange={(checked) => handleCheckboxChange(checked, item.uid)}
+                                checked={
+                                    isGmailApi ? selectedIds.includes(item.mid!) : selectedIds.includes(item.uid.toString())
+                                }
+                                onCheckedChange={(checked) => {
+                                    isGmailApi ? handleCheckboxChange(checked, item.mid!) : handleCheckboxChange(checked, item.uid.toString())
+                                }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="h-4 w-3 shrink-0"
                             />

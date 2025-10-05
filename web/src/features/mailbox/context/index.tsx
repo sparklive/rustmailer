@@ -17,8 +17,8 @@ interface MailboxContextType {
   currentEnvelope: EmailEnvelope | undefined
   setCurrentMailbox: React.Dispatch<React.SetStateAction<MailboxData | undefined>>
   setCurrentEnvelope: React.Dispatch<React.SetStateAction<EmailEnvelope | undefined>>
-  deleteUids: number[]
-  setDeleteUids: React.Dispatch<React.SetStateAction<number[]>>
+  deleteIds: string[]
+  setDeleteIds: React.Dispatch<React.SetStateAction<string[]>>
 }
 
 const MailboxContext = React.createContext<MailboxContextType | null>(null)

@@ -23,12 +23,12 @@ interface MoveToProps {
     mailboxes?: MailboxData[];
     accountId: number,
     mailbox: string,
-    selectedUids: number[],
+    selectedIds: string[],
     triggerUpdate: (mailbox: string) => void
-    setSelectedUids: React.Dispatch<React.SetStateAction<number[]>>;
+    setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
-export function MoveTo({ isMailboxesLoading, mailboxes, accountId, mailbox, selectedUids, setSelectedUids, triggerUpdate }: MoveToProps) {
+export function MoveTo({ isMailboxesLoading, mailboxes, accountId, mailbox, selectedIds, setSelectedIds, triggerUpdate }: MoveToProps) {
     const [open, setOpen] = useState(false);
     const moveMutation = useMutation({
         mutationFn: ({ accountId, payload }: { accountId: number, payload: Record<string, any> }) => move_messages(accountId, payload),
@@ -36,7 +36,7 @@ export function MoveTo({ isMailboxesLoading, mailboxes, accountId, mailbox, sele
         onSuccess: () => {
             triggerUpdate(mailbox);
             setOpen(false);
-            setSelectedUids([])
+            setSelectedIds([])
             toast({
                 title: 'Messages moved successfully',
                 description: 'The messages have been moved.',
@@ -54,7 +54,7 @@ export function MoveTo({ isMailboxesLoading, mailboxes, accountId, mailbox, sele
     const handleMove = (target: string) => {
         if (target && mailbox && accountId) {
             const payload = {
-                uids: selectedUids,
+                ids: selectedIds,
                 current_mailbox: mailbox,
                 target_mailbox: target
             }
