@@ -6,7 +6,7 @@
 </h1>
 
 <h3 align="center">
-  A self-hosted IMAP/SMTP middleware designed for developers
+  A self-hosted Email Middleware for IMAP, SMTP, and Gmail API — built for developers
 </h3>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rustmailer/rustmailer)
@@ -14,18 +14,19 @@
 
 ## 🎯 Use Cases
 
-RustMailer is designed to be seamlessly integrated into your applications, helping you save development time and improve efficiency by providing a robust, self-hosted email synchronization and delivery backend.
+RustMailer is designed to be seamlessly integrated into your applications, helping you save development time and improve efficiency by providing a robust, self-hosted email synchronization and delivery backend supporting **IMAP/SMTP, and Gmail API**.
 
 Typical use cases and industries include:
 
-- SaaS platforms requiring multi-account email synchronization  
+- SaaS platforms requiring multi-account email synchronization (IMAP or Gmail)
 - CRM systems with automated transactional email sending  
 - Marketing automation tools supporting dynamic email templates  
 - Customer support software integrating real-time email notifications  
-- Enterprise applications needing reliable IMAP and SMTP handling  
+- Enterprise applications needing reliable IMAP, SMTP, or Gmail API handling  
 - E-commerce platforms managing order confirmation and promotional emails  
 - Data analytics solutions tracking email opens and clicks via webhooks  
 - Fintech and healthcare systems demanding secure and auditable email workflows  
+ 
 
 RustMailer enables developers to focus on core application logic without building complex mail infrastructure from scratch.
 
@@ -33,7 +34,7 @@ RustMailer enables developers to focus on core application logic without buildin
 
 ## 💡 Why RustMailer?
 
-While many programming languages provide IMAP and SMTP client libraries, building a reliable, scalable, and feature-rich mail synchronization and delivery system from scratch remains complex and time-consuming. 
+While many programming languages provide IMAP, SMTP, or Gmail API client libraries, building a reliable, scalable, and feature-rich mail synchronization and delivery system from scratch remains complex and time-consuming. 
 RustMailer abstracts these challenges by offering a unified, self-hosted middleware service that:
 
 - Handles multi-account IMAP polling and caching efficiently  
@@ -48,6 +49,7 @@ This allows development teams to focus on core business logic, accelerating time
 - 🚀 **High Performance & Cost-Efficient** – Written in Rust for safety and speed. Runs with low memory usage, no Redis or external dependencies required — ideal for production at minimal cost.
 - 📬 **Multi-account IMAP support** – Incremental sync using UID-based strategy, supports folder selection, windowed or date-range sync.
 - 📤 **SMTP Sending** – Manage outgoing email via SMTP with connection pooling.
+- 📮 **Gmail API Support** – Native integration with Gmail API for account authentication, incremental synchronization, and message sending. Ideal for modern Google Workspace environments.
 - 🧾 **Email Template Support** – Supports dynamic email templates for transactional and marketing messages.
 - 📡 **Flexible MTA Integration** – Send via account-specific SMTP servers, self-hosted MTA services, or third-party providers.
 - 📈 **Open & Click Tracking** – Built-in support for tracking email opens and link clicks.
@@ -290,4 +292,4 @@ We’d love to hear from you! Join our community or follow us for updates:
 
 ---
 
-> © 2025 RustMailer — A self-hosted Email API, built in Rust
+> © 2025 RustMailer — A self-hosted Email Middleware for IMAP, SMTP, and Gmail API, built in Rust
