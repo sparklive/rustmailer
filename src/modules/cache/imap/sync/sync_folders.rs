@@ -24,7 +24,7 @@ use crate::{
     raise_error,
 };
 use async_imap::types::Name;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub async fn get_sync_folders(account: &AccountV2) -> RustMailerResult<Vec<MailBox>> {
     let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
@@ -40,6 +40,14 @@ pub async fn get_sync_folders(account: &AccountV2) -> RustMailerResult<Vec<MailB
         ), ErrorCode::ImapUnexpectedResult));
     }
     let mailboxes: Vec<(MailBox, Name)> = names.into_iter().map(|n| ((&n).into(), n)).collect();
+
+    for (mailbox, _) in &mailboxes {
+        debug!(
+            "[MAILBOX DEBUG] Account {}: mailbox='{}', attributes={:?}",
+            account.id, mailbox.name, mailbox.attributes
+        );
+    }
+
     detect_mailbox_changes(
         account,
         mailboxes.iter().map(|(m, _)| m.name.clone()).collect(),
@@ -77,6 +85,15 @@ pub async fn get_sync_folders(account: &AccountV2) -> RustMailerResult<Vec<MailB
             .filter(|(mailbox, _)| !is_noselect(mailbox) && is_default_mailbox(mailbox))
             .map(|(_, name)| name)
             .collect();
+
+        debug!(
+            "[MAILBOX DEBUG] Account {}: matched_mailboxes (default selection) = {:?}",
+            account.id,
+            matched_mailboxes
+                .iter()
+                .map(|n| decode_mailbox_name!(n.name().to_string()))
+                .collect::<Vec<_>>()
+        );
 
         if !matched_mailboxes.is_empty() {
             let sync_folders: Vec<String> = matched_mailboxes
