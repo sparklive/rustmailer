@@ -273,7 +273,15 @@ impl AccountV2 {
         };
         Self::update(account_id, request, false).await?;
         SYNC_TASKS.stop(account_id).await?;
-        Self::cleanup_account_resources_sequential(account_id).await
+        if let Err(error) = Self::cleanup_account_resources_sequential(account_id).await {
+            tracing::error!(
+                "[CLEANUP_ACCOUNT_ERROR] Account {}: failed to cleanup resources: {:#?}",
+                account_id,
+                error
+            );
+            return Err(error);
+        }
+        Ok(())
     }
 
     async fn delete_account(account_id: u64) -> RustMailerResult<()> {
