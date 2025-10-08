@@ -36,7 +36,7 @@ pub async fn fetch_and_save_since_date(
     // Each page returns message IDs, and we still need to fetch message details individually.
     let mut page_token: Option<String> = None;
     let mut page = 1; // Used only for tracking sync progress
-    let semaphore = Arc::new(Semaphore::new(5));
+    let semaphore = Arc::new(Semaphore::new(1));
     let mut history_ids = Vec::new();
     loop {
         let resp = GmailClient::list_messages(
@@ -149,7 +149,7 @@ pub async fn fetch_and_save_full_label(
     // Each page returns message IDs, and we still need to fetch message details individually.
     let mut page_token: Option<String> = None;
     let mut page = 1; // Used only for tracking sync progress
-    let semaphore = Arc::new(Semaphore::new(5));
+    let semaphore = Arc::new(Semaphore::new(1));
     let mut history_ids = Vec::new();
     loop {
         let resp = GmailClient::list_messages(
