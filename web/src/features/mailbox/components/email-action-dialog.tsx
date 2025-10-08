@@ -130,7 +130,7 @@ export function EmailActionDialog({
             if (action === "reply" || action === "replyAll") {
                 return reply_mail(currentAccountId!, {
                     mailbox_name: currentEnvelope?.mailbox_name,
-                    uid: currentEnvelope?.uid,
+                    id: currentEnvelope?.id,
                     text: data.content,
                     reply_all: action === "replyAll",
                     include_original: true,
@@ -144,7 +144,7 @@ export function EmailActionDialog({
             } else {
                 return forward_mail(currentAccountId!, {
                     mailbox_name: currentEnvelope?.mailbox_name,
-                    uid: currentEnvelope?.uid,
+                    id: currentEnvelope?.id,
                     text: data.content,
                     to: data.toEmails?.map(email => ({ address: email.address, name: null })),
                     cc: data.ccEmails?.length ? data.ccEmails.map(email => ({ address: email.address, name: null })) : null,

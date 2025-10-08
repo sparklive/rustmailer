@@ -35,15 +35,11 @@ export function MailList({
     selectedIds
 }: MailListProps) {
     const handleDelete = (envelope: EmailEnvelope) => {
-        if (envelope.mid && envelope.uid === 0) {
-            setDeleteIds([envelope.mid!])
-        } else {
-            setDeleteIds([envelope.uid.toString()])
-        }
+        setDeleteIds([envelope.id]);
         setOpen("move-to-trash");
     }
 
-    const isGmailApi = items.some(item => item.mid && item.uid === 0);
+    const isGmailApi = items.some(item => item.id && isNaN(Number(item.id)));
 
     const handleCheckboxChange = (value: boolean | 'indeterminate', id: string) => {
         if (value === true) {
@@ -83,22 +79,22 @@ export function MailList({
 
                 return (
                     <div
-                        key={item.mid ?? item.uid}
+                        key={item.id}
                         className={cn(
                             "flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer",
                             "hover:bg-accent/50",
-                            currentEnvelope?.uid === item.uid && "bg-accent",
-                            (isGmailApi ? selectedIds.includes(item.mid!) : selectedIds.includes(item.uid.toString())) && "bg-primary/5"
+                            currentEnvelope?.id === item.id && "bg-accent",
+                            selectedIds.includes(item.id) && "bg-primary/5"
                         )}
                         onClick={() => onEnvelopeChanged(item)}
                     >
                         <div className="flex items-center gap-1.5">
                             <Checkbox
                                 checked={
-                                    isGmailApi ? selectedIds.includes(item.mid!) : selectedIds.includes(item.uid.toString())
+                                    selectedIds.includes(item.id)
                                 }
                                 onCheckedChange={(checked) => {
-                                    isGmailApi ? handleCheckboxChange(checked, item.mid!) : handleCheckboxChange(checked, item.uid.toString())
+                                    handleCheckboxChange(checked, item.id)
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="h-4 w-3 shrink-0"
@@ -111,7 +107,7 @@ export function MailList({
                                     <MailOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 )}
                                 <span className="text-xs text-muted-foreground">
-                                    {item.mid ? `mid: ${item.mid}` : `uid: ${item.uid}`}
+                                    {isGmailApi ? `mid: ${item.id}` : `uid: ${item.id}`}
                                 </span>
 
                                 <p className={cn(
@@ -148,7 +144,7 @@ export function MailList({
 
                                 <span className={cn(
                                     "text-xs",
-                                    currentEnvelope?.uid === item.uid
+                                    currentEnvelope?.id === item.id
                                         ? "text-foreground font-medium"
                                         : "text-muted-foreground"
                                 )}>

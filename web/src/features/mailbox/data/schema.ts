@@ -44,7 +44,7 @@ export interface EmailEnvelope {
   account_id: number;
   mailbox_id: number;
   mailbox_name: string;
-  uid: number;
+  id: string;
   internal_date?: number;
   size: number;
   flags: EnvelopeFlag[];
@@ -67,7 +67,6 @@ export interface EmailEnvelope {
   attachments?: Attachment[];
   body_meta?: EmailBodyPart[];
   received?: Received;
-  mid?: string;
   labels: string[];
 }
 

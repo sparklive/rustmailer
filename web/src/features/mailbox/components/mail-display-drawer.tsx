@@ -91,7 +91,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
   const { mutate: moveMessage } = useMoveMessageMutation();
   const { mutate: copyMessage } = useCopyMessageMutation();
 
-  const isGmailApi = currentEnvelope?.mid && currentEnvelope?.uid === 0;
+  const isGmailApi = currentEnvelope && isNaN(Number(currentEnvelope.id));
 
   const downloadMutation = useMutation({
     mutationFn: ({ accountId, fileName, payload }: { accountId: number, fileName: string | undefined, payload: Record<string, any> }) => download_attachment(accountId, fileName, payload),
@@ -144,7 +144,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
     if (currentEnvelope) {
 
       let payload = {
-        id: isGmailApi ? currentEnvelope.mid! : currentEnvelope.uid.toString(),
+        id: currentEnvelope.id,
         mailbox: currentMailbox?.name,
         attachment
       };
@@ -159,7 +159,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
       let payload = {
         attachment_info,
         filename: attachment_info.filename,
-        mid: currentEnvelope.mid
+        id: currentEnvelope.id
       };
       setDownloadingAttachmentId(attachment_info.id);
       downloadMutation.mutate({ accountId: currentAccountId!, fileName: attachment_info.filename, payload })
@@ -168,12 +168,12 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
 
   useEffect(() => {
     if (open && currentEnvelope) {
-      if (currentEnvelope.mid) {
+      if (isGmailApi) {
         setLoading(true);
         let payload: {
           id: string;
         } = {
-          id: currentEnvelope.mid
+          id: currentEnvelope.id
         };
         loadMessageMutation.mutate({ accountId: currentAccountId!, payload })
       } else {
@@ -204,7 +204,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
         sections: EmailBodyPart[];
         inline?: Attachment[]; // Declare inline as an optional field
       } = {
-        id: currentEnvelope.uid.toString(),
+        id: currentEnvelope.id,
         mailbox: currentMailbox?.name,
         sections: [emailbody],
       };
@@ -220,14 +220,14 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
     if (currentEnvelope) {
       if (isGmailApi) {
         let payload = {
-          ids: [currentEnvelope.mid!],
+          ids: [currentEnvelope.id],
           current_mailbox: "UNREAD",
           target_mailbox: currentMailbox?.name
         };
         moveMessage({ accountId: currentAccountId!, payload })
       } else {
         let payload = {
-          uids: [currentEnvelope.uid],
+          uids: [Number(currentEnvelope.id)],
           mailbox: currentMailbox?.name,
           action: {
             add: [{ flag: "Seen" }]
@@ -242,14 +242,14 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
     if (currentEnvelope) {
       if (isGmailApi) {
         let payload = {
-          ids: [currentEnvelope.mid!],
+          ids: [currentEnvelope.id],
           current_mailbox: currentMailbox?.name,
           target_mailbox: "UNREAD"
         };
         copyMessage({ accountId: currentAccountId!, payload })
       } else {
         let payload = {
-          uids: [currentEnvelope.uid],
+          uids: [Number(currentEnvelope.id)],
           mailbox: currentMailbox?.name,
           action: {
             remove: [{ flag: "Seen" }]
@@ -262,7 +262,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
 
   const handleDelete = () => {
     if (currentEnvelope) {
-      isGmailApi ? setDeleteIds([currentEnvelope.mid!]) : setDeleteIds([currentEnvelope.uid.toString()])
+      setDeleteIds([currentEnvelope.id])
       setOpen('move-to-trash')
     }
   }
@@ -336,7 +336,7 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
       });
 
       // Fetch the message
-      await get_full_message(currentAccountId!, currentEnvelope?.mailbox_name, isGmailApi ? currentEnvelope?.mid! : currentEnvelope?.uid.toString(), filename);
+      await get_full_message(currentAccountId!, currentEnvelope?.mailbox_name, currentEnvelope?.id, filename);
       // Optional: Show download complete notification
       toast({
         title: 'Download complete',
@@ -485,9 +485,9 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
                   <div className="grid gap-1">
                     <div className="line-clamp-1 text-xs space-x-2">
                       <span className="font-medium text-gray-400">
-                        {currentEnvelope.mid ? "Mid:" : "Uid:"}
+                        {isGmailApi ? "Mid:" : "Uid:"}
                       </span>
-                      <span>{currentEnvelope.mid ?? currentEnvelope.uid}</span>
+                      <span>{currentEnvelope.id}</span>
                     </div>
                     {currentEnvelope.from && (
                       <div className="line-clamp-1 text-xs space-x-2">

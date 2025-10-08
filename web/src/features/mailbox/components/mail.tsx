@@ -196,7 +196,10 @@ export function Mail({
     })
 
 
-    const isGmailApi = envelopes?.items.some(item => item.mid && item.uid === 0);
+    const isGmailApi = envelopes?.items.some(item => {
+        if (!item.id) return false;
+        return isNaN(Number(item.id));
+    });
 
     React.useEffect(() => {
         if (!selectedAccountId || !selectedMailbox) {
@@ -475,11 +478,7 @@ export function Mail({
                                             className="peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (isGmailApi) {
-                                                    setSelectedIds(envelopes?.items.map((e) => e.mid!) ?? []);
-                                                } else {
-                                                    setSelectedIds(envelopes?.items.map((e) => e.uid.toString()) ?? []);
-                                                }
+                                                setSelectedIds(envelopes?.items.map((e) => e.id) ?? []);
                                             }}
                                         />
                                     )}
