@@ -18,8 +18,10 @@ pub struct EmailAddedToFolder {
     pub account_email: String,
     /// Name of the mailbox (folder) where the email was added.
     pub mailbox_name: String,
-    /// Unique identifier (UID) of the email within the mailbox.
-    pub uid: u32,
+    /// The unique ID of the message, either IMAP UID or Gmail API MID.
+    /// - For IMAP accounts, this is the UID converted to a string.
+    /// - For Gmail API accounts, this is the message ID returned by the API.
+    pub id: String,
     /// Optional internal date (in milliseconds) assigned to the email by the server.
     pub internal_date: Option<i64>,
     /// Optional date (in milliseconds) of the email, typically from the email's header.
@@ -55,13 +57,6 @@ pub struct EmailAddedToFolder {
     pub to: Option<Vec<Addr>>,
     /// Optional list of attachments included in the email.
     pub attachments: Option<Vec<Attachment>>,
-    /// The `mid` field is reserved for potential integration with other backend models.
-    /// For instance, it can be used to store the email index or ID from external services like the Gmail API.
-    /// This ID could be used for reference or identification purposes in scenarios where an external service
-    /// provides an identifier for the email in question.
-    ///
-    /// This field is optional, meaning that it may be `None` if no external service identifier is available.
-    pub mid: Option<String>,
     /// A list of labels applied to the message.
     ///
     /// Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").

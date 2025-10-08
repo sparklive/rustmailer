@@ -311,7 +311,7 @@ async fn dispatch_new_email_notification(
         let full_message =
             GmailClient::get_full_messages(account.id, account.use_proxy, &message.id).await?;
         let message_content: FullMessageContent = full_message.try_into()?;
-        let mut envelope = message.into_v3(&label_map);
+        let mut envelope = message.into_envelope(&label_map);
         envelope.thread_id = envelope.compute_thread_id();
         EVENT_CHANNEL
             .queue(Event::new(
@@ -323,14 +323,17 @@ async fn dispatch_new_email_notification(
                         account_id: account.id,
                         account_email: account.email.clone(),
                         mailbox_name: envelope.mailbox_name.clone(),
-                        uid: envelope.uid,
+                        id: envelope.id,
                         internal_date: envelope.internal_date,
                         date: envelope.date,
                         from: envelope.from,
                         subject: envelope.subject,
                         to: envelope.to,
                         size: envelope.size,
-                        flags: envelope.flags.into_iter().map(|f| f.to_string()).collect(),
+                        flags: envelope
+                            .flags
+                            .map(|f| f.into_iter().map(|f| f.to_string()).collect())
+                            .unwrap_or_default(),
                         cc: envelope.cc,
                         bcc: envelope.bcc,
                         in_reply_to: envelope.in_reply_to,
@@ -344,7 +347,6 @@ async fn dispatch_new_email_notification(
                             .as_ref()
                             .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
                         thread_id: envelope.thread_id,
-                        mid: envelope.mid,
                         labels: envelope.labels,
                     }),
                 ),

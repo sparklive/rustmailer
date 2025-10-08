@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::current_datetime;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::model::Envelope;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::message::append::AppendReplyToDraftRequest;
 use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentRequest};
@@ -135,7 +135,7 @@ impl MessageApi {
         /// lists messages in descending order; otherwise, ascending. internal date
         desc: Query<Option<bool>>,
         context: ClientContext,
-    ) -> ApiResult<Json<CursorDataPage<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<CursorDataPage<Envelope>>> {
         let remote = remote.0.unwrap_or(false);
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
@@ -175,7 +175,7 @@ impl MessageApi {
         /// lists messages in descending order; otherwise, ascending. internal date
         desc: Query<Option<bool>>,
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<DataPage<Envelope>>> {
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
@@ -199,7 +199,7 @@ impl MessageApi {
         // Thread ID
         thread_id: Query<u64>,
         context: ClientContext,
-    ) -> ApiResult<Json<Vec<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<Vec<Envelope>>> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
 
@@ -319,7 +319,7 @@ impl MessageApi {
         /// specifying the search criteria (e.g., keywords, flags).
         payload: Json<MessageSearchRequest>,
         context: ClientContext,
-    ) -> ApiResult<Json<CursorDataPage<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<CursorDataPage<Envelope>>> {
         let request = payload.0;
         let desc = desc.0.unwrap_or(false);
         let account_id = account_id.0;
@@ -351,7 +351,7 @@ impl MessageApi {
         payload: Json<UnifiedSearchRequest>,
         /// Request context (includes authentication and permissions).
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<EmailEnvelopeV3>>> {
+    ) -> ApiResult<Json<DataPage<Envelope>>> {
         let mut request = payload.0;
         let desc = desc.0.unwrap_or(false);
 

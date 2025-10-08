@@ -165,7 +165,7 @@ impl RustMailerEvent {
                 account_id: id!(64),
                 account_email: account_email.clone(),
                 mailbox_name: "INBOX".into(),
-                uid: 1001,
+                id: "1001".to_string(),
                 internal_date: Some(timestamp),
                 date: Some(timestamp),
                 size: 2048,
@@ -195,7 +195,6 @@ impl RustMailerEvent {
                     size: 1024,
                     file_type: "application/pdf".into(),
                 }]),
-                mid: None,
                 labels: vec![]
             }
         );

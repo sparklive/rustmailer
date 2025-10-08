@@ -7,6 +7,7 @@ use crate::modules::account::entity::MailerType;
 use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
 use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::model::Envelope;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
 use crate::modules::common::decode_page_token;
@@ -485,7 +486,7 @@ impl MessageSearchRequest {
         next_page_token: Option<&str>,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<CursorDataPage<Envelope>> {
         let account = AccountV2::check_account_active(account_id, false).await?;
         match account.mailer_type {
             MailerType::ImapSmtp => {
@@ -504,7 +505,7 @@ impl MessageSearchRequest {
         account: &AccountV2,
         next_page_token: Option<&str>,
         page_size: u64,
-    ) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<CursorDataPage<Envelope>> {
         if page_size == 0 {
             return Err(raise_error!(
                 "page_size must be greater than 0.".into(),
@@ -571,14 +572,14 @@ impl MessageSearchRequest {
         })
         .await?;
 
-        let envelopes: Vec<EmailEnvelopeV3> = batch_messages
+        let envelopes: Vec<Envelope> = batch_messages
             .into_iter()
             .map(|m| {
                 let mut envelope: GmailEnvelope = m.try_into()?;
                 envelope.account_id = account_id;
-                Ok(envelope.into_v3(&label_map))
+                Ok(envelope.into_envelope(&label_map))
             })
-            .collect::<RustMailerResult<Vec<EmailEnvelopeV3>>>()?;
+            .collect::<RustMailerResult<Vec<Envelope>>>()?;
 
         let total_pages = (total as f64 / page_size as f64).ceil() as u64;
 
@@ -597,7 +598,7 @@ impl MessageSearchRequest {
         next_page_token: Option<&str>,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<CursorDataPage<Envelope>> {
         // Validate page and page_size
         if page_size == 0 {
             return Err(raise_error!(
@@ -657,7 +658,7 @@ impl MessageSearchRequest {
             let mut envelopes = Vec::new();
             for fetch in fetches {
                 let envelope = extract_envelope(&fetch, account.id, mailbox)?;
-                envelopes.push(envelope);
+                envelopes.push(envelope.into());
             }
 
             let next_page_token = if page == total_pages {
@@ -717,7 +718,7 @@ impl MessageSearchRequest {
         let mut envelopes = Vec::new();
         for fetch in fetches {
             let envelope = extract_envelope(&fetch, account.id, mailbox)?;
-            envelopes.push(envelope);
+            envelopes.push(envelope.into());
         }
         let next_page_token = if page == total_pages {
             None
@@ -754,7 +755,7 @@ impl UnifiedSearchRequest {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<DataPage<Envelope>> {
         if page == 0 || page_size == 0 {
             return Err(raise_error!(
                 "'page' and 'page_size' must be greater than 0.".into(),
@@ -803,12 +804,17 @@ impl UnifiedSearchRequest {
         for (id, account_id, _) in result.items {
             let account = AccountV2::get(account_id).await?;
             let envelope = match account.mailer_type {
-                MailerType::ImapSmtp => EmailEnvelopeV3::get(id).await?.ok_or_else(|| {
-                    raise_error!(
-                        format!("Failed to get EmailEnvelope for hash {id} in search operation"),
-                        ErrorCode::InternalError
-                    )
-                })?,
+                MailerType::ImapSmtp => EmailEnvelopeV3::get(id)
+                    .await?
+                    .ok_or_else(|| {
+                        raise_error!(
+                            format!(
+                                "Failed to get EmailEnvelope for hash {id} in search operation"
+                            ),
+                            ErrorCode::InternalError
+                        )
+                    })?
+                    .into(),
                 MailerType::GmailApi => {
                     let label_map = GmailClient::label_map(account_id, account.use_proxy).await?;
                     let envelope = GmailEnvelope::get(id).await?.ok_or_else(|| {
@@ -819,7 +825,7 @@ impl UnifiedSearchRequest {
                             ErrorCode::InternalError
                         )
                     })?;
-                    envelope.into_v3(&label_map)
+                    envelope.into_envelope(&label_map)
                 }
             };
             items.push(envelope);

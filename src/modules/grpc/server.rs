@@ -13,6 +13,8 @@ use crate::modules::common::log::Tracing;
 use crate::modules::common::timeout::Timeout;
 use crate::modules::common::tls::rustls_config;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::grpc::service::hook::RustMailerEventHooksService;
+use crate::modules::grpc::service::rustmailer_grpc::EventHooksServiceServer;
 use crate::modules::settings::cli::CompressionAlgorithm;
 use crate::modules::{
     error::RustMailerResult,
@@ -72,11 +74,15 @@ pub async fn start_grpc_server() -> RustMailerResult<()> {
             .add_file_descriptor_set(FILE_DESCRIPTOR_SET)
             .build(),
     );
-
     route = add_service!(
         route,
         AccountServiceServer<RustMailerAccountService>,
         RustMailerAccountService
+    );
+    route = add_service!(
+        route,
+        EventHooksServiceServer<RustMailerEventHooksService>,
+        RustMailerEventHooksService
     );
     route = add_service!(
         route,

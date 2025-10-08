@@ -14,13 +14,16 @@ use tracing::{error, info};
 use crate::{
     calculate_hash, id,
     modules::{
-        cache::imap::{
-            address::AddressEntity,
-            envelope::{EmailEnvelope, Received},
-            mailbox::EnvelopeFlag,
-            manager::EnvelopeFlagsManager,
-            minimal::MinimalEnvelope,
-            thread::{EmailThread, EmailThreadKey},
+        cache::{
+            imap::{
+                address::AddressEntity,
+                envelope::{EmailEnvelope, Received},
+                mailbox::EnvelopeFlag,
+                manager::EnvelopeFlagsManager,
+                minimal::MinimalEnvelope,
+                thread::{EmailThread, EmailThreadKey},
+            },
+            model::Envelope,
         },
         common::Addr,
         database::{
@@ -281,10 +284,7 @@ impl EmailEnvelopeV3 {
         .await
     }
 
-    pub async fn get_thread(
-        account_id: u64,
-        thread_id: u64,
-    ) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
+    pub async fn get_thread(account_id: u64, thread_id: u64) -> RustMailerResult<Vec<Envelope>> {
         let envelopes = filter_by_secondary_key_impl::<EmailEnvelopeV3>(
             DB_MANAGER.envelope_db(),
             EmailEnvelopeV3Key::thread_id,
@@ -308,7 +308,7 @@ impl EmailEnvelopeV3 {
             }
         });
 
-        Ok(result)
+        Ok(result.into_iter().map(Envelope::from).collect())
     }
 
     pub async fn get(envelope_id: u64) -> RustMailerResult<Option<EmailEnvelopeV3>> {

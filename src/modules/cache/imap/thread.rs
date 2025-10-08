@@ -14,6 +14,7 @@ use crate::{
         account::v2::AccountV2,
         cache::{
             imap::v2::EmailEnvelopeV3,
+            model::Envelope,
             vendor::gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
         },
         database::{
@@ -142,7 +143,7 @@ impl EmailThread {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<DataPage<Envelope>> {
         let threads = paginate_secondary_scan_impl::<EmailThread>(
             DB_MANAGER.envelope_db(),
             Some(page),
@@ -172,7 +173,7 @@ impl EmailThread {
             current_page: threads.page,
             page_size: threads.page_size,
             total_items: threads.total_items,
-            items: envelopes,
+            items: envelopes.into_iter().map(Envelope::from).collect(),
             total_pages: threads.total_pages,
         })
     }
@@ -183,7 +184,7 @@ impl EmailThread {
         page: u64,
         page_size: u64,
         desc: bool,
-    ) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
+    ) -> RustMailerResult<DataPage<Envelope>> {
         let threads = paginate_secondary_scan_impl::<EmailThread>(
             DB_MANAGER.envelope_db(),
             Some(page),
@@ -208,7 +209,10 @@ impl EmailThread {
         let results: RustMailerResult<Vec<GmailEnvelope>> =
             join_all(fetch_tasks).await.into_iter().collect();
         let map = GmailClient::label_map(account.id, account.use_proxy).await?;
-        let envelopes = results?.into_iter().map(|e| e.into_v3(&map)).collect();
+        let envelopes = results?
+            .into_iter()
+            .map(|e| e.into_envelope(&map))
+            .collect();
         Ok(DataPage {
             current_page: threads.page,
             page_size: threads.page_size,

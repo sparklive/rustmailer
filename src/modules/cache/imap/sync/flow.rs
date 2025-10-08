@@ -829,7 +829,7 @@ async fn process_email_added_events(
                         account_id: account.id,
                         account_email: account.email.clone(),
                         mailbox_name: remote.name.clone(),
-                        uid: envelope.uid,
+                        id: envelope.uid.to_string(),
                         internal_date: envelope.internal_date,
                         date: envelope.date,
                         from: envelope.from,
@@ -850,7 +850,6 @@ async fn process_email_added_events(
                             .as_ref()
                             .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
                         thread_id,
-                        mid: None,
                         labels: vec![],
                     }),
                 ),

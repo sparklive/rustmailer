@@ -5,3 +5,4 @@
 pub mod disk;
 pub mod imap;
 pub mod vendor;
+pub mod model;

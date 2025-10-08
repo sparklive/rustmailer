@@ -8,6 +8,7 @@ use crate::{
         account::{entity::MailerType, v2::AccountV2},
         cache::{
             imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV3},
+            model::Envelope,
             vendor::gmail::sync::{
                 client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
             },
@@ -29,7 +30,7 @@ pub async fn list_messages_in_mailbox(
     page_size: u64,
     remote: bool,
     desc: bool,
-) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+) -> RustMailerResult<CursorDataPage<Envelope>> {
     let account = AccountV2::check_account_active(account_id, false).await?;
     if page_size == 0 {
         return Err(raise_error!(
@@ -73,7 +74,7 @@ async fn fetch_remote_messages(
     next_page_token: Option<&str>,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+) -> RustMailerResult<CursorDataPage<Envelope>> {
     match account.mailer_type {
         MailerType::ImapSmtp => {
             let page = decode_page_token(next_page_token)?;
@@ -167,15 +168,15 @@ async fn fetch_remote_messages(
                 })
                 .await?;
 
-            let envelopes: Vec<EmailEnvelopeV3> = batch_messages
+            let envelopes: Vec<Envelope> = batch_messages
                 .into_iter()
                 .map(|m| {
                     let mut envelope: GmailEnvelope = m.try_into()?;
                     envelope.account_id = account_id;
                     envelope.label_name = mailbox_name.into();
-                    Ok(envelope.into_v3(&label_map))
+                    Ok(envelope.into_envelope(&label_map))
                 })
-                .collect::<RustMailerResult<Vec<EmailEnvelopeV3>>>()?;
+                .collect::<RustMailerResult<Vec<Envelope>>>()?;
 
             let total_pages = (total as f64 / page_size as f64).ceil() as u64;
 
@@ -194,11 +195,11 @@ async fn process_fetches(
     fetches: Vec<Fetch>,
     account_id: u64,
     mailbox_name: &str,
-) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
+) -> RustMailerResult<Vec<Envelope>> {
     let mut envelopes = Vec::with_capacity(fetches.len());
     for fetch in fetches {
         let envelope = extract_envelope(&fetch, account_id, mailbox_name)?;
-        envelopes.push(envelope);
+        envelopes.push(envelope.into());
     }
     Ok(envelopes)
 }
@@ -209,7 +210,7 @@ async fn fetch_local_messages(
     next_page_token: Option<&str>,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<CursorDataPage<EmailEnvelopeV3>> {
+) -> RustMailerResult<CursorDataPage<Envelope>> {
     let page = decode_page_token(next_page_token)?;
     match account.mailer_type {
         MailerType::ImapSmtp => {
@@ -251,7 +252,7 @@ async fn fetch_local_messages(
                     page_size,
                     total_items,
                     Some(total_pages),
-                    items,
+                    items.into_iter().map(Envelope::from).collect(),
                 ))
             }
         }
@@ -289,7 +290,7 @@ async fn fetch_local_messages(
                     page_size,
                     total_items,
                     Some(total_pages),
-                    items.into_iter().map(|e| e.into_v3(&map)).collect(),
+                    items.into_iter().map(|e| e.into_envelope(&map)).collect(),
                 ))
             }
         }
@@ -302,7 +303,7 @@ pub async fn list_threads_in_mailbox(
     page: u64,
     page_size: u64,
     desc: bool,
-) -> RustMailerResult<DataPage<EmailEnvelopeV3>> {
+) -> RustMailerResult<DataPage<Envelope>> {
     let account = AccountV2::check_account_active(account_id, false).await?;
     validate_pagination_params(page, page_size)?;
     if account.minimal_sync() {
@@ -346,7 +347,7 @@ pub async fn list_threads_in_mailbox(
 pub async fn get_thread_messages(
     account_id: u64,
     thread_id: u64,
-) -> RustMailerResult<Vec<EmailEnvelopeV3>> {
+) -> RustMailerResult<Vec<Envelope>> {
     let account = AccountV2::check_account_active(account_id, false).await?;
     if account.minimal_sync() {
         return Err(raise_error!(
@@ -365,7 +366,10 @@ pub async fn get_thread_messages(
         MailerType::GmailApi => {
             let envelopes = GmailEnvelope::get_thread(account_id, thread_id).await?;
             let map = GmailClient::label_map(account_id, account.use_proxy).await?;
-            Ok(envelopes.into_iter().map(|e| e.into_v3(&map)).collect())
+            Ok(envelopes
+                .into_iter()
+                .map(|e| e.into_envelope(&map))
+                .collect())
         }
     }
 }

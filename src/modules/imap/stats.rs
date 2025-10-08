@@ -4,7 +4,7 @@
 
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
+// use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
@@ -64,9 +64,9 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for StatsWrapper<T> {
 }
 
 impl<T: SessionStream> SessionStream for StatsWrapper<T> {
-    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
-        self.inner.set_read_timeout(timeout);
-    }
+    // fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+    //     self.inner.set_read_timeout(timeout);
+    // }
 }
 
 impl<T: SessionStream> std::fmt::Debug for StatsWrapper<T> {

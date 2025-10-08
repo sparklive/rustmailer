@@ -5,10 +5,13 @@
 use crate::{
     calculate_hash, id,
     modules::{
-        cache::imap::{
-            address::AddressEntity,
-            thread::{EmailThread, EmailThreadKey},
-            v2::EmailEnvelopeV3,
+        cache::{
+            imap::{
+                address::AddressEntity,
+                thread::{EmailThread, EmailThreadKey},
+                v2::EmailEnvelopeV3,
+            },
+            model::Envelope,
         },
         common::Addr,
         database::{
@@ -383,6 +386,44 @@ impl GmailEnvelope {
             body_meta: None,
             received: None,
             mid: Some(self.id),
+            labels,
+        }
+    }
+
+    pub fn into_envelope(self, label_map: &AHashMap<String, String>) -> Envelope {
+        let labels: Vec<String> = self
+            .label_ids
+            .into_iter()
+            .filter_map(|id| label_map.get(&id).cloned())
+            .collect();
+
+        Envelope {
+            id: self.id,
+            account_id: self.account_id,
+            mailbox_id: self.label_id,
+            mailbox_name: self.label_name,
+            internal_date: Some(self.internal_date),
+            size: self.size,
+            flags: None,
+            flags_hash: None,
+            bcc: self.bcc,
+            cc: self.cc,
+            date: self.date,
+            from: self.from,
+            in_reply_to: self.in_reply_to,
+            sender: self.sender,
+            return_address: None,
+            message_id: self.message_id,
+            subject: self.subject,
+            thread_name: None,
+            thread_id: self.thread_id,
+            mime_version: self.mime_version,
+            references: self.references,
+            reply_to: self.reply_to,
+            to: self.to,
+            attachments: None,
+            body_meta: None,
+            received: None,
             labels,
         }
     }

@@ -715,8 +715,10 @@ message EmailEnvelope {
   uint64 mailbox_id = 2;
   // The name of the mailbox this email is in.
   string mailbox_name = 3;
-  // The unique identifier of the message within its mailbox.
-  uint32 uid = 4;
+  // The unique ID of the message, either IMAP UID or Gmail API MID.
+  // - For IMAP accounts, this is the UID converted to a string.
+  // - For Gmail API accounts, this is the message ID returned by the API.
+  string id = 4;
   // Optional: The internal date and time of the message on the server (Unix timestamp).
   optional int64 internal_date = 5;
   // The size of the message in bytes.
@@ -724,7 +726,7 @@ message EmailEnvelope {
   // A list of flags currently set on the message (e.g., \Seen, \Answered).
   repeated EnvelopeFlag flags = 7;
   // A hash of the message flags for quick comparison.
-  uint64 flags_hash = 8;
+  optional uint64 flags_hash = 8;
   // A list of blind carbon copy (BCC) recipients.
   repeated Addr bcc = 9;
   // A list of carbon copy (CC) recipients.
@@ -762,17 +764,11 @@ message EmailEnvelope {
   // The identifier of the thread this email belongs to.
   // This is computed based on `in_reply_to` / `references` / `message_id`.
   uint64 thread_id = 26;
-  // The `mid` field is reserved for potential integration with other backend models.
-  // For instance, it can be used to store the email index or ID from external services like the Gmail API.
-  // This ID could be used for reference or identification purposes in scenarios where an external service
-  // provides an identifier for the email in question.
-  // This field is optional, meaning that it may be `None` if no external service identifier is available.
-  optional string mid = 27;
   // A list of labels applied to the message.
-  // Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").
-  // This field reflects the current labels associated with the email. 
-  // Note: This field is populated only for Gmail API accounts. For other account types, it will be empty.
-  repeated string label_ids = 28;
+  // Each element is a string representing a Gmail label name (e.g., "INBOX", "UNREAD").
+  // This field reflects the current labels associated with the email.
+  // **Note:** This field is populated only for Gmail API accounts. For other account types, it will be empty.
+  repeated string labels = 27;
 }
 
 // FetchMessageContentRequest is used to fetch specific content sections of an email message.

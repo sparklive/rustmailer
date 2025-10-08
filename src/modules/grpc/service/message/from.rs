@@ -3,10 +3,12 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    cache::imap::{
-        envelope::Received,
-        mailbox::{EmailFlag, EnvelopeFlag},
-        v2::EmailEnvelopeV3,
+    cache::{
+        imap::{
+            envelope::Received,
+            mailbox::{EmailFlag, EnvelopeFlag},
+        },
+        model::Envelope,
     },
     common::Addr,
     grpc::service::rustmailer_grpc::{self},
@@ -132,8 +134,8 @@ impl TryFrom<rustmailer_grpc::FlagMessageRequest> for FlagMessageRequest {
     }
 }
 
-impl From<CursorDataPage<EmailEnvelopeV3>> for rustmailer_grpc::CursorDataPage {
-    fn from(value: CursorDataPage<EmailEnvelopeV3>) -> Self {
+impl From<CursorDataPage<Envelope>> for rustmailer_grpc::CursorDataPage {
+    fn from(value: CursorDataPage<Envelope>) -> Self {
         Self {
             next_page_token: value.next_page_token,
             page_size: value.page_size,
@@ -144,8 +146,8 @@ impl From<CursorDataPage<EmailEnvelopeV3>> for rustmailer_grpc::CursorDataPage {
     }
 }
 
-impl From<DataPage<EmailEnvelopeV3>> for rustmailer_grpc::PagedMessages {
-    fn from(value: DataPage<EmailEnvelopeV3>) -> Self {
+impl From<DataPage<Envelope>> for rustmailer_grpc::PagedMessages {
+    fn from(value: DataPage<Envelope>) -> Self {
         Self {
             current_page: value.current_page,
             page_size: value.page_size,
@@ -156,16 +158,19 @@ impl From<DataPage<EmailEnvelopeV3>> for rustmailer_grpc::PagedMessages {
     }
 }
 
-impl From<EmailEnvelopeV3> for rustmailer_grpc::EmailEnvelope {
-    fn from(value: EmailEnvelopeV3) -> Self {
+impl From<Envelope> for rustmailer_grpc::EmailEnvelope {
+    fn from(value: Envelope) -> Self {
         Self {
             account_id: value.account_id,
             mailbox_id: value.mailbox_id,
             mailbox_name: value.mailbox_name,
-            uid: value.uid,
+            id: value.id,
             internal_date: value.internal_date,
             size: value.size,
-            flags: value.flags.into_iter().map(Into::into).collect(),
+            flags: value
+                .flags
+                .map(|f| f.into_iter().map(Into::into).collect())
+                .unwrap_or_default(),
             flags_hash: value.flags_hash,
             bcc: value
                 .bcc
@@ -215,8 +220,7 @@ impl From<EmailEnvelopeV3> for rustmailer_grpc::EmailEnvelope {
                 .map(Into::into)
                 .collect(),
             received: value.received.map(Into::into),
-            mid: value.mid,
-            label_ids: value.labels,
+            labels: value.labels,
         }
     }
 }
