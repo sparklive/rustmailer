@@ -385,6 +385,14 @@ pub struct Settings {
         })
     )]
     pub rustmailer_oauth2_success_redirect: Option<String>,
+
+    #[clap(
+        long,
+        env,
+        help = "Maximum number of concurrent email sync tasks (default: number of CPU cores x 2)",
+        value_parser = clap::value_parser!(u16).range(1..)
+    )]
+    pub rustmailer_sync_concurrency: Option<u16>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, ValueEnum)]
@@ -454,6 +462,7 @@ impl Settings {
             rustmailer_metadata_memory_mode_enabled: false,
             rustmailer_metadata_snapshot_interval_secs: 900,
             rustmailer_oauth2_success_redirect: None,
+            rustmailer_sync_concurrency: Some(5),
         }
     }
 }

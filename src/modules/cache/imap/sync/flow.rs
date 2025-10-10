@@ -6,17 +6,20 @@ use crate::{
     modules::{
         account::{since::DateSince, status::AccountRunningState, v2::AccountV2},
         bounce::parser::{extract_bounce_report, BounceReport},
-        cache::imap::{
-            diff, find_deleted_mailboxes, find_flag_updates, find_intersecting_mailboxes,
-            find_missing_mailboxes, find_missing_remote_uids,
-            mailbox::{EnvelopeFlag, MailBox},
-            manager::EnvelopeFlagsManager,
-            minimal::MinimalEnvelope,
-            sync::{
-                rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
-                sync_type::SyncType,
+        cache::{
+            imap::{
+                diff, find_deleted_mailboxes, find_flag_updates, find_intersecting_mailboxes,
+                find_missing_mailboxes, find_missing_remote_uids,
+                mailbox::{EnvelopeFlag, MailBox},
+                manager::EnvelopeFlagsManager,
+                minimal::MinimalEnvelope,
+                sync::{
+                    rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
+                    sync_type::SyncType,
+                },
+                v2::EmailEnvelopeV3,
             },
-            v2::EmailEnvelopeV3,
+            SEMAPHORE,
         },
         common::AddrVec,
         context::executors::RUST_MAIL_CONTEXT,
@@ -47,8 +50,7 @@ use crate::{
 use ahash::{AHashMap, AHashSet};
 use async_imap::types::Fetch;
 use mail_parser::{Message, MessageParser};
-use std::{collections::HashSet, sync::Arc, time::Instant};
-use tokio::sync::Semaphore;
+use std::{collections::HashSet, time::Instant};
 use tracing::{debug, error, info, warn};
 
 const ENVELOPE_BATCH_SIZE: u32 = 1000;
@@ -71,7 +73,7 @@ pub async fn fetch_and_save_since_date(
         return Ok(0);
     }
 
-    let semaphore = Arc::new(Semaphore::new(5));
+    // let semaphore = Arc::new(Semaphore::new(5));
     let mut handles = Vec::new();
 
     let uid_batches = generate_uid_sequence_hashset(uid_list, ENVELOPE_BATCH_SIZE as usize, false);
@@ -89,7 +91,7 @@ pub async fn fetch_and_save_since_date(
         let encoded_name = mailbox.encoded_name();
         let mailbox_id = mailbox.id;
         let mailbox_name = mailbox.name.clone();
-        match semaphore.clone().acquire_owned().await {
+        match SEMAPHORE.clone().acquire_owned().await {
             Ok(permit) => {
                 if initial {
                     AccountRunningState::set_current_sync_batch_number(
@@ -158,14 +160,14 @@ pub async fn fetch_and_save_full_mailbox(
         .await?;
     }
 
-    let semaphore = Arc::new(Semaphore::new(5));
+    // let semaphore = Arc::new(Semaphore::new(5));
     let mut handles = Vec::new();
 
     for page in 1..=total_batches {
         let mailbox_id = mailbox.id;
         let mailbox_name = mailbox.name.clone();
         let encoded_name = mailbox.encoded_name();
-        match semaphore.clone().acquire_owned().await {
+        match SEMAPHORE.clone().acquire_owned().await {
             Ok(permit) => {
                 if initial {
                     AccountRunningState::set_current_sync_batch_number(account_id, page).await?;

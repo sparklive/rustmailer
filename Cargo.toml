@@ -79,6 +79,7 @@ ahash = "0.8.12"
 oauth2 = { version = "5.0.0", features = ["reqwest-blocking"] }
 url = { version = "2.5.7", features = ["serde"] }
 sysinfo = "0.37.2"
+num_cpus = "1.17.0"
 proc-macro2 = "1.0.101"
 cacache = { version = "13.1.0", default-features = false, features = [
     "tokio-runtime",

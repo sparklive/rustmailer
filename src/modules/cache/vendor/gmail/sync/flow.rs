@@ -2,17 +2,18 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use std::sync::Arc;
-
-use tokio::{sync::Semaphore, task::JoinHandle};
+use tokio::task::JoinHandle;
 use tracing::error;
 
 use crate::{
     modules::{
         account::{status::AccountRunningState, v2::AccountV2},
-        cache::vendor::gmail::model::messages::MessageMeta,
-        cache::vendor::gmail::sync::{
-            client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
+        cache::{
+            vendor::gmail::{
+                model::messages::MessageMeta,
+                sync::{client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels},
+            },
+            SEMAPHORE,
         },
         error::{code::ErrorCode, RustMailerResult},
     },
@@ -36,7 +37,7 @@ pub async fn fetch_and_save_since_date(
     // Each page returns message IDs, and we still need to fetch message details individually.
     let mut page_token: Option<String> = None;
     let mut page = 1; // Used only for tracking sync progress
-    let semaphore = Arc::new(Semaphore::new(1));
+                      // let semaphore = Arc::new(Semaphore::new(1));
     let mut history_ids = Vec::new();
     loop {
         let resp = GmailClient::list_messages(
@@ -71,7 +72,7 @@ pub async fn fetch_and_save_since_date(
             }
             let mut handles: Vec<JoinHandle<RustMailerResult<MessageMeta>>> = Vec::new();
             for msg in messages {
-                match semaphore.clone().acquire_owned().await {
+                match SEMAPHORE.clone().acquire_owned().await {
                     Ok(permit) => {
                         let handle: JoinHandle<RustMailerResult<MessageMeta>> =
                             tokio::spawn(async move {
@@ -149,7 +150,7 @@ pub async fn fetch_and_save_full_label(
     // Each page returns message IDs, and we still need to fetch message details individually.
     let mut page_token: Option<String> = None;
     let mut page = 1; // Used only for tracking sync progress
-    let semaphore = Arc::new(Semaphore::new(1));
+                      // let semaphore = Arc::new(Semaphore::new(1));
     let mut history_ids = Vec::new();
     loop {
         let resp = GmailClient::list_messages(
@@ -171,7 +172,7 @@ pub async fn fetch_and_save_full_label(
             }
             let mut handles: Vec<JoinHandle<RustMailerResult<MessageMeta>>> = Vec::new();
             for msg in messages {
-                match semaphore.clone().acquire_owned().await {
+                match SEMAPHORE.clone().acquire_owned().await {
                     Ok(permit) => {
                         let handle: JoinHandle<RustMailerResult<MessageMeta>> =
                             tokio::spawn(async move {
