@@ -585,12 +585,21 @@ async fn perform_full_sync(
 
     let (remote_uids_set, uids_with_updated_flags, new_uids_to_add) = diff_uids_and_flags(
         account.id,
-        &remote_mailbox.encoded_name(),
+        remote_mailbox,
         &local_uid_flags_index,
         remote_mailbox.exists,
         &account.date_since,
     )
     .await?;
+
+    debug!(
+        "Diff result for account_id={}, mailbox='{}': remote_uids_set (total on server) = {}, uids_with_updated_flags (local flags updated) = {}, new_uids_to_add (new UIDs from server) = {}",
+        account.id,
+        remote_mailbox.name,
+        remote_uids_set.len(),
+        uids_with_updated_flags.len(),
+        new_uids_to_add.len()
+    );
 
     if !new_uids_to_add.is_empty() {
         fetch_and_store_new_envelopes_by_uid_list(
@@ -625,7 +634,7 @@ async fn perform_full_sync(
 
 async fn diff_uids_and_flags(
     account_id: u64,
-    remote_mailbox_encoded_name: &str,
+    remote_mailbox: &MailBox,
     local_uid_flags_index: &AHashMap<u32, u64>,
     total: u32,
     date_since: &Option<DateSince>,
@@ -638,6 +647,16 @@ async fn diff_uids_and_flags(
     let mut uids_with_updated_flags = Vec::new();
     let mut new_uids_to_add = Vec::new();
 
+    debug!(
+        "Starting diff_uids_and_flags: account_id={}, mailbox={}, total={}, date_since={:?}, local_uid_flags_index_len={}",
+        account_id,
+        &remote_mailbox.name,
+        total,
+        date_since,
+        local_uid_flags_index.len()
+    );
+
+    let remote_mailbox_encoded_name = &remote_mailbox.encoded_name();
     match date_since {
         Some(date_since) => {
             let date = date_since.since_date()?;
@@ -648,13 +667,14 @@ async fn diff_uids_and_flags(
                     format!("SINCE {}", date).as_str(),
                 )
                 .await?;
+            debug!("UID search returned {} UIDs", uid_list.len());
 
-            let len = uid_list.len();
-
-            if len > 0 {
+            if !uid_list.is_empty() {
                 let uid_batches =
                     generate_uid_sequence_hashset(uid_list, UID_FLAGS_BATCH_SIZE as usize, false);
-                for batch in uid_batches {
+                debug!("Split into {} UID batches", uid_batches.len());
+                for (i, batch) in uid_batches.iter().enumerate() {
+                    debug!("Fetching batch {}/{}", i + 1, uid_batches.len());
                     let fetches = executor
                         .uid_fetch_uid_and_flags(&batch, remote_mailbox_encoded_name)
                         .await?;
