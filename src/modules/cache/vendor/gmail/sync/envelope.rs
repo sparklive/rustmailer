@@ -293,9 +293,9 @@ impl GmailEnvelope {
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(label_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
                     .filter_map(Result::ok) // filter only Ok values
                     .filter(|e: &GmailEnvelope| e.account_id == account_id)
+                    .take(BATCH_SIZE)
                     .collect();
                 Ok(to_delete)
             })

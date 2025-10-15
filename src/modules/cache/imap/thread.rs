@@ -2,12 +2,15 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use std::{collections::HashSet, sync::Arc, time::Instant};
+
 use futures::future::join_all;
 use itertools::Itertools;
 use native_db::*;
 use native_model::{native_model, Model};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::{
     modules::{
@@ -17,9 +20,7 @@ use crate::{
             model::Envelope,
             vendor::gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
         },
-        database::{
-            batch_delete_impl, delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
-        },
+        database::{batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl},
         error::{code::ErrorCode, RustMailerResult},
         rest::response::DataPage,
         utils::envelope_hash,
@@ -79,9 +80,9 @@ impl EmailThread {
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
                     .filter_map(Result::ok) // filter only Ok values
                     .filter(|e: &EmailThread| e.account_id == account_id)
+                    .take(BATCH_SIZE)
                     .collect();
                 Ok(to_delete)
             })
@@ -123,18 +124,48 @@ impl EmailThread {
         mailbox_id: u64,
         to_delete_uid: &[u32],
     ) -> RustMailerResult<()> {
-        for uid in to_delete_uid {
-            let envelope_id = envelope_hash(account_id, mailbox_id, *uid);
-            delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                rw.get()
-                    .secondary::<EmailThread>(EmailThreadKey::envelope_id, envelope_id)
+        const BATCH_SIZE: usize = 200;
+        let mut total_deleted = 0usize;
+        let start_time = Instant::now();
+
+        let to_delete_set: HashSet<u64> = to_delete_uid
+            .iter()
+            .map(|uid| envelope_hash(account_id, mailbox_id, *uid))
+            .collect();
+
+        let to_delete_set = Arc::new(to_delete_set);
+        loop {
+            let to_delete_set = to_delete_set.clone();
+            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+                let to_delete: Vec<EmailThread> = rw
+                    .scan()
+                    .secondary(EmailThreadKey::mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .ok_or_else(|| {
-                        raise_error!("envelope missing".into(), ErrorCode::InternalError)
+                    .start_with(mailbox_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .filter_map(Result::ok) // filter only Ok values
+                    .filter(|e: &EmailThread| {
+                        e.account_id == account_id && to_delete_set.contains(&e.envelope_id)
                     })
+                    .take(BATCH_SIZE)
+                    .collect();
+                Ok(to_delete)
             })
             .await?;
+            total_deleted += deleted;
+            // If this batch is empty, break the loop
+            if deleted == 0 {
+                break;
+            }
         }
+
+        info!(
+            "Finished deleting thread entities for mailbox_id={} account_id={} total_deleted={} in {:?}",
+            mailbox_id,
+            account_id,
+            total_deleted,
+            start_time.elapsed()
+        );
         Ok(())
     }
 

@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use std::time::Instant;
+use std::{collections::HashSet, sync::Arc, time::Instant};
 
 use native_db::*;
 use native_model::{native_model, Model};
@@ -13,7 +13,7 @@ use crate::{
     modules::{
         cache::imap::{manager::EnvelopeFlagsManager, v2::EmailEnvelopeV3},
         database::{
-            batch_delete_impl, batch_insert_impl, delete_impl, filter_by_secondary_key_impl,
+            batch_delete_impl, batch_insert_impl, filter_by_secondary_key_impl,
             manager::DB_MANAGER, update_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
@@ -79,9 +79,9 @@ impl MinimalEnvelope {
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
                     .filter_map(Result::ok) // filter only Ok values
                     .filter(|e: &MinimalEnvelope| e.account_id == account_id)
+                    .take(BATCH_SIZE)
                     .collect();
                 Ok(to_delete)
             })
@@ -108,18 +108,42 @@ impl MinimalEnvelope {
         mailbox_id: u64,
         to_delete_uid: &[u32],
     ) -> RustMailerResult<()> {
-        for uid in to_delete_uid {
-            let key = envelope_hash(account_id, mailbox_id, *uid);
-            delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                rw.get()
-                    .primary::<MinimalEnvelope>(key)
+        const BATCH_SIZE: usize = 200;
+        let mut total_deleted = 0usize;
+        let start_time = Instant::now();
+        let to_delete_set: HashSet<u32> = to_delete_uid.iter().copied().collect();
+        let to_delete_set = Arc::new(to_delete_set);
+        loop {
+            let to_delete_set = to_delete_set.clone();
+            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+                let to_delete: Vec<MinimalEnvelope> = rw
+                    .scan()
+                    .secondary(MinimalEnvelopeKey::mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .ok_or_else(|| {
-                        raise_error!("minimal envelope missing".into(), ErrorCode::InternalError)
+                    .start_with(mailbox_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .filter_map(Result::ok)
+                    .filter(|e: &MinimalEnvelope| {
+                        e.account_id == account_id && to_delete_set.contains(&e.uid)
                     })
+                    .take(BATCH_SIZE)
+                    .collect();
+                Ok(to_delete)
             })
             .await?;
+            total_deleted += deleted;
+            // If this batch is empty, break the loop
+            if deleted == 0 {
+                break;
+            }
         }
+
+        info!(
+            "Finished deleting minimal envelopes for account_id={} total_deleted={} in {:?}",
+            account_id,
+            total_deleted,
+            start_time.elapsed()
+        );
         Ok(())
     }
 
@@ -173,8 +197,8 @@ impl MinimalEnvelope {
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(account_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
                     .filter_map(Result::ok) // filter only Ok values
+                    .take(BATCH_SIZE)
                     .collect();
                 Ok(to_delete)
             })

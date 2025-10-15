@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use std::time::Instant;
+use std::{collections::HashSet, sync::Arc, time::Instant};
 
 use itertools::Itertools;
 use native_db::*;
@@ -459,9 +459,9 @@ impl EmailEnvelopeV3 {
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .start_with(mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .take(BATCH_SIZE)
                     .filter_map(Result::ok) // filter only Ok values
                     .filter(|e: &EmailEnvelopeV3| e.account_id == account_id)
+                    .take(BATCH_SIZE)
                     .collect();
                 Ok(to_delete)
             })
@@ -488,18 +488,42 @@ impl EmailEnvelopeV3 {
         mailbox_id: u64,
         to_delete_uid: &[u32],
     ) -> RustMailerResult<()> {
-        for uid in to_delete_uid {
-            let key = envelope_hash(account_id, mailbox_id, *uid);
-            delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-                rw.get()
-                    .secondary::<EmailEnvelopeV3>(EmailEnvelopeV3Key::create_envelope_id, key)
+        const BATCH_SIZE: usize = 200;
+        let mut total_deleted = 0usize;
+        let start_time = Instant::now();
+        let to_delete_set: HashSet<u32> = to_delete_uid.iter().copied().collect();
+        let to_delete_set = Arc::new(to_delete_set);
+        loop {
+            let to_delete_set = to_delete_set.clone();
+            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+                let to_delete: Vec<EmailEnvelopeV3> = rw
+                    .scan()
+                    .secondary(EmailEnvelopeV3Key::mailbox_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                    .ok_or_else(|| {
-                        raise_error!("envelope missing".into(), ErrorCode::InternalError)
+                    .start_with(mailbox_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .filter_map(Result::ok)
+                    .filter(|e: &EmailEnvelopeV3| {
+                        e.account_id == account_id && to_delete_set.contains(&e.uid)
                     })
+                    .take(BATCH_SIZE)
+                    .collect();
+                Ok(to_delete)
             })
             .await?;
+            total_deleted += deleted;
+            // If this batch is empty, break the loop
+            if deleted == 0 {
+                break;
+            }
         }
+
+        info!(
+            "Finished deleting envelopes for account_id={} total_deleted={} in {:?}",
+            account_id,
+            total_deleted,
+            start_time.elapsed()
+        );
         Ok(())
     }
 
