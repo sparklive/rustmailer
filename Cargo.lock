@@ -5817,7 +5817,7 @@ dependencies = [
 
 [[package]]
 name = "rustmailer"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "ahash",
  "async-imap",
