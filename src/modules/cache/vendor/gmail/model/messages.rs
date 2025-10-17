@@ -120,23 +120,24 @@ impl TryFrom<MessageMeta> for GmailEnvelope {
             gmail_thread_id: value.thread_id,
             label_ids: value.label_ids,
         };
-
+        
         for header in payload.headers {
-            match header.name.as_str() {
-                "Date" => {
+            let name = header.name.to_ascii_lowercase();
+            match name.as_str() {
+                "date" => {
                     envelope.date = Some(parser_date(&header.value)?);
                 }
-                "From" => envelope.from = Some(Addr::parse(&header.value)),
-                "Sender" => envelope.sender = Some(Addr::parse(&header.value)),
-                "Reply-To" => envelope.reply_to = Some(Self::parse_addr_list(&header.value)),
-                "In-Reply-To" => {
+                "from" => envelope.from = Some(Addr::parse(&header.value)),
+                "sender" => envelope.sender = Some(Addr::parse(&header.value)),
+                "reply-to" => envelope.reply_to = Some(Self::parse_addr_list(&header.value)),
+                "in-reply-to" => {
                     envelope.in_reply_to = Some(Self::clean_angle_brackets(&header.value).into())
                 }
-                "Message-ID" => {
+                "message-id" => {
                     envelope.message_id = Some(Self::clean_angle_brackets(&header.value).into())
                 }
-                "Mime-Version" => envelope.mime_version = Some(header.value),
-                "References" => {
+                "mime-version" => envelope.mime_version = Some(header.value),
+                "references" => {
                     envelope.references = Some(
                         header
                             .value
@@ -147,10 +148,10 @@ impl TryFrom<MessageMeta> for GmailEnvelope {
                             .collect(),
                     )
                 }
-                "Subject" => envelope.subject = Some(header.value),
-                "To" => envelope.to = Some(Self::parse_addr_list(&header.value)),
-                "Bcc" => envelope.bcc = Some(Self::parse_addr_list(&header.value)),
-                "Cc" => envelope.cc = Some(Self::parse_addr_list(&header.value)),
+                "subject" => envelope.subject = Some(header.value),
+                "to" => envelope.to = Some(Self::parse_addr_list(&header.value)),
+                "bcc" => envelope.bcc = Some(Self::parse_addr_list(&header.value)),
+                "cc" => envelope.cc = Some(Self::parse_addr_list(&header.value)),
                 _ => {}
             }
         }
