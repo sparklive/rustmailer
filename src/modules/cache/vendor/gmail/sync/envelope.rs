@@ -216,52 +216,59 @@ impl GmailEnvelope {
     pub async fn save_envelopes(envelopes: Vec<GmailEnvelope>) -> RustMailerResult<()> {
         with_transaction(DB_MANAGER.envelope_db(), move |rw| {
             for mut e in envelopes {
-                // --- Preprocessing ---
-
-                let address_entities = AddressEntity::extract2(&e);
                 e.thread_id = e.compute_thread_id();
-
-                let thread = EmailThread::new(
-                    e.thread_id,
-                    e.create_envelope_id(),
-                    e.account_id,
-                    e.label_id,
-                    Some(e.internal_date),
-                    e.date,
-                );
-                // --- Store envelope ---
-                rw.insert::<GmailEnvelope>(e)
-                    .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?;
-
-                // --- Thread upsert ---
-                match rw
+                let envelope_id = e.create_envelope_id();
+                // Idempotent write
+                if rw
                     .get()
-                    .secondary::<EmailThread>(EmailThreadKey::thread_id, thread.thread_id)
+                    .secondary::<GmailEnvelope>(GmailEnvelopeKey::create_envelope_id, envelope_id)
                     .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?
+                    .is_none()
                 {
-                    Some(current) => {
-                        // Only replace if current.internal_date is older than new internal_date
-                        if current.need_update(&thread) {
-                            rw.remove(current).map_err(|err| {
-                                raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
-                            })?;
+                    rw.insert::<GmailEnvelope>(e.clone()).map_err(|err| {
+                        raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
+                    })?;
+
+                    let address_entities = AddressEntity::extract2(&e);
+                    let thread = EmailThread::new(
+                        e.thread_id,
+                        envelope_id,
+                        e.account_id,
+                        e.label_id,
+                        Some(e.internal_date),
+                        e.date,
+                    );
+                    // --- Thread upsert ---
+                    match rw
+                        .get()
+                        .secondary::<EmailThread>(EmailThreadKey::thread_id, thread.thread_id)
+                        .map_err(|err| {
+                            raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
+                        })? {
+                        Some(current) => {
+                            // Only replace if current.internal_date is older than new internal_date
+                            if current.need_update(&thread) {
+                                rw.remove(current).map_err(|err| {
+                                    raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
+                                })?;
+                                rw.insert::<EmailThread>(thread).map_err(|err| {
+                                    raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
+                                })?;
+                            }
+                        }
+                        None => {
                             rw.insert::<EmailThread>(thread).map_err(|err| {
                                 raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
                             })?;
                         }
                     }
-                    None => {
-                        rw.insert::<EmailThread>(thread).map_err(|err| {
+
+                    // --- Store address entities ---
+                    for addr in address_entities {
+                        rw.insert::<AddressEntity>(addr).map_err(|err| {
                             raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
                         })?;
                     }
-                }
-
-                // --- Store address entities ---
-                for addr in address_entities {
-                    rw.insert::<AddressEntity>(addr).map_err(|err| {
-                        raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
-                    })?;
                 }
             }
             Ok(())

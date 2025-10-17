@@ -2,9 +2,8 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use std::{clone, collections::HashSet, sync::Arc, time::Instant};
+use std::{collections::HashSet, sync::Arc, time::Instant};
 
-use itertools::Itertools;
 use native_db::*;
 use native_model::{native_model, Model};
 use poem_openapi::Object;
