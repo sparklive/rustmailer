@@ -11,7 +11,7 @@ use crate::modules::message::content::{AttachmentInfo, FullMessageContent};
 use crate::modules::message::get_minimal_meta;
 use crate::{
     encode_mailbox_name,
-    modules::account::v2::AccountV2,
+    modules::account::migration::AccountModel,
     modules::cache::disk::DISK_CACHE,
     modules::context::executors::RUST_MAIL_CONTEXT,
     modules::error::RustMailerResult,
@@ -47,7 +47,7 @@ pub struct AttachmentRequest {
 }
 
 impl AttachmentRequest {
-    pub fn validate(&self, account: &AccountV2) -> RustMailerResult<()> {
+    pub fn validate(&self, account: &AccountModel) -> RustMailerResult<()> {
         match account.mailer_type {
             MailerType::ImapSmtp => {
                 if self.mailbox.is_none() || self.attachment.is_none() {
@@ -132,7 +132,7 @@ pub async fn retrieve_email_attachment(
     account_id: u64,
     request: AttachmentRequest,
 ) -> RustMailerResult<(cacache::Reader, Option<String>)> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     request.validate(&account)?;
     match account.mailer_type {
         MailerType::ImapSmtp => {
@@ -270,7 +270,7 @@ async fn retrieve_imap_attachment(
 }
 
 async fn retrieve_gmail_attachment(
-    account: &AccountV2,
+    account: &AccountModel,
     mid: &str,
     attachment_info: &AttachmentInfo,
 ) -> RustMailerResult<cacache::Reader> {

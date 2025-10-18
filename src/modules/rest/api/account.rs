@@ -8,7 +8,7 @@ use crate::modules::account::payload::{
     filter_accessible_accounts, AccountCreateRequest, AccountUpdateRequest, MinimalAccount,
 };
 use crate::modules::account::status::AccountRunningState;
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::common::paginated::paginate_vec;
 use crate::modules::error::code::ErrorCode;
@@ -37,10 +37,10 @@ impl AccountApi {
         /// The account ID to retrieve
         account_id: Path<u64>,
         context: ClientContext,
-    ) -> ApiResult<Json<AccountV2>> {
+    ) -> ApiResult<Json<AccountModel>> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(Json(AccountV2::get(account_id).await?))
+        Ok(Json(AccountModel::get(account_id).await?))
     }
 
     /// Delete an account by ID - WARNING: This permanently removes the account and all associated resources
@@ -57,7 +57,7 @@ impl AccountApi {
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(AccountV2::delete(account_id).await?)
+        Ok(AccountModel::delete(account_id).await?)
     }
 
     /// Create a new account
@@ -67,8 +67,8 @@ impl AccountApi {
         /// Account creation request payload
         payload: Json<AccountCreateRequest>,
         context: ClientContext,
-    ) -> ApiResult<Json<AccountV2>> {
-        let account = AccountV2::create_account(payload.0).await?;
+    ) -> ApiResult<Json<AccountModel>> {
+        let account = AccountModel::create_account(payload.0).await?;
         if let Some(access_token) = &context.access_token {
             let account_info = AccountInfo {
                 id: account.id,
@@ -95,7 +95,7 @@ impl AccountApi {
     ) -> ApiResult<()> {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
-        Ok(AccountV2::update(account_id, payload.0, true).await?)
+        Ok(AccountModel::update(account_id, payload.0, true).await?)
     }
 
     /// List accounts with optional pagination parameters
@@ -113,20 +113,20 @@ impl AccountApi {
         /// Optional. Whether to sort the list in descending order.
         desc: Query<Option<bool>>,
         context: ClientContext,
-    ) -> ApiResult<Json<DataPage<AccountV2>>> {
+    ) -> ApiResult<Json<DataPage<AccountModel>>> {
         let accessible_accounts = context.accessible_accounts()?;
 
         if accessible_accounts.is_none() {
             return Ok(Json(
-                AccountV2::paginate_list(page.0, page_size.0, desc.0).await?,
+                AccountModel::paginate_list(page.0, page_size.0, desc.0).await?,
             ));
         }
 
-        let all_accounts = AccountV2::list_all().await?;
+        let all_accounts = AccountModel::list_all().await?;
         let allowed_ids: BTreeSet<u64> =
             accessible_accounts.unwrap().iter().map(|a| a.id).collect();
 
-        let mut filtered_accounts: Vec<AccountV2> = all_accounts
+        let mut filtered_accounts: Vec<AccountModel> = all_accounts
             .into_iter()
             .filter(|acct| allowed_ids.contains(&acct.id))
             .collect();
@@ -182,7 +182,7 @@ impl AccountApi {
     ) -> ApiResult<Json<Vec<MinimalAccount>>> {
         let accessible_accounts = context.accessible_accounts()?;
 
-        let minimal_list = AccountV2::minimal_list().await?;
+        let minimal_list = AccountModel::minimal_list().await?;
         let result = match accessible_accounts {
             Some(set) => filter_accessible_accounts(&minimal_list, set),
             None => minimal_list,

@@ -7,18 +7,19 @@ use std::{collections::BTreeMap, path::PathBuf};
 use crate::{
     id,
     modules::{
-        account::{entity::AccountKey, v2::AccountV2},
+        account::{entity::AccountKey, migration::AccountModel},
         cache::{
             disk::CacheItem,
             imap::{mailbox::MailBox, ENVELOPE_MODELS},
-            vendor::gmail::sync::{envelope::GmailEnvelope, flow::max_history_id},
+            vendor::gmail::sync::envelope::GmailEnvelope,
         },
         database::META_MODELS,
         hook::{
             entity::{EventHooks, HookType, HttpConfig, HttpMethod},
             events::EventType,
             payload::EventhookCreateRequest,
-        }, scheduler::nativedb::{TaskMetaEntity, TASK_MODELS},
+        },
+        scheduler::nativedb::{TaskMetaEntity, TASK_MODELS},
     },
 };
 use itertools::Itertools;
@@ -32,7 +33,7 @@ async fn test2() {
         println!("mailbox: {}", mailbox.id)
     }
 
-    let all = AccountV2::minimal_list().await.unwrap();
+    let all = AccountModel::minimal_list().await.unwrap();
     for mailbox in all {
         println!("account:{}", mailbox.id)
     }
@@ -45,7 +46,7 @@ fn test3() {
         .unwrap();
     //database.compact().unwrap();
     let r_transaction = database.r_transaction().unwrap();
-    let entities: Vec<AccountV2> = r_transaction
+    let entities: Vec<AccountModel> = r_transaction
         .scan()
         .secondary(AccountKey::id)
         .unwrap()
@@ -55,7 +56,7 @@ fn test3() {
         .unwrap();
     println!("{:#?}", entities);
 
-    let entities: Vec<AccountV2> = r_transaction
+    let entities: Vec<AccountModel> = r_transaction
         .scan()
         .primary()
         .unwrap()
@@ -93,12 +94,12 @@ async fn test4() {
 
 #[tokio::test]
 async fn test5() {
-    let mut account = AccountV2::default();
+    let mut account = AccountModel::default();
     let id = id!(64);
     account.id = id;
 
     account.save().await.unwrap();
-    let account = AccountV2::get(id).await.unwrap();
+    let account = AccountModel::get(id).await.unwrap();
     println!("{:#?}", account);
 }
 
@@ -167,15 +168,10 @@ fn test8() {
     rw.commit().unwrap();
 }
 
-
-
 #[test]
 fn test9() {
     let database = Builder::new()
-        .create(
-            &TASK_MODELS,
-            PathBuf::from("D://rustmailer_data//tasks.db"),
-        )
+        .create(&TASK_MODELS, PathBuf::from("D://rustmailer_data//tasks.db"))
         .unwrap();
     //database.compact().unwrap();
     let r_transaction = database.r_transaction().unwrap();
@@ -189,6 +185,5 @@ fn test9() {
         .unwrap();
     // println!("{:#?}", entities);
 
-    
     println!("{:#?}", entities);
 }

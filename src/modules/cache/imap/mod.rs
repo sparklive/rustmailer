@@ -13,7 +13,7 @@ use crate::{
                 envelope::EmailEnvelope,
                 minimal::MinimalEnvelope,
                 thread::EmailThread,
-                v2::{EmailEnvelopeV2, EmailEnvelopeV3},
+                migration::{EmailEnvelopeV2, EmailEnvelopeV3},
             },
             vendor::gmail::sync::{
                 envelope::GmailEnvelope,
@@ -36,7 +36,7 @@ pub mod task;
 #[cfg(test)]
 mod tests;
 pub mod thread;
-pub mod v2;
+pub mod migration;
 
 pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
     let mut adapter = ModelsAdapter::new();

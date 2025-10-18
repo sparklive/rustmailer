@@ -15,7 +15,7 @@ export default function Step4() {
     return (
         <>
             <div className="p-5 rounded-xl">
-                <Accordion type="multiple" defaultValue={['email', 'name', 'minimal_sync', 'isolated_index', 'imap', 'smtp', 'date_since', 'sync_folders', 'language', 'sync_interval']}>
+                <Accordion type="multiple" defaultValue={['email', 'name', 'minimal_sync', 'isolated_index', 'imap', 'smtp', 'date_since', 'folder_limit', 'sync_folders', 'language', 'sync_interval']}>
                     <AccordionItem key="email" value="email">
                         <AccordionTrigger className="font-medium capitalize text-gray-600">
                             Email:
@@ -132,6 +132,14 @@ export default function Step4() {
                                 : summaryData.date_since?.relative && summaryData.date_since.relative.value && summaryData.date_since.relative.unit ?
                                     'recent ' + summaryData.date_since.relative.value + ' ' + summaryData.date_since.relative.unit
                                     : 'n/a'}
+                        </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem key="folder_limit" value='folder_limit'>
+                        <AccordionTrigger className="font-medium capitalize text-gray-600">
+                            Folder Sync Limit:
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            {summaryData.folder_limit ? summaryData.folder_limit : 'n/a'}
                         </AccordionContent>
                     </AccordionItem>
                     <AccordionItem key="sync_interval" value='sync_interval'>

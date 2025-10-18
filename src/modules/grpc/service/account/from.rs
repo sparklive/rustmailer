@@ -5,10 +5,10 @@
 use crate::modules::{
     account::{
         entity::{AuthConfig, AuthType, Encryption, ImapConfig, MailerType, SmtpConfig},
+        migration::AccountModel,
         payload::{AccountCreateRequest, AccountUpdateRequest, MinimalAccount},
         since::{DateSince, RelativeDate, Unit},
         status::{AccountError, AccountRunningState},
-        v2::AccountV2,
     },
     grpc::service::rustmailer_grpc,
 };
@@ -209,11 +209,11 @@ impl From<DateSince> for rustmailer_grpc::DateSince {
     }
 }
 
-impl TryFrom<rustmailer_grpc::Account> for AccountV2 {
+impl TryFrom<rustmailer_grpc::Account> for AccountModel {
     type Error = &'static str;
 
     fn try_from(value: rustmailer_grpc::Account) -> Result<Self, Self::Error> {
-        Ok(AccountV2 {
+        Ok(AccountModel {
             id: value.id,
             imap: value.imap.map(|imap| imap.try_into()).transpose()?,
             smtp: value.smtp.map(|smtp| smtp.try_into()).transpose()?,
@@ -236,12 +236,13 @@ impl TryFrom<rustmailer_grpc::Account> for AccountV2 {
             created_at: value.created_at,
             updated_at: value.updated_at,
             use_proxy: value.use_proxy,
+            folder_limit: value.folder_limit,
         })
     }
 }
 
-impl From<AccountV2> for rustmailer_grpc::Account {
-    fn from(value: AccountV2) -> Self {
+impl From<AccountModel> for rustmailer_grpc::Account {
+    fn from(value: AccountModel) -> Self {
         rustmailer_grpc::Account {
             id: value.id,
             imap: value.imap.map(|imap| imap.into()),
@@ -261,6 +262,7 @@ impl From<AccountV2> for rustmailer_grpc::Account {
             created_at: value.created_at,
             updated_at: value.updated_at,
             use_proxy: value.use_proxy,
+            folder_limit: value.folder_limit,
         }
     }
 }
@@ -281,6 +283,7 @@ impl TryFrom<rustmailer_grpc::AccountCreateRequest> for AccountCreateRequest {
             full_sync_interval_min: value.full_sync_interval_min,
             incremental_sync_interval_sec: value.incremental_sync_interval_sec,
             use_proxy: value.use_proxy,
+            folder_limit: value.folder_limit,
         })
     }
 }
@@ -299,6 +302,7 @@ impl TryFrom<rustmailer_grpc::AccountUpdateRequest> for AccountUpdateRequest {
             imap: value.imap.map(|imap| imap.try_into()).transpose()?,
             smtp: value.smtp.map(|smtp| smtp.try_into()).transpose()?,
             use_proxy: value.use_proxy,
+            folder_limit: value.folder_limit,
         })
     }
 }

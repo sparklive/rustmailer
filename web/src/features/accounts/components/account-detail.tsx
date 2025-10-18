@@ -98,6 +98,10 @@ export function AccountDetailDrawer({ open, onOpenChange, currentRow }: Props) {
                             : 'n/a'}
                       </span>
                     </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground">Folder Limit:</span>
+                      <span>{currentRow.folder_limit ? currentRow.folder_limit : "n/a"}</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

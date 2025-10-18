@@ -5,8 +5,8 @@
 use std::collections::BTreeSet;
 
 use crate::modules::account::entity::{ImapConfig, MailerType, SmtpConfig};
+use crate::modules::account::migration::AccountModel;
 use crate::modules::account::since::DateSince;
-use crate::modules::account::v2::AccountV2;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerResult;
 use crate::modules::token::AccountInfo;
@@ -47,6 +47,11 @@ pub struct AccountCreateRequest {
     /// - First-time sync optimization for large accounts
     /// - Reducing server load during resyncs
     pub date_since: Option<DateSince>,
+    /// Max emails to sync for this folder.  
+    /// If not set, sync all emails.  
+    /// otherwise sync up to `n` most recent emails (min 10).
+    #[oai(validator(minimum(value = "100")))]
+    pub folder_limit: Option<u32>,
     /// Minimal sync mode flag
     ///
     /// When enabled (`true`), only the most essential metadata will be synchronized:
@@ -67,7 +72,7 @@ pub struct AccountCreateRequest {
 }
 
 impl AccountCreateRequest {
-    pub fn create_entity(self) -> RustMailerResult<AccountV2> {
+    pub fn create_entity(self) -> RustMailerResult<AccountModel> {
         if let Some(date_since) = self.date_since.as_ref() {
             date_since.validate()?;
         }
@@ -91,7 +96,7 @@ impl AccountCreateRequest {
                 ));
             }
         }
-        Ok(AccountV2::create(self)?)
+        Ok(AccountModel::create(self)?)
     }
 
     fn validate_request(imap: &ImapConfig, smtp: &SmtpConfig, email: &str) -> RustMailerResult<()> {
@@ -132,6 +137,11 @@ pub struct AccountUpdateRequest {
     /// - First-time sync optimization for large accounts
     /// - Reducing server load during resyncs
     pub date_since: Option<DateSince>,
+    /// Max emails to sync for this folder.  
+    /// If not set, sync all emails.  
+    /// otherwise sync up to `n` most recent emails (min 10).
+    #[oai(validator(minimum(value = "100")))]
+    pub folder_limit: Option<u32>,
     /// Configuration for selective folder (mailbox/label) synchronization
     ///
     /// - For IMAP/SMTP accounts:

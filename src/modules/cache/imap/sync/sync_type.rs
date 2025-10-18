@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::{entity::MailerType, status::AccountRunningState, v2::AccountV2},
+        account::{entity::MailerType, status::AccountRunningState, migration::AccountModel},
         error::RustMailerResult,
     },
     utc_now,
@@ -23,7 +23,7 @@ pub enum SyncType {
     SkipSync,
 }
 
-pub async fn determine_sync_type(account: &AccountV2) -> RustMailerResult<SyncType> {
+pub async fn determine_sync_type(account: &AccountModel) -> RustMailerResult<SyncType> {
     Ok(match AccountRunningState::get(account.id).await? {
         Some(info) => {
             let now = utc_now!();

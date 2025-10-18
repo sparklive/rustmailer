@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::entity::MailerType;
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::vendor::gmail::model::messages::PartBody;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::error::code::ErrorCode;
@@ -56,7 +56,7 @@ pub struct MessageContentRequest {
 }
 
 impl MessageContentRequest {
-    pub fn validate(&self, account: &AccountV2) -> RustMailerResult<()> {
+    pub fn validate(&self, account: &AccountModel) -> RustMailerResult<()> {
         match account.mailer_type {
             MailerType::ImapSmtp => {
                 if self.mailbox.is_none() {
@@ -384,7 +384,7 @@ pub async fn retrieve_email_content(
     request: MessageContentRequest,
     skip_cache: bool,
 ) -> RustMailerResult<FullMessageContent> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     request.validate(&account)?;
 
     match account.mailer_type {
@@ -652,7 +652,7 @@ async fn retrieve_gmail_message_content(
     max_length: Option<usize>,
     skip_cache: bool,
 ) -> RustMailerResult<FullMessageContent> {
-    let account = AccountV2::get(account_id).await?;
+    let account = AccountModel::get(account_id).await?;
     let cache_key = gmail_content_diskcache_key(account_id, &mid);
     if skip_cache {
         return fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await;

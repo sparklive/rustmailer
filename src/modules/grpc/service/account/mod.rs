@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::v2::AccountV2 as RustMailerAccount;
+use crate::modules::account::migration::AccountModel as RustMailerAccount;
 use crate::modules::account::payload::filter_accessible_accounts;
 use crate::modules::account::payload::AccountCreateRequest as RustMailerAccountCreateRequest;
 use crate::modules::account::payload::AccountUpdateRequest as RustMailerAccountUpdateRequest;

@@ -9,13 +9,13 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 use tracing::warn;
 
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::imap::address::AddressEntity;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;
 use crate::modules::cache::imap::thread::EmailThread;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use crate::modules::context::Initialize;
 use crate::modules::error::RustMailerResult;
 use crate::modules::hook::channel::{Event, EVENT_CHANNEL};
@@ -36,7 +36,7 @@ pub struct EnvelopeFlagsManager;
 
 impl EnvelopeFlagsManager {
     pub async fn load_state() -> RustMailerResult<()> {
-        let all_accounts = AccountV2::list_all().await?;
+        let all_accounts = AccountModel::list_all().await?;
 
         stream::iter(all_accounts)
             .filter(|account| futures::future::ready(account.enabled))
@@ -132,7 +132,7 @@ impl EnvelopeFlagsManager {
     }
 
     pub async fn update_envelope_flags(
-        account: &AccountV2,
+        account: &AccountModel,
         mailbox_id: u64,
         data: Vec<(u32, Vec<EnvelopeFlag>)>,
     ) -> RustMailerResult<()> {

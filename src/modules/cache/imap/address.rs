@@ -13,7 +13,7 @@ use tracing::info;
 use crate::{
     id,
     modules::{
-        cache::{imap::v2::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
+        cache::{imap::migration::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
         database::{batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER},
         error::{code::ErrorCode, RustMailerResult},
         utils::envelope_hash,

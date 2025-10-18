@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::entity::MailerType;
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::imap::mailbox::{AttributeEnum, MailBox};
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
@@ -32,7 +32,7 @@ pub async fn move_to_trash(
     account_id: u64,
     request: &MessageDeleteRequest,
 ) -> RustMailerResult<()> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
 
     match account.mailer_type {
         MailerType::ImapSmtp => {
@@ -69,7 +69,7 @@ pub async fn move_to_trash(
     }
 }
 
-pub async fn gmail_move_to_trash(account: &AccountV2, mids: &[String]) -> RustMailerResult<()> {
+pub async fn gmail_move_to_trash(account: &AccountModel, mids: &[String]) -> RustMailerResult<()> {
     let account_id = account.id;
     let use_proxy = account.use_proxy;
     GmailClient::batch_delete(account_id, use_proxy, mids).await

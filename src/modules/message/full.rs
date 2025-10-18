@@ -5,7 +5,7 @@
 use crate::{
     base64_decode_url_safe,
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
+        account::{entity::MailerType, migration::AccountModel},
         cache::{disk::DISK_CACHE, vendor::gmail::sync::client::GmailClient},
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
@@ -40,7 +40,7 @@ pub async fn retrieve_raw_email(
     mailbox: Option<&str>,
     id: &str,
 ) -> RustMailerResult<cacache::Reader> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     match account.mailer_type {
         MailerType::ImapSmtp => {
             let mailbox = mailbox.ok_or_else(|| {
@@ -111,7 +111,7 @@ async fn retrieve_imap_raw_email(
 }
 
 async fn retrieve_gmail_raw_email(
-    account: &AccountV2,
+    account: &AccountModel,
     mid: &str,
 ) -> RustMailerResult<cacache::Reader> {
     let meta = GmailClient::get_message(account.id, account.use_proxy, mid).await?;

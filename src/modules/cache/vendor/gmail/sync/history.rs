@@ -8,7 +8,7 @@ use tracing::{info, warn};
 
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::migration::AccountModel,
         cache::vendor::gmail::{
             model::history::History,
             sync::{
@@ -35,7 +35,7 @@ use crate::{
 };
 
 pub async fn handle_history(
-    account: &AccountV2,
+    account: &AccountModel,
     local_labels: &[GmailLabels],
     remote_labels: &[GmailLabels],
 ) -> RustMailerResult<()> {
@@ -119,7 +119,7 @@ struct LabelChange {
 }
 
 pub async fn apply_history(
-    account: &AccountV2,
+    account: &AccountModel,
     label: &GmailLabels,
     history_list: Vec<History>,
 ) -> RustMailerResult<()> {
@@ -303,7 +303,7 @@ pub async fn apply_history(
 }
 
 async fn dispatch_new_email_notification(
-    account: &AccountV2,
+    account: &AccountModel,
     messages: Vec<GmailEnvelope>,
 ) -> RustMailerResult<()> {
     let label_map = GmailClient::label_map(account.id, account.use_proxy).await?;
@@ -357,7 +357,7 @@ async fn dispatch_new_email_notification(
 }
 
 async fn handle_invalid_history_id(
-    account: &AccountV2,
+    account: &AccountModel,
     label: &GmailLabels,
 ) -> RustMailerResult<Option<String>> {
     info!(

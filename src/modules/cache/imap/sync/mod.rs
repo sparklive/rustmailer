@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    account::{entity::MailerType, status::AccountRunningState, v2::AccountV2},
+    account::{entity::MailerType, status::AccountRunningState, migration::AccountModel},
     cache::imap::{mailbox::MailBox, manager::EnvelopeFlagsManager},
     error::RustMailerResult,
     hook::{
@@ -29,7 +29,7 @@ pub mod sync_type;
 
 static SYNC_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-pub async fn execute_imap_sync(account: &AccountV2) -> RustMailerResult<()> {
+pub async fn execute_imap_sync(account: &AccountModel) -> RustMailerResult<()> {
     assert!(
         matches!(account.mailer_type, MailerType::ImapSmtp),
         "Bug: Unexpected mailer type, expected ImapSmtp, found: {:?}",

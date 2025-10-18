@@ -4,8 +4,8 @@
 
 use crate::{
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
-        cache::{imap::v2::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
+        account::{entity::MailerType, migration::AccountModel},
+        cache::{imap::migration::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
         error::{code::ErrorCode, RustMailerResult},
         smtp::{
             composer::BodyComposer,
@@ -131,7 +131,7 @@ impl EmailBuilder for ReplyEmailRequest {
     }
 
     async fn build(&self, account_id: u64) -> RustMailerResult<()> {
-        let account = &AccountV2::get(account_id).await?;
+        let account = &AccountModel::get(account_id).await?;
         self.validate().await?;
 
         let (envelope, answer_email) = match account.mailer_type {
@@ -255,7 +255,7 @@ impl ReplyEmailRequest {
         &self,
         mut builder: MessageBuilder<'static>,
         envelope: &EmailEnvelopeV3,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let timezone = self.timezone.as_deref().unwrap_or("UTC");
 
@@ -330,7 +330,7 @@ impl ReplyEmailRequest {
     async fn apply_attachments(
         &self,
         mut builder: MessageBuilder<'static>,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         if let Some(attachments) = &self.attachments {
             for attachment in attachments {

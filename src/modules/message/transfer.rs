@@ -5,7 +5,7 @@
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
+        account::{entity::MailerType, migration::AccountModel},
         cache::vendor::gmail::sync::client::GmailClient,
         context::executors::RUST_MAIL_CONTEXT,
         envelope::generate_uid_set,
@@ -47,7 +47,7 @@ pub async fn transfer_messages(
     transfer: MessageTransfer,
 ) -> RustMailerResult<()> {
     // Ensure the account exists before proceeding
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
 
     match account.mailer_type {
         MailerType::ImapSmtp => {

@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    account::{since::DateSince, v2::AccountV2},
+    account::{since::DateSince, migration::AccountModel},
     cache::imap::{
         mailbox::MailBox,
         manager::EnvelopeFlagsManager,
@@ -15,7 +15,7 @@ use std::time::Instant;
 use tracing::{error, info, warn};
 
 pub async fn rebuild_cache(
-    account: &AccountV2,
+    account: &AccountModel,
     remote_mailboxes: &[MailBox],
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
@@ -62,7 +62,7 @@ pub async fn rebuild_cache(
 }
 
 pub async fn rebuild_cache_since_date(
-    account: &AccountV2,
+    account: &AccountModel,
     remote_mailboxes: &[MailBox],
     date_since: &DateSince,
 ) -> RustMailerResult<()> {
@@ -82,7 +82,7 @@ pub async fn rebuild_cache_since_date(
         }
 
         match fetch_and_save_since_date(
-            account.id,
+            account,
             date.as_str(),
             mailbox,
             true,
@@ -118,7 +118,7 @@ pub async fn rebuild_cache_since_date(
 }
 
 pub async fn should_rebuild_cache(
-    account: &AccountV2,
+    account: &AccountModel,
     mailbox_count: usize,
     local_envelope_count: usize,
 ) -> RustMailerResult<bool> {
@@ -139,7 +139,7 @@ pub async fn should_rebuild_cache(
 }
 
 pub async fn rebuild_mailbox_cache(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
 ) -> RustMailerResult<()> {
@@ -163,7 +163,7 @@ pub async fn rebuild_mailbox_cache(
 }
 
 pub async fn rebuild_mailbox_cache_since_date(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox_id: u64,
     date_since: &DateSince,
     remote: &MailBox,
@@ -179,7 +179,7 @@ pub async fn rebuild_mailbox_cache_since_date(
     }
 
     let count = fetch_and_save_since_date(
-        account.id,
+        account,
         date_since.since_date()?.as_str(),
         remote,
         false,

@@ -119,6 +119,7 @@ export type Account = {
       value?: number;
     };
   };
+  folder_limit?: number;
   full_sync_interval_min: number;
   incremental_sync_interval_sec: number;
 };
@@ -132,6 +133,11 @@ const accountSchema = (isEdit: boolean) =>
     minimal_sync: z.boolean(),
     enabled: z.boolean(),
     date_since: dateSelectionSchema.optional(),
+    folder_limit: z
+      .number({ invalid_type_error: 'Folder limit must be a number' })
+      .int()
+      .min(100, { message: 'Folder limit must be at least 100' })
+      .optional(),
     full_sync_interval_min: z.number({ invalid_type_error: 'Full sync interval must be a number' }).int().min(1, { message: 'Full sync interval must be at least 1 minute' }),
     incremental_sync_interval_sec: z.number({ invalid_type_error: 'Incremental sync interval must be a number' }).int().min(1, { message: 'Incremental sync interval must be at least 1 second' }),
   });
@@ -164,7 +170,7 @@ const steps: Steps = [
     name: "SMTP",
     fields: ["smtp"],
   },
-  { id: "step-4", name: "Sync Preferences", fields: ["enabled", "date_since", "full_sync_interval_min", "incremental_sync_interval_sec"] },
+  { id: "step-4", name: "Sync Preferences", fields: ["enabled", "date_since", "folder_limit", "full_sync_interval_min", "incremental_sync_interval_sec"] },
   { id: "step-5", name: "Summary", fields: [] },
 ];
 
@@ -203,6 +209,7 @@ const defaultValues: Account = {
   enabled: true,
   minimal_sync: false,
   date_since: undefined,
+  folder_limit: undefined,
   full_sync_interval_min: 60,
   incremental_sync_interval_sec: 30,
 };
@@ -247,6 +254,7 @@ const mapCurrentRowToFormValues = (currentRow: AccountEntity): Account => {
     enabled: currentRow.enabled,
     minimal_sync: currentRow.minimal_sync ?? false,
     date_since: currentRow.date_since ?? undefined,
+    folder_limit: currentRow.folder_limit ?? undefined,
     full_sync_interval_min: currentRow.full_sync_interval_min ?? 60,
     incremental_sync_interval_sec: currentRow.incremental_sync_interval_sec,
   };
@@ -332,6 +340,7 @@ export function AccountActionDialog({ currentRow, open, onOpenChange }: Props) {
         },
         enabled: data.enabled,
         date_since: data.date_since,
+        folder_limit: data.folder_limit,
         minimal_sync: data.minimal_sync,
         full_sync_interval_min: data.full_sync_interval_min,
         incremental_sync_interval_sec: data.incremental_sync_interval_sec,

@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    account::{since::DateSince, v2::AccountV2},
+    account::{since::DateSince, migration::AccountModel},
     cache::vendor::gmail::sync::{
         flow::{fetch_and_save_full_label, fetch_and_save_since_date, max_history_id},
         labels::{GmailCheckPoint, GmailLabels},
@@ -14,7 +14,7 @@ use std::time::Instant;
 use tracing::{error, info, warn};
 
 pub async fn rebuild_cache(
-    account: &AccountV2,
+    account: &AccountModel,
     remote_labels: &[GmailLabels],
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
@@ -68,7 +68,7 @@ pub async fn rebuild_cache(
 }
 
 pub async fn rebuild_cache_since_date(
-    account: &AccountV2,
+    account: &AccountModel,
     remote_labels: &[GmailLabels],
     date_since: &DateSince,
 ) -> RustMailerResult<()> {
@@ -124,7 +124,7 @@ pub async fn rebuild_cache_since_date(
 }
 
 pub async fn rebuild_single_label_cache(
-    account: &AccountV2,
+    account: &AccountModel,
     label: &GmailLabels,
 ) -> RustMailerResult<Option<String>> {
     if label.exists > 0 {

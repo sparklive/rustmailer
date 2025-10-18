@@ -22,7 +22,7 @@ use crate::{
         cache::{
             imap::{
                 address::AddressEntity, mailbox::MailBox, manager::FLAGS_STATE_MAP,
-                minimal::MinimalEnvelope, thread::EmailThread, v2::EmailEnvelopeV3,
+                migration::EmailEnvelopeV3, minimal::MinimalEnvelope, thread::EmailThread,
             },
             vendor::gmail::sync::{
                 client::GmailClient,
@@ -57,6 +57,8 @@ use crate::modules::rest::response::DataPage;
 use crate::modules::smtp::template::entity::EmailTemplate;
 use crate::modules::token::AccessToken;
 use crate::raise_error;
+
+pub type AccountModel = AccountV3;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 #[native_model(id = 5, version = 2, from = Account)]
@@ -129,6 +131,83 @@ impl AccountV2 {
     fn pk(&self) -> String {
         format!("{}_{}", self.created_at, self.id)
     }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
+#[native_model(id = 5, version = 3, from = AccountV2)]
+#[native_db(primary_key(pk -> String))]
+pub struct AccountV3 {
+    /// Unique account identifier
+    #[secondary_key(unique)]
+    pub id: u64,
+    /// IMAP server configuration
+    pub imap: Option<ImapConfig>,
+    /// SMTP server configuration
+    pub smtp: Option<SmtpConfig>,
+    /// Represents the account activation status.
+    ///
+    /// If this value is `false`, all account-related resources will be unavailable
+    /// and any attempts to access them should return an error indicating the account
+    /// is inactive.
+    pub enabled: bool,
+    /// Method used to access and manage emails.
+    pub mailer_type: MailerType,
+    /// Email address associated with this account
+    #[oai(validator(custom = "crate::modules::common::validator::EmailValidator"))]
+    pub email: String,
+    /// Display name for the account (optional)
+    pub name: Option<String>,
+    /// Minimal sync mode flag
+    ///
+    /// When enabled (`true`), only the most essential metadata will be synchronized:
+    /// Recommended for:
+    /// - Extremely resource-constrained environments
+    /// - Accounts where only new message notification is needed
+    pub minimal_sync: Option<bool>,
+    /// IMAP Server-supported capability flags
+    pub capabilities: Option<Vec<String>>,
+    /// DSN (Delivery Status Notification) support flag
+    pub dsn_capable: Option<bool>,
+    /// Controls initial synchronization time range
+    ///
+    /// When dealing with large mailboxes, this restricts scanning to:
+    /// - Messages after specified starting point
+    /// - Or within sliding window
+    ///
+    /// ### Use Cases
+    /// - Event-driven systems (only sync recent actionable emails)
+    /// - First-time sync optimization for large accounts
+    /// - Reducing server load during resyncs
+    pub date_since: Option<DateSince>,
+    /// Max emails to sync for this folder.  
+    /// If not set, sync all emails.  
+    /// otherwise sync up to `n` most recent emails (min 10).
+    pub folder_limit: Option<u32>,
+    /// Configuration for selective folder synchronization
+    ///
+    /// Defaults to standard folders (`INBOX`, `Sent`) if empty.
+    /// Modified folders will be automatically synced on next update.
+    pub sync_folders: Vec<String>,
+    /// Full sync interval (minutes), default 30m
+    pub full_sync_interval_min: Option<i64>,
+    /// Incremental sync interval (seconds), default 60s
+    pub incremental_sync_interval_sec: i64,
+    /// Tracks known mail folders and detects changes (creations/deletions)
+    pub known_folders: BTreeSet<String>,
+    /// Creation timestamp (UNIX epoch milliseconds)
+    pub created_at: i64,
+    /// Last update timestamp (UNIX epoch milliseconds)
+    pub updated_at: i64,
+    /// Optional proxy ID for establishing the connection to external APIs (e.g., Gmail, Outlook).
+    /// - If `None` or not provided, the client will connect directly to the API server.
+    /// - If `Some(proxy_id)`, the client will use the pre-configured proxy with the given ID for API requests.
+    pub use_proxy: Option<u64>,
+}
+
+impl AccountV3 {
+    fn pk(&self) -> String {
+        format!("{}_{}", self.created_at, self.id)
+    }
 
     pub fn minimal_sync(&self) -> bool {
         self.minimal_sync.unwrap_or(false)
@@ -160,15 +239,16 @@ impl AccountV2 {
             created_at: utc_now!(),
             updated_at: utc_now!(),
             use_proxy: request.use_proxy,
+            folder_limit: request.folder_limit,
         })
     }
 
     pub async fn check_account_active(
         account_id: u64,
         imap_only: bool,
-    ) -> RustMailerResult<AccountV2> {
+    ) -> RustMailerResult<AccountModel> {
         let account =
-            secondary_find_impl::<AccountV2>(DB_MANAGER.meta_db(), AccountV2Key::id, account_id)
+            secondary_find_impl::<AccountModel>(DB_MANAGER.meta_db(), AccountV3Key::id, account_id)
                 .await?
                 .ok_or_else(|| {
                     raise_error!(
@@ -198,8 +278,8 @@ impl AccountV2 {
     }
 
     /// Fetches an `AccountEntity` by its `id`.
-    pub async fn get(account_id: u64) -> RustMailerResult<AccountV2> {
-        let result = Self::find(account_id).await?.ok_or_else(|| {
+    pub async fn get(account_id: u64) -> RustMailerResult<AccountModel> {
+        let result: AccountModel = Self::find(account_id).await?.ok_or_else(|| {
             raise_error!(
                 format!("Account with ID '{account_id}' not found"),
                 ErrorCode::ResourceNotFound
@@ -208,8 +288,9 @@ impl AccountV2 {
         Ok(result)
     }
 
-    pub async fn find(account_id: u64) -> RustMailerResult<Option<AccountV2>> {
-        secondary_find_impl::<AccountV2>(DB_MANAGER.meta_db(), AccountV2Key::id, account_id).await
+    pub async fn find(account_id: u64) -> RustMailerResult<Option<AccountModel>> {
+        secondary_find_impl::<AccountModel>(DB_MANAGER.meta_db(), AccountV3Key::id, account_id)
+            .await
     }
 
     /// Saves the current `AccountEntity` by persisting it to storage.
@@ -217,10 +298,10 @@ impl AccountV2 {
         insert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
     }
 
-    pub async fn create_account(request: AccountCreateRequest) -> RustMailerResult<AccountV2> {
+    pub async fn create_account(request: AccountCreateRequest) -> RustMailerResult<AccountModel> {
         // Validate license limits before creating entity
         if let Some(license) = License::get_current_license().await? {
-            let current_count = AccountV2::count().await?;
+            let current_count = AccountV3::count().await?;
             if let Some(max_accounts) = license.max_accounts {
                 if current_count >= max_accounts as usize {
                     return Err(raise_error!(
@@ -247,7 +328,7 @@ impl AccountV2 {
             request.validate_update_request()?;
         }
 
-        let account = AccountV2::get(account_id).await?;
+        let account = AccountModel::get(account_id).await?;
         let mut map = None;
         if let Some(_) = &request.sync_folders {
             if matches!(account.mailer_type, MailerType::GmailApi) {
@@ -286,7 +367,7 @@ impl AccountV2 {
 
     async fn delete_account(account_id: u64) -> RustMailerResult<()> {
         delete_impl(DB_MANAGER.meta_db(), move|rw|{
-            rw.get().secondary::<AccountV2>(AccountV2Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+            rw.get().secondary::<AccountModel>(AccountV3Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
             .ok_or_else(||raise_error!(format!("The account entity with id={account_id} that you want to delete was not found."), ErrorCode::ResourceNotFound))
         }).await
     }
@@ -324,7 +405,7 @@ impl AccountV2 {
         sync_folders: Vec<String>,
     ) -> RustMailerResult<()> {
         update_impl(DB_MANAGER.meta_db(), move |rw| {
-            rw.get().secondary::<AccountV2>(AccountV2Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+            rw.get().secondary::<AccountModel>(AccountV3Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
             .ok_or_else(|| raise_error!(format!("When trying to update account sync_folders, the corresponding record was not found. account_id={}", account_id), ErrorCode::ResourceNotFound))
         }, |current|{
             let mut updated = current.clone();
@@ -339,7 +420,7 @@ impl AccountV2 {
         known_folders: BTreeSet<String>,
     ) -> RustMailerResult<()> {
         update_impl(DB_MANAGER.meta_db(), move |rw| {
-            rw.get().secondary::<AccountV2>(AccountV2Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+            rw.get().secondary::<AccountModel>(AccountV3Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
             .ok_or_else(|| raise_error!(format!("When trying to update account known_folders, the corresponding record was not found. account_id={}", account_id), ErrorCode::ResourceNotFound))
         }, |current|{
             let mut updated = current.clone();
@@ -354,7 +435,7 @@ impl AccountV2 {
         capabilities: Vec<String>,
     ) -> RustMailerResult<()> {
         update_impl(DB_MANAGER.meta_db(), move |rw| {
-            rw.get().secondary::<AccountV2>(AccountV2Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+            rw.get().secondary::<AccountModel>(AccountV3Key::id, account_id).map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
             .ok_or_else(|| raise_error!(format!("When trying to update account capabilities, the corresponding record was not found. account_id={}", account_id), ErrorCode::ResourceNotFound))
         }, |current|{
             let mut updated = current.clone();
@@ -369,7 +450,7 @@ impl AccountV2 {
             DB_MANAGER.meta_db(),
             move |rw| {
                 rw.get()
-                    .secondary::<AccountV2>(AccountV2Key::id, account_id)
+                    .secondary::<AccountModel>(AccountV3Key::id, account_id)
                     .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
                     .ok_or_else(|| {
                         raise_error!(format!(
@@ -389,7 +470,7 @@ impl AccountV2 {
     }
 
     /// Retrieves a list of all `AccountEntity` instances.
-    pub async fn list_all() -> RustMailerResult<Vec<AccountV2>> {
+    pub async fn list_all() -> RustMailerResult<Vec<AccountModel>> {
         list_all_impl(DB_MANAGER.meta_db()).await
     }
 
@@ -397,8 +478,8 @@ impl AccountV2 {
         let result = list_all_impl(DB_MANAGER.meta_db())
             .await?
             .into_iter()
-            .filter(|a: &AccountV2| a.enabled)
-            .map(|account: AccountV2| MinimalAccount {
+            .filter(|a: &AccountModel| a.enabled)
+            .map(|account: AccountModel| MinimalAccount {
                 id: account.id,
                 email: account.email,
                 mailer_type: account.mailer_type,
@@ -408,7 +489,7 @@ impl AccountV2 {
     }
 
     pub async fn count() -> RustMailerResult<usize> {
-        count_by_unique_secondary_key_impl::<AccountV2>(DB_MANAGER.meta_db(), AccountV2Key::id)
+        count_by_unique_secondary_key_impl::<AccountModel>(DB_MANAGER.meta_db(), AccountV3Key::id)
             .await
     }
 
@@ -416,7 +497,7 @@ impl AccountV2 {
         page: Option<u64>,
         page_size: Option<u64>,
         desc: Option<bool>,
-    ) -> RustMailerResult<DataPage<AccountV2>> {
+    ) -> RustMailerResult<DataPage<AccountModel>> {
         paginate_query_primary_scan_all_impl(DB_MANAGER.meta_db(), page, page_size, desc)
             .await
             .map(DataPage::from)
@@ -424,14 +505,18 @@ impl AccountV2 {
 
     // This method applies the updates from the request to the old account entity
     fn apply_update_fields(
-        old: &AccountV2,
+        old: &AccountModel,
         request: AccountUpdateRequest,
         label_map: Option<AHashMap<String, String>>,
-    ) -> RustMailerResult<AccountV2> {
+    ) -> RustMailerResult<AccountModel> {
         let mut new = old.clone();
 
         if let Some(date_since) = request.date_since {
             new.date_since = Some(date_since);
+        }
+
+        if let Some(folder_limit) = request.folder_limit {
+            new.folder_limit = Some(folder_limit);
         }
 
         if let Some(name) = &request.name {
@@ -542,6 +627,57 @@ impl From<Account> for AccountV2 {
             created_at: value.created_at,
             updated_at: value.updated_at,
             use_proxy: None,
+        }
+    }
+}
+
+impl From<AccountV2> for AccountV3 {
+    fn from(value: AccountV2) -> Self {
+        Self {
+            id: value.id,
+            imap: value.imap,
+            smtp: value.smtp,
+            enabled: value.enabled,
+            mailer_type: value.mailer_type,
+            email: value.email,
+            name: value.name,
+            minimal_sync: value.minimal_sync,
+            capabilities: value.capabilities,
+            dsn_capable: value.dsn_capable,
+            date_since: value.date_since,
+            folder_limit: None,
+            sync_folders: value.sync_folders,
+            full_sync_interval_min: value.full_sync_interval_min,
+            incremental_sync_interval_sec: value.incremental_sync_interval_sec,
+            known_folders: value.known_folders,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+            use_proxy: value.use_proxy,
+        }
+    }
+}
+
+impl From<AccountV3> for AccountV2 {
+    fn from(value: AccountV3) -> Self {
+        Self {
+            id: value.id,
+            imap: value.imap,
+            smtp: value.smtp,
+            enabled: value.enabled,
+            mailer_type: value.mailer_type,
+            email: value.email,
+            name: value.name,
+            minimal_sync: value.minimal_sync,
+            capabilities: value.capabilities,
+            dsn_capable: value.dsn_capable,
+            date_since: value.date_since,
+            sync_folders: value.sync_folders,
+            full_sync_interval_min: value.full_sync_interval_min,
+            incremental_sync_interval_sec: value.incremental_sync_interval_sec,
+            known_folders: value.known_folders,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+            use_proxy: value.use_proxy,
         }
     }
 }

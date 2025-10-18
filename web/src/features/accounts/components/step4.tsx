@@ -238,6 +238,32 @@ export default function Step4({ isEdit }: StepProps) {
                         </FormItem>
                     )}
                 />
+
+                <FormField
+                    control={control}
+                    name="folder_limit"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center justify-between">
+                                Folder Sync Limit:
+                            </FormLabel>
+                            <FormDescription>
+                                Limit the number of emails to sync per folder (minimum 100). Leave empty for no limit.
+                            </FormDescription>
+                            <FormControl>
+                                <Input
+                                    type="number"
+                                    placeholder="e.g. 1000"
+                                    {...field}
+                                    onChange={(e) =>
+                                        field.onChange(e.target.value ? parseInt(e.target.value, 10) : undefined)
+                                    }
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
             </div>
         </>
     );

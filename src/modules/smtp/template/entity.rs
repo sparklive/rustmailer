@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::database::manager::DB_MANAGER;
 use crate::modules::database::{
     batch_delete_impl, delete_impl, paginate_query_primary_scan_all_impl,
@@ -76,7 +76,7 @@ impl EmailTemplate {
 
     pub async fn new(value: TemplateCreateRequest) -> RustMailerResult<Self> {
         let account_info = if let Some(account_id) = value.account_id {
-            AccountV2::get(account_id).await.map(|account| {
+            AccountModel::get(account_id).await.map(|account| {
                 Some(AccountInfo {
                     id: account_id,
                     email: account.email,
@@ -215,7 +215,7 @@ impl EmailTemplate {
     }
 
     async fn check_account_id(account_id: u64) -> RustMailerResult<()> {
-        let _ = AccountV2::get(account_id).await?;
+        let _ = AccountModel::get(account_id).await?;
         Ok(())
     }
 

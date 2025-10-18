@@ -52,6 +52,7 @@ export interface AccountEntity {
   minimal_sync?: boolean;
   capabilities?: string[];
   date_since?: DateSelection;
+  folder_limit?: number,
   sync_folders?: string[];
   full_sync_interval_min?: number;
   incremental_sync_interval_sec: number;

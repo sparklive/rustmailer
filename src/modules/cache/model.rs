@@ -5,7 +5,7 @@ use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
 
 use crate::{calculate_hash, id, modules::{
-    cache::imap::{envelope::Received, mailbox::EnvelopeFlag, v2::EmailEnvelopeV3},
+    cache::imap::{envelope::Received, mailbox::EnvelopeFlag, migration::EmailEnvelopeV3},
     common::Addr,
     imap::section::{EmailBodyPart, ImapAttachment},
 }};

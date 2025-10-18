@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
+        account::{entity::MailerType, migration::AccountModel},
         cache::vendor::gmail::sync::client::GmailClient,
         context::executors::RUST_MAIL_CONTEXT,
         error::RustMailerResult,
@@ -79,7 +79,7 @@ pub async fn create_mailbox(
     account_id: u64,
     request: &CreateMailboxRequest,
 ) -> RustMailerResult<()> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
 
     match account.mailer_type {
         MailerType::ImapSmtp => {

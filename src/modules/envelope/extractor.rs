@@ -6,7 +6,7 @@ use crate::id;
 use crate::modules::cache::imap::flags_to_hash;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::minimal::MinimalEnvelope;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use crate::modules::common::AddrVec;
 use crate::modules::envelope::MinimalEnvelopeMeta;
 use crate::modules::error::code::ErrorCode;

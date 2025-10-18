@@ -5,7 +5,7 @@
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
+        account::{entity::MailerType, migration::AccountModel},
         cache::vendor::gmail::sync::client::GmailClient,
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
@@ -14,7 +14,7 @@ use crate::{
 };
 
 pub async fn delete_mailbox(account_id: u64, mailbox_name: &str) -> RustMailerResult<()> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     match account.mailer_type {
         MailerType::ImapSmtp => {
             let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;

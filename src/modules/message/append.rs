@@ -15,7 +15,7 @@ use serde_json::json;
 use crate::{
     base64_encode_url_safe, encode_mailbox_name,
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
+        account::{entity::MailerType, migration::AccountModel},
         cache::vendor::gmail::sync::{
             client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
         },
@@ -99,7 +99,7 @@ impl AppendReplyToDraftRequest {
     }
 
     pub async fn append_reply_to_draft(&self, account_id: u64) -> RustMailerResult<()> {
-        let account = AccountV2::check_account_active(account_id, false).await?;
+        let account = AccountModel::check_account_active(account_id, false).await?;
         self.validate(matches!(account.mailer_type, MailerType::GmailApi))?;
 
         match account.mailer_type {
@@ -113,7 +113,7 @@ impl AppendReplyToDraftRequest {
         Ok(())
     }
 
-    async fn append_reply_to_draft_imap(&self, account: &AccountV2) -> RustMailerResult<()> {
+    async fn append_reply_to_draft_imap(&self, account: &AccountModel) -> RustMailerResult<()> {
         let envelope = EmailHandler::get_envelope(
             account,
             &self.mailbox_name,
@@ -166,7 +166,7 @@ impl AppendReplyToDraftRequest {
 
     async fn append_reply_to_draft_gmail(
         &self,
-        account: &AccountV2,
+        account: &AccountModel,
         account_id: u64,
     ) -> RustMailerResult<()> {
         let target_label = GmailLabels::get_by_name(account_id, &self.mailbox_name).await?;

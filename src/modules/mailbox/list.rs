@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use crate::modules::account::entity::MailerType;
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, MailBox};
 use crate::modules::cache::vendor::gmail::model::labels::{Label, LabelDetail};
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
@@ -21,7 +21,7 @@ pub async fn get_account_mailboxes(
     account_id: u64,
     remote: bool,
 ) -> RustMailerResult<Vec<MailBox>> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     let remote = remote || account.minimal_sync();
 
     match (&account.mailer_type, remote) {
@@ -37,7 +37,7 @@ pub async fn get_account_mailboxes(
 }
 
 pub async fn list_subscribed_mailboxes(account_id: u64) -> RustMailerResult<Vec<MailBox>> {
-    AccountV2::check_account_active(account_id, true).await?;
+    AccountModel::check_account_active(account_id, true).await?;
     request_imap_subscribed_mailbox_list(account_id).await
 }
 
@@ -55,7 +55,7 @@ pub async fn request_imap_all_mailbox_list(account_id: u64) -> RustMailerResult<
     convert_names_to_mailboxes(account_id, names.iter()).await
 }
 
-pub async fn request_gmail_label_list(account: &AccountV2) -> RustMailerResult<Vec<MailBox>> {
+pub async fn request_gmail_label_list(account: &AccountModel) -> RustMailerResult<Vec<MailBox>> {
     let all_labels = GmailClient::list_labels(account.id, account.use_proxy).await?;
     let visible_labels: Vec<Label> = all_labels.labels;
 

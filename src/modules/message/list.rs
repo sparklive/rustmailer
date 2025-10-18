@@ -5,9 +5,9 @@
 use crate::{
     base64_encode_url_safe, encode_mailbox_name,
     modules::{
-        account::{entity::MailerType, v2::AccountV2},
+        account::{entity::MailerType, migration::AccountModel},
         cache::{
-            imap::{mailbox::MailBox, thread::EmailThread, v2::EmailEnvelopeV3},
+            imap::{mailbox::MailBox, migration::EmailEnvelopeV3, thread::EmailThread},
             model::Envelope,
             vendor::gmail::sync::{
                 client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
@@ -31,7 +31,7 @@ pub async fn list_messages_in_mailbox(
     remote: bool,
     desc: bool,
 ) -> RustMailerResult<CursorDataPage<Envelope>> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     if page_size == 0 {
         return Err(raise_error!(
             "page_size must be greater than 0.".into(),
@@ -69,7 +69,7 @@ fn validate_pagination_params(page: u64, page_size: u64) -> RustMailerResult<()>
 }
 
 async fn fetch_remote_messages(
-    account: &AccountV2,
+    account: &AccountModel,
     mailbox_name: &str,
     next_page_token: Option<&str>,
     page_size: u64,
@@ -134,7 +134,7 @@ async fn fetch_remote_messages(
                 label_id,
                 next_page_token,
                 None,
-                page_size,
+                page_size as u32,
             )
             .await?;
 
@@ -205,7 +205,7 @@ async fn process_fetches(
 }
 
 async fn fetch_local_messages(
-    account: &AccountV2,
+    account: &AccountModel,
     mailbox_name: &str,
     next_page_token: Option<&str>,
     page_size: u64,
@@ -304,7 +304,7 @@ pub async fn list_threads_in_mailbox(
     page_size: u64,
     desc: bool,
 ) -> RustMailerResult<DataPage<Envelope>> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     validate_pagination_params(page, page_size)?;
     if account.minimal_sync() {
         return Err(raise_error!(
@@ -348,7 +348,7 @@ pub async fn get_thread_messages(
     account_id: u64,
     thread_id: u64,
 ) -> RustMailerResult<Vec<Envelope>> {
-    let account = AccountV2::check_account_active(account_id, false).await?;
+    let account = AccountModel::check_account_active(account_id, false).await?;
     if account.minimal_sync() {
         return Err(raise_error!(
             format!(

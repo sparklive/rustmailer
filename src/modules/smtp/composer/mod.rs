@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use scraper::{Html, Selector};
 use time::{macros::format_description, OffsetDateTime};
 use time_tz::timezones;
@@ -230,7 +230,7 @@ mod tests {
         modules::{
             cache::imap::{
                 mailbox::{EmailFlag, EnvelopeFlag},
-                v2::EmailEnvelopeV3,
+                migration::EmailEnvelopeV3,
             },
             common::Addr,
         },

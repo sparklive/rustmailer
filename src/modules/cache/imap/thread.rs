@@ -14,9 +14,9 @@ use tracing::info;
 
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::migration::AccountModel,
         cache::{
-            imap::v2::EmailEnvelopeV3,
+            imap::migration::EmailEnvelopeV3,
             model::Envelope,
             vendor::gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
         },
@@ -210,7 +210,7 @@ impl EmailThread {
     }
 
     pub async fn list_threads_in_label(
-        account: AccountV2,
+        account: AccountModel,
         label_id: u64,
         page: u64,
         page_size: u64,

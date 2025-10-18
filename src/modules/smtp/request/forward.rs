@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::entity::MailerType;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::smtp::request::builder::EmailBuilder;
 use crate::modules::smtp::request::headers::HeaderValue;
@@ -14,7 +14,7 @@ use crate::modules::smtp::util::generate_message_id;
 use crate::validate_email;
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::migration::AccountModel,
         error::RustMailerResult,
         smtp::{
             composer::BodyComposer,
@@ -155,7 +155,7 @@ impl EmailBuilder for ForwardEmailRequest {
 
     async fn build(&self, account_id: u64) -> RustMailerResult<()> {
         self.validate().await?;
-        let account = &AccountV2::get(account_id).await?;
+        let account = &AccountModel::get(account_id).await?;
 
         let (envelope, answer_email) = match account.mailer_type {
             MailerType::ImapSmtp => {
@@ -267,7 +267,7 @@ impl ForwardEmailRequest {
         &self,
         mut builder: MessageBuilder<'static>,
         envelope: &EmailEnvelopeV3,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let timezone = self.timezone.as_deref().unwrap_or("UTC");
 
@@ -342,7 +342,7 @@ impl ForwardEmailRequest {
     async fn apply_attachments(
         &self,
         mut builder: MessageBuilder<'static>,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         if let Some(attachments) = &self.attachments {
             for attachment in attachments {

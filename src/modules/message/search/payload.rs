@@ -5,8 +5,8 @@
 use crate::base64_encode_url_safe;
 use crate::modules::account::entity::MailerType;
 use crate::modules::cache::imap::address::AddressEntity;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use crate::modules::cache::imap::sync::flow::generate_uid_sequence_hashset;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
 use crate::modules::cache::model::Envelope;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
@@ -20,7 +20,7 @@ use crate::modules::rest::response::CursorDataPage;
 use crate::{
     encode_mailbox_name,
     modules::{
-        account::v2::AccountV2, context::executors::RUST_MAIL_CONTEXT,
+        account::migration::AccountModel, context::executors::RUST_MAIL_CONTEXT,
         envelope::extractor::extract_envelope, error::RustMailerResult, rest::response::DataPage,
     },
     raise_error,
@@ -487,7 +487,7 @@ impl MessageSearchRequest {
         page_size: u64,
         desc: bool,
     ) -> RustMailerResult<CursorDataPage<Envelope>> {
-        let account = AccountV2::check_account_active(account_id, false).await?;
+        let account = AccountModel::check_account_active(account_id, false).await?;
         match account.mailer_type {
             MailerType::ImapSmtp => {
                 self.imap_search_impl(&account, next_page_token, page_size, desc)
@@ -502,7 +502,7 @@ impl MessageSearchRequest {
 
     async fn gmail_api_search_impl(
         &self,
-        account: &AccountV2,
+        account: &AccountModel,
         next_page_token: Option<&str>,
         page_size: u64,
     ) -> RustMailerResult<CursorDataPage<Envelope>> {
@@ -594,7 +594,7 @@ impl MessageSearchRequest {
 
     async fn imap_search_impl(
         &self,
-        account: &AccountV2,
+        account: &AccountModel,
         next_page_token: Option<&str>,
         page_size: u64,
         desc: bool,
@@ -695,7 +695,11 @@ impl MessageSearchRequest {
 
         let total_items = uid_sets.len() as u64;
         let total_pages = (total_items as f64 / page_size as f64).ceil() as u64;
-        let pages = generate_uid_sequence_hashset(uid_sets, page_size as usize, desc);
+
+        let mut nums: Vec<u32> = uid_sets.into_iter().collect();
+        nums.sort();
+
+        let pages = generate_uid_sequence_hashset(nums, page_size as usize, desc);
         assert_eq!(total_pages, pages.len() as u64);
         IMAP_SEARCH_CACHE
             .set(cache_key, Arc::new((pages.clone(), total_items)))
@@ -802,7 +806,7 @@ impl UnifiedSearchRequest {
         let result = paginate_vec(&vec, Some(page), Some(page_size))?;
         let mut items = Vec::new();
         for (id, account_id, _) in result.items {
-            let account = AccountV2::get(account_id).await?;
+            let account = AccountModel::get(account_id).await?;
             let envelope = match account.mailer_type {
                 MailerType::ImapSmtp => EmailEnvelopeV3::get(id)
                     .await?

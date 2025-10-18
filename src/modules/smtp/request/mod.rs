@@ -9,7 +9,7 @@ use crate::modules::cache::disk::DISK_CACHE;
 use crate::modules::cache::imap::mailbox::EmailFlag;
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::cache::imap::mailbox::MailBox;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::envelope::GmailEnvelope;
 use crate::modules::cache::vendor::gmail::sync::labels::GmailLabels;
@@ -26,7 +26,7 @@ use crate::utc_now;
 use crate::validate_email;
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::migration::AccountModel,
         error::RustMailerResult,
         imap::section::ImapAttachment,
         message::attachment::{retrieve_email_attachment, AttachmentRequest},
@@ -157,7 +157,7 @@ pub struct MailAttachment {
 }
 
 impl MailAttachment {
-    pub async fn get_content(&self, account: &AccountV2) -> RustMailerResult<BodyPart<'static>> {
+    pub async fn get_content(&self, account: &AccountModel) -> RustMailerResult<BodyPart<'static>> {
         if let Some(content) = &self.payload.base64_content {
             return Self::decode_base64_content(content, &self.mime_type);
         }
@@ -207,7 +207,7 @@ impl MailAttachment {
     async fn retrieve_and_decode_attachment(
         attachment_ref: &AttachmentRef,
         mime_type: &str,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<BodyPart<'static>> {
         let (mut reader, _) = retrieve_email_attachment(
             account.id,
@@ -605,7 +605,7 @@ impl EmailHandler {
     }
 
     pub async fn retrieve_message_content(
-        account: &AccountV2,
+        account: &AccountModel,
         envelope: &EmailEnvelopeV3,
     ) -> RustMailerResult<Option<FullMessageContent>> {
         let body_meta = match &envelope.body_meta {
@@ -631,7 +631,7 @@ impl EmailHandler {
     }
 
     pub async fn get_gmail_envelope(
-        account: &AccountV2,
+        account: &AccountModel,
         label_name: &str,
         mid: &str,
     ) -> RustMailerResult<EmailEnvelopeV3> {
@@ -650,7 +650,7 @@ impl EmailHandler {
     }
 
     pub async fn get_envelope(
-        account: &AccountV2,
+        account: &AccountModel,
         mailbox_name: &str,
         uid: u32,
     ) -> RustMailerResult<EmailEnvelopeV3> {
@@ -729,7 +729,7 @@ impl EmailHandler {
         attachment: &ImapAttachment,
         envelope: &EmailEnvelopeV3,
         inline: bool,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<MessageBuilder<'static>> {
         let attachment_ref = AttachmentRef {
             mailbox_name: envelope.mailbox_name.clone(),
@@ -771,7 +771,7 @@ impl EmailHandler {
     }
 
     pub async fn schedule_task(
-        account: &AccountV2,
+        account: &AccountModel,
         subject: Option<String>,
         message_id: String,
         cc: Option<Vec<EmailAddress>>,

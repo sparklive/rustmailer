@@ -7,4 +7,4 @@ pub mod entity;
 pub mod payload;
 pub mod since;
 pub mod status;
-pub mod v2;
+pub mod migration;

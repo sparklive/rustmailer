@@ -50,6 +50,11 @@ const accountSchema = () =>
     minimal_sync: z.boolean(),
     use_proxy: z.number().optional(),
     date_since: dateSelectionSchema.optional(),
+    folder_limit: z
+      .number({ invalid_type_error: 'Folder limit must be a number' })
+      .int()
+      .min(100, { message: 'Folder limit must be at least 100' })
+      .optional(),
     incremental_sync_interval_sec: z.number({ invalid_type_error: 'Incremental sync interval must be a number' }).int().min(1, { message: 'Incremental sync interval must be at least 1 second' }),
   });
 
@@ -66,6 +71,7 @@ export type GmailApiAccount = {
       value?: number;
     };
   };
+  folder_limit?: number,
   use_proxy?: number,
   incremental_sync_interval_sec: number;
 };
@@ -84,6 +90,7 @@ const defaultValues: GmailApiAccount = {
   email: '',
   enabled: true,
   date_since: undefined,
+  folder_limit: undefined,
   incremental_sync_interval_sec: 30,
   minimal_sync: false,
   use_proxy: undefined
@@ -97,6 +104,7 @@ const mapCurrentRowToFormValues = (currentRow: AccountEntity): GmailApiAccount =
     enabled: currentRow.enabled,
     minimal_sync: currentRow.minimal_sync ?? false,
     date_since: currentRow.date_since ?? undefined,
+    folder_limit: currentRow.folder_limit ?? undefined,
     incremental_sync_interval_sec: currentRow.incremental_sync_interval_sec,
     use_proxy: currentRow.use_proxy
   };
@@ -171,6 +179,7 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
         name: data.name,
         enabled: data.enabled,
         date_since: data.date_since,
+        folder_limit: data.folder_limit,
         minimal_sync: data.minimal_sync,
         incremental_sync_interval_sec: data.incremental_sync_interval_sec,
         use_proxy: data.use_proxy
@@ -425,6 +434,31 @@ export function GmailApiAccountDialog({ currentRow, open, onOpenChange }: Props)
                   />
                 </div>
               </div>}
+              <FormField
+                control={form.control}
+                name="folder_limit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center justify-between">
+                      Folder Sync Limit:
+                    </FormLabel>
+                    <FormDescription>
+                      Limit the number of emails to sync per folder (minimum 100). Leave empty for no limit.
+                    </FormDescription>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 1000"
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(e.target.value ? parseInt(e.target.value, 10) : undefined)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name='use_proxy'

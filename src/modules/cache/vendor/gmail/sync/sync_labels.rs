@@ -7,7 +7,7 @@ use tracing::{debug, warn};
 
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::migration::AccountModel,
         cache::vendor::gmail::model::labels::{Label, LabelDetail},
         cache::{
             imap::sync::sync_folders::detect_mailbox_changes,
@@ -18,7 +18,7 @@ use crate::{
     raise_error,
 };
 
-pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelDetail>> {
+pub async fn get_sync_labels(account: &AccountModel) -> RustMailerResult<Vec<LabelDetail>> {
     let visible_labels = GmailClient::list_visible_labels(account.id, account.use_proxy).await?;
     debug!(
         "Account {}: Retrieved {} visible labels from Gmail API: {:?}",
@@ -87,7 +87,7 @@ pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelD
         );
         if !matched_labels.is_empty() {
             let sync_folders: Vec<String> = matched_labels.iter().map(|n| n.id.clone()).collect();
-            AccountV2::update_sync_folders(account.id, sync_folders).await?;
+            AccountModel::update_sync_folders(account.id, sync_folders).await?;
         } else {
             warn!("Account {}: No visible labels found from Gmail API. This is unexpected — Gmail API should at least provide INBOX.", account.id);
             return Err(
@@ -102,7 +102,7 @@ pub async fn get_sync_labels(account: &AccountV2) -> RustMailerResult<Vec<LabelD
 }
 
 pub async fn retrieve_label_metadata(
-    account: &AccountV2,
+    account: &AccountModel,
     labels: impl IntoIterator<Item = &Label>,
 ) -> RustMailerResult<Vec<LabelDetail>> {
     let mut tasks = Vec::new();

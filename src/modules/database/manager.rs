@@ -2,8 +2,8 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::v2::AccountV2;
-use crate::modules::cache::imap::v2::EmailEnvelopeV3;
+use crate::modules::account::migration::AccountModel;
+use crate::modules::cache::imap::migration::EmailEnvelopeV3;
 use crate::modules::cache::imap::ENVELOPE_MODELS;
 use crate::modules::context::Initialize;
 use crate::modules::error::{code::ErrorCode, RustMailerError};
@@ -90,7 +90,7 @@ impl DatabaseManager {
         let rw = database
             .rw_transaction()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
-        rw.migrate::<AccountV2>()
+        rw.migrate::<AccountModel>()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
         rw.commit()
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?;
@@ -137,7 +137,7 @@ impl DatabaseManager {
         spawn_migration_task!(SystemSetting);
         spawn_migration_task!(License);
         spawn_migration_task!(CachedMailSettings);
-        spawn_migration_task!(AccountV2);
+        spawn_migration_task!(AccountModel);
         spawn_migration_task!(EmailTemplate);
         spawn_migration_task!(Mta);
         spawn_migration_task!(OAuth2);

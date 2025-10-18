@@ -4,7 +4,7 @@
 
 use crate::modules::account::dispatcher::STATUS_DISPATCHER;
 use crate::modules::account::entity::AuthType;
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerResult;
 use crate::modules::imap::capabilities::{
@@ -28,12 +28,12 @@ impl ImapConnectionManager {
         Self { account_id }
     }
 
-    pub async fn fetch_account(&self) -> RustMailerResult<AccountV2> {
+    pub async fn fetch_account(&self) -> RustMailerResult<AccountModel> {
         // Fetch the account entity in non-test environment
-        AccountV2::get(self.account_id).await
+        AccountModel::get(self.account_id).await
     }
 
-    async fn create_client(&self, account: &AccountV2) -> RustMailerResult<Client> {
+    async fn create_client(&self, account: &AccountModel) -> RustMailerResult<Client> {
         let imap = account
             .imap
             .clone()
@@ -44,7 +44,7 @@ impl ImapConnectionManager {
     async fn authenticate(
         &self,
         client: Client,
-        account: &AccountV2,
+        account: &AccountModel,
     ) -> RustMailerResult<Session<Box<dyn SessionStream>>> {
         let imap = account
             .imap
@@ -117,7 +117,7 @@ impl ImapConnectionManager {
         match fetch_capabilities(&mut session).await {
             Ok(capabilities) => {
                 let to_save: Vec<String> = capabilities.iter().map(capability_to_string).collect();
-                AccountV2::update_capabilities(self.account_id, to_save).await?;
+                AccountModel::update_capabilities(self.account_id, to_save).await?;
                 if let Err(error) = check_capabilities(&capabilities) {
                     error!("Failed to check IMAP capabilities: {:#?}", error);
                     STATUS_DISPATCHER

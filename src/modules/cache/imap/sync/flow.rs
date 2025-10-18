@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::{since::DateSince, status::AccountRunningState, v2::AccountV2},
+        account::{migration::AccountModel, since::DateSince, status::AccountRunningState},
         bounce::parser::{extract_bounce_report, BounceReport},
         cache::{
             imap::{
@@ -12,12 +12,12 @@ use crate::{
                 find_missing_mailboxes, find_missing_remote_uids,
                 mailbox::{EnvelopeFlag, MailBox},
                 manager::EnvelopeFlagsManager,
+                migration::EmailEnvelopeV3,
                 minimal::MinimalEnvelope,
                 sync::{
                     rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
                     sync_type::SyncType,
                 },
-                v2::EmailEnvelopeV3,
             },
             SEMAPHORE,
         },
@@ -50,19 +50,20 @@ use crate::{
 use ahash::{AHashMap, AHashSet};
 use async_imap::types::Fetch;
 use mail_parser::{Message, MessageParser};
-use std::{collections::HashSet, time::Instant};
+use std::time::Instant;
 use tracing::{debug, error, info, warn};
 
 const ENVELOPE_BATCH_SIZE: u32 = 1000;
 const UID_FLAGS_BATCH_SIZE: u32 = 10000;
 
 pub async fn fetch_and_save_since_date(
-    account_id: u64,
+    account: &AccountModel,
     date: &str,
     mailbox: &MailBox,
     initial: bool,
     minimal_sync: bool,
 ) -> RustMailerResult<usize> {
+    let account_id = account.id;
     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
     let uid_list = executor
         .uid_search(&mailbox.encoded_name(), format!("SINCE {date}").as_str())
@@ -73,10 +74,22 @@ pub async fn fetch_and_save_since_date(
         return Ok(0);
     }
 
+    let folder_limit = account.folder_limit;
+    // sort small -> bigger
+    let mut uid_vec: Vec<u32> = uid_list.into_iter().collect();
+    uid_vec.sort();
+
+    if let Some(limit) = folder_limit {
+        let limit = limit.max(100) as usize;
+        if len > limit {
+            uid_vec = uid_vec.split_off(len - limit as usize);
+        }
+    }
+
     // let semaphore = Arc::new(Semaphore::new(5));
     let mut handles = Vec::new();
 
-    let uid_batches = generate_uid_sequence_hashset(uid_list, ENVELOPE_BATCH_SIZE as usize, false);
+    let uid_batches = generate_uid_sequence_hashset(uid_vec, ENVELOPE_BATCH_SIZE as usize, false);
 
     if initial {
         AccountRunningState::set_initial_current_syncing_folder(
@@ -137,15 +150,28 @@ pub async fn fetch_and_save_since_date(
 
     Ok(len)
 }
-//wukong
+
 pub async fn fetch_and_save_full_mailbox(
-    account: &AccountV2,
+    account: &AccountModel,
     mailbox: &MailBox,
     total: u32,
     initial: bool,
 ) -> RustMailerResult<usize> {
-    let page_size = ENVELOPE_BATCH_SIZE;
-    let total_batches = total.div_ceil(page_size);
+    let folder_limit = account.folder_limit;
+
+    let total_to_fetch = match folder_limit {
+        Some(limit) if limit < total => total.min(limit.max(100)),
+        _ => total,
+    };
+    let page_size = if let Some(limit) = folder_limit {
+        limit.max(100).min(ENVELOPE_BATCH_SIZE as u32)
+    } else {
+        ENVELOPE_BATCH_SIZE as u32
+    };
+
+    let total_batches = total_to_fetch.div_ceil(page_size);
+    let desc = folder_limit.is_some();
+
     let mut inserted_count = 0;
 
     let account_id = account.id;
@@ -159,7 +185,10 @@ pub async fn fetch_and_save_full_mailbox(
         )
         .await?;
     }
-
+    info!(
+        "Starting full mailbox sync for '{}', total={}, limit={:?}, batches={}, desc={}",
+        mailbox.name, total, folder_limit, total_batches, desc
+    );
     // let semaphore = Arc::new(Semaphore::new(5));
     let mut handles = Vec::new();
 
@@ -183,7 +212,7 @@ pub async fn fetch_and_save_full_mailbox(
                                 page as u64,
                                 page_size as u64,
                                 &encoded_name,
-                                false,
+                                desc,
                                 minimal_sync,
                             )
                             .await?;
@@ -241,14 +270,14 @@ pub async fn fetch_and_save_full_mailbox(
 /// and returns a vector like: `["1:3,5:7", "9:11,15"]`.
 ///
 pub fn generate_uid_sequence_hashset(
-    unique_nums: HashSet<u32>,
+    unique_nums: Vec<u32>,
     chunk_size: usize,
     desc: bool,
 ) -> Vec<String> {
     assert!(!unique_nums.is_empty());
-    let mut nums: Vec<u32> = unique_nums.into_iter().collect();
-    nums.sort();
-
+    // let mut nums: Vec<u32> = unique_nums.into_iter().collect();
+    // nums.sort();
+    let mut nums = unique_nums;
     if desc {
         nums.reverse();
     }
@@ -299,7 +328,7 @@ pub fn compress_uid_list(nums: Vec<u32>) -> String {
 }
 
 pub async fn compare_and_sync_mailbox(
-    account: &AccountV2,
+    account: &AccountModel,
     remote_mailboxes: &[MailBox],
     local_mailboxes: &[MailBox],
     sync_type: &SyncType,
@@ -434,7 +463,7 @@ pub async fn compare_and_sync_mailbox(
 }
 
 async fn cleanup_deleted_mailboxes(
-    account: &AccountV2,
+    account: &AccountModel,
     deleted_mailboxes: &[MailBox],
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
@@ -451,7 +480,7 @@ async fn cleanup_deleted_mailboxes(
 }
 /// Sync recent 200 envelopes's flags
 async fn sync_recent_envelope_flags(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
     uid_next: u32,
@@ -484,7 +513,7 @@ async fn sync_recent_envelope_flags(
 
 //only check new emails and sync
 async fn perform_incremental_sync(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
     sync_count: usize,
@@ -545,7 +574,7 @@ async fn perform_incremental_sync(
                 match &account.date_since {
                     Some(date_since) => {
                         fetch_and_save_since_date(
-                            account.id,
+                            account,
                             date_since.since_date()?.as_str(),
                             remote_mailbox,
                             false,
@@ -571,7 +600,7 @@ async fn perform_incremental_sync(
 }
 //
 async fn perform_full_sync(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox: &MailBox,
     remote_mailbox: &MailBox,
 ) -> RustMailerResult<()> {
@@ -584,7 +613,7 @@ async fn perform_full_sync(
     let local_uid_flags_index = EnvelopeFlagsManager::get_uid_map(account.id, local_mailbox.id, 0);
 
     let (remote_uids_set, uids_with_updated_flags, new_uids_to_add) = diff_uids_and_flags(
-        account.id,
+        account,
         remote_mailbox,
         &local_uid_flags_index,
         remote_mailbox.exists,
@@ -632,8 +661,9 @@ async fn perform_full_sync(
     Ok(())
 }
 
+//Compare the local uid and flags_hash with those from the server to identify newly added, deleted, and flag-changed messages.
 async fn diff_uids_and_flags(
-    account_id: u64,
+    account: &AccountModel,
     remote_mailbox: &MailBox,
     local_uid_flags_index: &AHashMap<u32, u64>,
     total: u32,
@@ -643,6 +673,7 @@ async fn diff_uids_and_flags(
     Vec<(u32, Vec<EnvelopeFlag>)>,
     Vec<(u32, u64)>,
 )> {
+    let account_id = account.id;
     let mut remote_uids_set = AHashSet::new();
     let mut uids_with_updated_flags = Vec::new();
     let mut new_uids_to_add = Vec::new();
@@ -669,9 +700,23 @@ async fn diff_uids_and_flags(
                 .await?;
             debug!("UID search returned {} UIDs", uid_list.len());
 
+            // The uid_list may exceed the folder_limit; trim it before comparison
+            // so that synchronization can automatically clean up local cache.
             if !uid_list.is_empty() {
+                let len = uid_list.len();
+                let mut nums: Vec<u32> = uid_list.into_iter().collect();
+                nums.sort();
+                let folder_limit = account.folder_limit;
+                if let Some(limit) = folder_limit {
+                    let limit = limit.max(100) as usize;
+                    // If the returned count exceeds the limit, keep only the latest 'limit' UIDs
+                    // (those with larger UID values) for fetching UIDs and flags.
+                    if len > limit {
+                        nums = nums.split_off(len - limit as usize);
+                    }
+                }
                 let uid_batches =
-                    generate_uid_sequence_hashset(uid_list, UID_FLAGS_BATCH_SIZE as usize, false);
+                    generate_uid_sequence_hashset(nums, UID_FLAGS_BATCH_SIZE as usize, false);
                 debug!("Split into {} UID batches", uid_batches.len());
                 for (i, batch) in uid_batches.iter().enumerate() {
                     debug!("Fetching batch {}/{}", i + 1, uid_batches.len());
@@ -688,8 +733,21 @@ async fn diff_uids_and_flags(
         }
         None => {
             if total > 0 {
-                let page_size = UID_FLAGS_BATCH_SIZE; // Adjust page size after further testing with large mailboxes.
-                let num_pages = total.div_ceil(page_size);
+                let folder_limit = account.folder_limit;
+                // Calculate the actual number of messages to be fetched
+                let total_to_fetch = match folder_limit {
+                    Some(limit) if limit < total => total.min(limit.max(100)),
+                    _ => total,
+                };
+
+                let page_size = if let Some(limit) = folder_limit {
+                    limit.max(100).min(UID_FLAGS_BATCH_SIZE as u32)
+                } else {
+                    UID_FLAGS_BATCH_SIZE as u32
+                };
+                // Calculate the total number of pages to fetch
+                let num_pages = total_to_fetch.div_ceil(page_size);
+                let desc = folder_limit.is_some();
 
                 for page in 1..=num_pages {
                     let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
@@ -698,6 +756,7 @@ async fn diff_uids_and_flags(
                             page,
                             page_size,
                             remote_mailbox_encoded_name,
+                            desc,
                         )
                         .await?;
                     let uid_flags_batch = parse_fetch_metadata(fetches, false)?;
@@ -713,7 +772,7 @@ async fn diff_uids_and_flags(
 }
 
 async fn cleanup_missing_remote_emails(
-    account: &AccountV2,
+    account: &AccountModel,
     mailbox_id: u64,
     mailbox_name: &str,
     local_uid_flags_index: &AHashMap<u32, u64>,
@@ -734,7 +793,7 @@ async fn cleanup_missing_remote_emails(
 }
 
 pub async fn fetch_and_store_new_envelopes_by_uid_list(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox_id: u64,
     remote: &MailBox,
     uid_list: Vec<(u32, u64)>,
@@ -814,7 +873,7 @@ pub async fn fetch_and_store_new_envelopes_by_uid_list(
 }
 
 async fn process_email_added_events(
-    account: &AccountV2,
+    account: &AccountModel,
     remote: &MailBox,
     fetches: &[Fetch],
 ) -> RustMailerResult<()> {
@@ -882,7 +941,7 @@ async fn process_email_added_events(
 }
 
 async fn handle_minimal_sync_or_metadata_fetch(
-    account: &AccountV2,
+    account: &AccountModel,
     local_mailbox_id: u64,
     remote: &MailBox,
     uid_list: Vec<(u32, u64)>,
@@ -925,7 +984,7 @@ async fn handle_minimal_sync_or_metadata_fetch(
 }
 
 async fn process_bounce_reports(
-    account: &AccountV2,
+    account: &AccountModel,
     remote: &MailBox,
     fetches: &[Fetch],
 ) -> RustMailerResult<()> {
@@ -973,7 +1032,7 @@ async fn process_bounce_reports(
 }
 
 async fn submit_bounce_event(
-    account: &AccountV2,
+    account: &AccountModel,
     remote: &MailBox,
     uid: u32,
     fetch: &Fetch,
@@ -1008,7 +1067,7 @@ async fn submit_bounce_event(
 }
 
 async fn submit_feedback_report_event(
-    account: &AccountV2,
+    account: &AccountModel,
     remote: &MailBox,
     uid: u32,
     fetch: &Fetch,

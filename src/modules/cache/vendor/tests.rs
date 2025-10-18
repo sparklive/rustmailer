@@ -16,7 +16,7 @@ use crate::{
     base64_encode, base64_encode_url_safe,
     modules::{
         cache::{
-            imap::v2::EmailEnvelopeV3,
+            imap::migration::EmailEnvelopeV3,
             vendor::gmail::{
                 model::{
                     history::HistoryList,

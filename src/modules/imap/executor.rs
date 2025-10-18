@@ -10,7 +10,6 @@ use async_imap::types::{Fetch, Mailbox, Name};
 use bb8::Pool;
 use futures::TryStreamExt;
 use std::collections::HashSet;
-use std::ops::Add;
 use tracing::info;
 
 /// The IMAP query to fetch email metadata including headers and body structure.
@@ -183,22 +182,30 @@ impl ImapExecutor {
         }
 
         let (start, end) = if desc {
+            // Fetch messages starting from the newest (descending order)
             let end = total.saturating_sub((page - 1) * page_size);
-            let start = end.saturating_sub(page_size).add(1).max(1);
+            if end == 0 {
+                return Ok((Vec::new(), total));
+            }
+            // Calculate start as end - page_size + 1 to avoid off-by-one errors
+            let start = end.saturating_sub(page_size - 1).max(1);
             (start, end)
         } else {
+            // Fetch messages starting from the oldest (ascending order)
             let start = (page - 1) * page_size + 1;
+            if start > total {
+                return Ok((Vec::new(), total));
+            }
+            // Calculate end, capped by the total number of messages
             let end = (start + page_size - 1).min(total);
             (start, end)
         };
 
-        // Return early if the start exceeds total
-        if start > total || end < 1 || start > end {
-            return Ok((Vec::new(), total));
-        }
-
         let sequence_set = format!("{}:{}", start, end);
-        info!("The sequence range pulled this time is: {}", sequence_set);
+        info!(
+            "Fetching mailbox '{}' messages: sequence {} (page {}, page_size {}, desc={})",
+            mailbox_name, sequence_set, page, page_size, desc
+        );
 
         let query = if minimal {
             MINIMAL_METADATA_QUERY
@@ -223,6 +230,7 @@ impl ImapExecutor {
         page: u32,
         page_size: u32,
         mailbox_name: &str,
+        desc: bool,
     ) -> RustMailerResult<Vec<Fetch>> {
         assert!(page > 0, "Page number must be greater than 0");
         assert!(page_size > 0, "Page size must be greater than 0");
@@ -236,15 +244,37 @@ impl ImapExecutor {
         if total == 0 {
             return Ok(Vec::new());
         }
-        let start = (page - 1) * page_size + 1;
-        // Return early if the start exceeds total
-        if start > total {
+
+        let (start, end) = if desc {
+            // Fetch messages starting from the newest (descending order)
+            let end = total.saturating_sub((page - 1) * page_size);
+            if end == 0 {
+                return Ok(Vec::new());
+            }
+            // Calculate start as end - page_size + 1 to avoid off-by-one errors
+            let start = end.saturating_sub(page_size - 1).max(1);
+            (start, end)
+        } else {
+            // Fetch messages starting from the oldest (ascending order)
+            let start = (page - 1) * page_size + 1;
+            if start > total {
+                return Ok(Vec::new());
+            }
+            // Calculate end, capped by the total number of messages
+            let end = (start + page_size - 1).min(total);
+            (start, end)
+        };
+
+        if start > end {
             return Ok(Vec::new());
         }
-        // Calculate end index, capped at total
-        let end = (start + page_size - 1).min(total);
+
         // Format and print the sequence set
         let sequence_set = format!("{}:{}", start, end);
+        info!(
+            "Fetching mailbox '{}' messages: sequence {} (page {}, page_size {}, desc={})",
+            mailbox_name, sequence_set, page, page_size, desc
+        );
 
         let list = session
             .fetch(sequence_set.as_str(), UID_FLAGS)

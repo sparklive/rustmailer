@@ -8,7 +8,7 @@ use crate::modules::cache::vendor::gmail::sync::execute_gmail_sync;
 use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::scheduler::periodic::TaskHandle;
 use crate::modules::{
-    account::{dispatcher::STATUS_DISPATCHER, v2::AccountV2},
+    account::{dispatcher::STATUS_DISPATCHER, migration::AccountModel},
     error::RustMailerResult,
     scheduler::periodic::PeriodicTask,
 };
@@ -41,7 +41,7 @@ impl AccountSyncTask {
         let task = move |param: Option<u64>| {
             let account_id = param.unwrap();
             Box::pin(async move {
-                let account = AccountV2::get(account_id).await.ok();
+                let account = AccountModel::get(account_id).await.ok();
                 match account {
                     Some(account) => {
                         if !account.enabled {

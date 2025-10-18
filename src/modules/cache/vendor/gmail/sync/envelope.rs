@@ -9,7 +9,7 @@ use crate::{
             imap::{
                 address::AddressEntity,
                 thread::{EmailThread, EmailThreadKey},
-                v2::EmailEnvelopeV3,
+                migration::EmailEnvelopeV3,
             },
             model::Envelope,
         },

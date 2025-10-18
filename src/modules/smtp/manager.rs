@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::account::entity::{AuthType, Encryption};
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerResult;
 use crate::modules::oauth2::token::OAuth2AccessToken;
@@ -104,7 +104,7 @@ impl SmtpClientManager {
     }
 
     async fn build_client(account_id: u64) -> RustMailerResult<RustMailSmtpClient> {
-        let account = AccountV2::get(account_id).await?;
+        let account = AccountModel::get(account_id).await?;
 
         let smtp = account
             .smtp

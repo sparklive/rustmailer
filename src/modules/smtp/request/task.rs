@@ -32,7 +32,7 @@ use crate::modules::smtp::{
     request::{EmailHandler, MailEnvelope, SendControl, Strategy},
 };
 
-use crate::modules::{account::v2::AccountV2, context::executors::RUST_MAIL_CONTEXT};
+use crate::modules::{account::migration::AccountModel, context::executors::RUST_MAIL_CONTEXT};
 
 use mail_send::smtp::message::{Address, Message, Parameters};
 use serde::{Deserialize, Serialize};
@@ -235,7 +235,7 @@ impl Task for SmtpTask {
 
     fn run(self, _task_id: u64) -> TaskFuture {
         Box::pin(async move {
-            let account = AccountV2::get(self.account_id).await?;
+            let account = AccountModel::get(self.account_id).await?;
             let start = Instant::now();
             let body = self.load_email_body().await?;
 
@@ -281,7 +281,7 @@ impl Task for SmtpTask {
                     } else {
                         let capabilities = executor.capabilities(&account.smtp.as_ref().expect("BUG: account.smtp is None, but it should always be present at this point").host).await?;
                         let dsn_capable = capabilities & EXT_DSN != 0;
-                        AccountV2::update_dsn_capable(account.id, dsn_capable).await?;
+                        AccountModel::update_dsn_capable(account.id, dsn_capable).await?;
                         dsn_capable
                     };
 

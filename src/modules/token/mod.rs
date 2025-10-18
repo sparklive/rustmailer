@@ -2,7 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::database::delete_impl;
 use crate::modules::database::manager::DB_MANAGER;
 use crate::modules::database::{insert_impl, list_all_impl, update_impl};
@@ -201,7 +201,7 @@ impl AccessToken {
         let account_infos = if let Some(accounts) = &request.accounts {
             let mut account_infos = BTreeSet::new();
             for account_id in accounts {
-                let account = AccountV2::get(*account_id).await?;
+                let account = AccountModel::get(*account_id).await?;
                 account_infos.insert(AccountInfo {
                     id: *account_id,
                     email: account.email,
@@ -268,7 +268,7 @@ impl AccessToken {
 
         let mut account_infos = BTreeSet::new();
         for &account_id in &accounts {
-            let account = AccountV2::get(account_id).await?;
+            let account = AccountModel::get(account_id).await?;
             account_infos.insert(AccountInfo {
                 id: account_id,
                 email: account.email,

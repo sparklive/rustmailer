@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::id;
-use crate::modules::account::v2::AccountV2;
+use crate::modules::account::migration::AccountModel;
 use crate::modules::database::manager::DB_MANAGER;
 use crate::modules::database::{
     delete_impl, filter_by_secondary_key_impl, paginate_query_primary_scan_all_impl,
@@ -129,7 +129,7 @@ impl EventHooks {
 
     pub async fn new(request: EventhookCreateRequest) -> RustMailerResult<Self> {
         let (email, global) = if let Some(account_id) = request.account_id {
-            (Some(AccountV2::get(account_id).await?.email), 0)
+            (Some(AccountModel::get(account_id).await?.email), 0)
         } else {
             (None, 1)
         };
@@ -263,7 +263,7 @@ impl EventHooks {
 
     async fn validate(&self) -> RustMailerResult<()> {
         if let Some(account_id) = self.account_id {
-            if AccountV2::get(account_id).await?.is_none() {
+            if AccountModel::get(account_id).await?.is_none() {
                 return Err(raise_error!(
                     format!("Account with id '{}' not exists", account_id),
                     ErrorCode::InvalidParameter

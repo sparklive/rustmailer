@@ -27,7 +27,7 @@ use crate::{
         },
         common::Addr,
         database::{
-            batch_delete_impl, delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
+            batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
             paginate_secondary_scan_impl, secondary_find_impl, update_impl, with_transaction,
         },
         error::{code::ErrorCode, RustMailerResult},

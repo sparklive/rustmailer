@@ -16,7 +16,7 @@ use ahash::AHashSet;
 use tracing::info;
 
 use crate::modules::{
-    account::{entity::MailerType, status::AccountRunningState, v2::AccountV2},
+    account::{entity::MailerType, status::AccountRunningState, migration::AccountModel},
     cache::{
         imap::{
             address::AddressEntity,
@@ -40,7 +40,7 @@ use crate::modules::{
     utils::mailbox_id,
 };
 
-pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
+pub async fn execute_gmail_sync(account: &AccountModel) -> RustMailerResult<()> {
     assert!(
         matches!(account.mailer_type, MailerType::GmailApi),
         "Bug: Unexpected mailer type, expected GmailApi, found: {:?}",
@@ -132,7 +132,7 @@ pub async fn execute_gmail_sync(account: &AccountV2) -> RustMailerResult<()> {
 }
 
 pub async fn should_rebuild_cache(
-    account: &AccountV2,
+    account: &AccountModel,
     local_labels: &[GmailLabels],
     checkpoint: Option<GmailCheckPoint>,
 ) -> RustMailerResult<bool> {
@@ -189,7 +189,7 @@ pub fn find_missing_labels(
 }
 
 async fn cleanup_deleted_labels(
-    account: &AccountV2,
+    account: &AccountModel,
     deleted_labels: &[GmailLabels],
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
@@ -207,7 +207,7 @@ async fn cleanup_deleted_labels(
     Ok(())
 }
 
-async fn cleanup_single_label(account: &AccountV2, label: &GmailLabels) -> RustMailerResult<()> {
+async fn cleanup_single_label(account: &AccountModel, label: &GmailLabels) -> RustMailerResult<()> {
     let start_time = Instant::now();
     GmailEnvelope::clean_label_envelopes(account.id, label.id).await?;
     AddressEntity::clean_mailbox_envelopes(account.id, label.id).await?;

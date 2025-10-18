@@ -6,7 +6,7 @@ use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
 
 use crate::modules::{
-    account::v2::AccountV2,
+    account::migration::AccountModel,
     context::executors::RUST_MAIL_CONTEXT,
     error::RustMailerResult,
     metrics::{
@@ -51,7 +51,7 @@ impl Overview {
         let pending_hook_tasks = send_queue
             .list_hook_tasks_by_status(TaskStatus::Scheduled)
             .await?;
-        let account_num = AccountV2::count().await?;
+        let account_num = AccountModel::count().await?;
         let mut time_series = MetricsTimeSeries::get().await?;
         time_series.sort_by_timestamp();
 

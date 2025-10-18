@@ -11,7 +11,7 @@ use mail_send::{
 
 use crate::{
     modules::{
-        account::v2::AccountV2,
+        account::migration::AccountModel,
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
         smtp::{
@@ -35,7 +35,7 @@ pub async fn send_template_test_email(
     } = reqwest;
 
     let template = EmailTemplate::get(template_id).await?;
-    let account = AccountV2::get(account_id).await?;
+    let account = AccountModel::get(account_id).await?;
 
     let (subject, text, html) = Templates::render(&template, &template_params)?;
 
