@@ -2,7 +2,5 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-
-#[cfg(test)]
-mod tests;
 pub mod gmail;
+pub mod outlook;

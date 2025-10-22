@@ -4,6 +4,7 @@
 
 use std::{fs, io, time::Instant};
 
+use ahash::AHashSet;
 use native_db::Builder;
 use tempfile::NamedTempFile;
 

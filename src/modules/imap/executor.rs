@@ -10,7 +10,7 @@ use async_imap::types::{Fetch, Mailbox, Name};
 use bb8::Pool;
 use futures::TryStreamExt;
 use std::collections::HashSet;
-use tracing::info;
+use tracing::{debug, info};
 
 /// The IMAP query to fetch email metadata including headers and body structure.
 const RICH_METADATA_QUERY: &str = "(UID BODYSTRUCTURE RFC822.SIZE INTERNALDATE FLAGS BODY.PEEK[HEADER.FIELDS (BCC CC Date From In-Reply-To Sender Return-Path Message-ID Subject MIME-Version References Reply-To To Received)])";
@@ -293,6 +293,7 @@ impl ImapExecutor {
         uid_set: &str,
         mailbox_name: &str,
     ) -> RustMailerResult<Vec<Fetch>> {
+        debug!("Fetching UID batch: '{}'", uid_set);
         let mut session = self.pool.get().await?;
         session
             .examine(mailbox_name)

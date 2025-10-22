@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use std::{borrow::Cow, time::Duration};
 
 use crate::{
-    base64_encode, base64_encode_url_safe,
+    base64_encode,
     modules::{
         cache::{
             imap::migration::EmailEnvelopeV3,

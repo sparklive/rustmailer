@@ -692,6 +692,7 @@ async fn diff_uids_and_flags(
         Some(date_since) => {
             let date = date_since.since_date()?;
             let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
+            //3627
             let uid_list = executor
                 .uid_search(
                     remote_mailbox_encoded_name,
@@ -719,11 +720,18 @@ async fn diff_uids_and_flags(
                     generate_uid_sequence_hashset(nums, UID_FLAGS_BATCH_SIZE as usize, false);
                 debug!("Split into {} UID batches", uid_batches.len());
                 for (i, batch) in uid_batches.iter().enumerate() {
-                    debug!("Fetching batch {}/{}", i + 1, uid_batches.len());
+                    debug!(
+                        "Fetching batch {}/{} -> UID sequence: {}",
+                        i + 1,
+                        uid_batches.len(),
+                        batch
+                    );
                     let fetches = executor
                         .uid_fetch_uid_and_flags(&batch, remote_mailbox_encoded_name)
                         .await?;
+                    debug!("Fetched {} messages in batch {}", fetches.len(), i + 1);
                     let uid_flags_batch = parse_fetch_metadata(fetches, false)?;
+                    debug!("Parsed {} UID-flag pairs", uid_flags_batch.len());
                     let (update_flags, add, uids) = diff(local_uid_flags_index, uid_flags_batch);
                     uids_with_updated_flags.extend(update_flags);
                     new_uids_to_add.extend(add);
