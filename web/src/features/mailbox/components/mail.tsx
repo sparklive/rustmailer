@@ -539,27 +539,29 @@ export function Mail({
                             </div>
                             <Separator />
                             <div className="mt-2">
-                                <MailList
-                                    isLoading={isMessagesLoading}
-                                    items={(envelopes?.items ?? []).sort((a, b) => {
-                                        const dateA = a.internal_date;
-                                        const dateB = b.internal_date;
+                                <ScrollArea className='h-[40rem] w-full pr-4 -mr-4 py-1'>
+                                    <MailList
+                                        isLoading={isMessagesLoading}
+                                        items={(envelopes?.items ?? []).sort((a, b) => {
+                                            const dateA = a.internal_date;
+                                            const dateB = b.internal_date;
 
-                                        if (dateA === undefined && dateB === undefined) return 0;
-                                        if (dateA === undefined) return -1;
-                                        if (dateB === undefined) return 1;
-                                        return dateB - dateA;
-                                    })}
-                                    setOpen={setOpen}
-                                    setDeleteIds={setDeleteIds}
-                                    currentEnvelope={selectedEvelope}
-                                    setSelectedIds={setSelectedIds}
-                                    selectedIds={selectedIds}
-                                    onEnvelopeChanged={(envelope) => {
-                                        setOpen('display');
-                                        setSelectedEvelope(envelope);
-                                    }}
-                                />
+                                            if (dateA === undefined && dateB === undefined) return 0;
+                                            if (dateA === undefined) return -1;
+                                            if (dateB === undefined) return 1;
+                                            return dateB - dateA;
+                                        })}
+                                        setOpen={setOpen}
+                                        setDeleteIds={setDeleteIds}
+                                        currentEnvelope={selectedEvelope}
+                                        setSelectedIds={setSelectedIds}
+                                        selectedIds={selectedIds}
+                                        onEnvelopeChanged={(envelope) => {
+                                            setOpen('display');
+                                            setSelectedEvelope(envelope);
+                                        }}
+                                    />
+                                </ScrollArea>
                                 {selectedMailbox && <div className="flex justify-center mt-4">
                                     <EnvelopeListPagination
                                         totalItems={envelopes?.total_items ?? 0}

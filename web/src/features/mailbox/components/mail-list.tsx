@@ -69,6 +69,7 @@ export function MailList({
     }
 
     return (
+
         <div className="grid grid-cols-1 gap-1.5 p-1 sm:p-2">
             {items.map((item) => {
                 const isUnread = item.labels && item.labels.length > 0
