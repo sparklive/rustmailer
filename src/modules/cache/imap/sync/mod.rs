@@ -12,7 +12,7 @@ use crate::modules::{
         task::EventHookTask,
     },
 };
-use flow::compare_and_sync_mailbox;
+use flow::reconcile_mailboxes;
 use rebuild::{rebuild_cache, rebuild_cache_since_date, should_rebuild_cache};
 use std::{
     sync::atomic::{AtomicUsize, Ordering},
@@ -88,7 +88,7 @@ pub async fn execute_imap_sync(account: &AccountModel) -> RustMailerResult<()> {
         return Ok(());
     }
     let sync_count = SYNC_COUNTER.fetch_add(1, Ordering::SeqCst);
-    compare_and_sync_mailbox(
+    reconcile_mailboxes(
         account,
         &remote_mailboxes,
         &local_mailboxes,

@@ -110,7 +110,7 @@ impl EventHookApi {
         }
 
         let entity = EventHooks::new(payload).await?;
-        entity.save().await?;
+        entity.clone().save().await?;
         Ok(Json(entity))
     }
 

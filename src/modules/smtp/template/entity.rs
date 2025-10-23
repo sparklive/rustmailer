@@ -119,7 +119,7 @@ impl EmailTemplate {
         .map(DataPage::from)
     }
 
-    pub async fn save(&self) -> RustMailerResult<()> {
+    pub async fn save(self) -> RustMailerResult<()> {
         self.validate_templates()?;
         if let Some(account) = &self.account {
             Self::check_account_id(account.id).await?;
@@ -131,7 +131,7 @@ impl EmailTemplate {
                 ErrorCode::AlreadyExists
             ));
         }
-        insert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+        insert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub async fn remove_account_templates(account_id: u64) -> RustMailerResult<()> {

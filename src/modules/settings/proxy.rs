@@ -99,9 +99,9 @@ impl Proxy {
         Ok(())
     }
 
-    pub async fn save(&self) -> RustMailerResult<()> {
+    pub async fn save(self) -> RustMailerResult<()> {
         self.validate()?;
-        insert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+        insert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     /// Validate that the URL is a valid SOCKS5 proxy URL.

@@ -294,8 +294,8 @@ impl AccountV3 {
     }
 
     /// Saves the current `AccountEntity` by persisting it to storage.
-    pub async fn save(&self) -> RustMailerResult<()> {
-        insert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+    pub async fn save(self) -> RustMailerResult<()> {
+        insert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub async fn create_account(request: AccountCreateRequest) -> RustMailerResult<AccountModel> {
@@ -312,7 +312,7 @@ impl AccountV3 {
             }
         }
         let entity = request.create_entity()?;
-        entity.save().await?;
+        entity.clone().save().await?;
         SYNC_CONTROLLER
             .trigger_start(entity.id, entity.email.clone())
             .await;

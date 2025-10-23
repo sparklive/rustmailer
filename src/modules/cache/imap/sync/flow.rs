@@ -327,7 +327,7 @@ pub fn compress_uid_list(nums: Vec<u32>) -> String {
     result.join(",")
 }
 
-pub async fn compare_and_sync_mailbox(
+pub async fn reconcile_mailboxes(
     account: &AccountModel,
     remote_mailboxes: &[MailBox],
     local_mailboxes: &[MailBox],

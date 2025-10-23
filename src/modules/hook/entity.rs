@@ -166,9 +166,9 @@ impl EventHooks {
     }
 
     /// Save the current Webhook entity to the database
-    pub async fn save(&self) -> RustMailerResult<()> {
+    pub async fn save(self) -> RustMailerResult<()> {
         self.validate().await?;
-        insert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+        insert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     /// Get a specific Webhook entity by its ID

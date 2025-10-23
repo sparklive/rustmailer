@@ -118,7 +118,7 @@ impl EventHooksService for RustMailerEventHooksService {
                 raise_error!(e.to_string(), ErrorCode::InvalidParameter)
             })?)
             .await?;
-        entity.save().await?;
+        entity.clone().save().await?;
         Ok(Response::new(entity.into()))
     }
 

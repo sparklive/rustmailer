@@ -59,7 +59,7 @@ impl AccountService for RustMailerAccountService {
         let request = RustMailerAccountCreateRequest::try_from(req)
             .map_err(|e| raise_error!(e.to_string(), ErrorCode::InvalidParameter))?;
         let entity = request.create_entity()?;
-        entity.save().await?;
+        entity.clone().save().await?;
 
         if let Some(access_token) = &context.access_token {
             let account_info = AccountInfo {

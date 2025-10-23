@@ -3,7 +3,7 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::database::manager::DB_MANAGER;
-use crate::modules::database::{delete_impl, async_find_impl, upsert_impl};
+use crate::modules::database::{async_find_impl, delete_impl, upsert_impl};
 use crate::modules::error::code::ErrorCode;
 use crate::raise_error;
 use crate::{
@@ -41,8 +41,8 @@ impl CachedMailSettings {
         .await
     }
 
-    async fn save(&self) -> RustMailerResult<()> {
-        upsert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+    async fn save(self) -> RustMailerResult<()> {
+        upsert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub async fn get(domain: &str) -> RustMailerResult<Option<CachedMailSettings>> {

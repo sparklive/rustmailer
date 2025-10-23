@@ -82,8 +82,8 @@ impl OAuth2 {
         })
     }
 
-    pub async fn save(&self) -> RustMailerResult<()> {
-        insert_impl(DB_MANAGER.meta_db(), self.to_owned()).await?;
+    pub async fn save(self) -> RustMailerResult<()> {
+        insert_impl(DB_MANAGER.meta_db(), self).await?;
         Ok(())
     }
 

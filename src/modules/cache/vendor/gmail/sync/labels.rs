@@ -180,8 +180,8 @@ impl GmailCheckPoint {
         }
     }
     // Upsert is used here to overwrite the existing record
-    pub async fn save(&self) -> RustMailerResult<()> {
-        upsert_impl(DB_MANAGER.envelope_db(), self.to_owned()).await
+    pub async fn save(self) -> RustMailerResult<()> {
+        upsert_impl(DB_MANAGER.envelope_db(), self).await
     }
 
     pub async fn clean(account_id: u64) -> RustMailerResult<()> {

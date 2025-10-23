@@ -181,7 +181,7 @@ async fn test5() {
         .send()
         .await.unwrap();
 }
-//重命名邮件夹 
+
 #[tokio::test]
 async fn test6() {
     let access_token = access_token().await;

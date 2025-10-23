@@ -56,8 +56,8 @@ impl CacheItem {
         }
     }
 
-    pub async fn save(&self) -> RustMailerResult<()> {
-        upsert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+    pub async fn save(self) -> RustMailerResult<()> {
+        upsert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub async fn check_exist(key: &str) -> RustMailerResult<bool> {

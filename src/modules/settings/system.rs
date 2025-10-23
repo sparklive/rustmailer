@@ -31,8 +31,8 @@ impl SystemSetting {
         }
     }
     //overwrite
-    pub async fn set(&self) -> RustMailerResult<()> {
-        upsert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+    pub async fn set(self) -> RustMailerResult<()> {
+        upsert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub fn get(key: &str) -> RustMailerResult<Option<SystemSetting>> {

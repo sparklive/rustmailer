@@ -107,8 +107,8 @@ impl OAuth2AccessToken {
     }
 
     // This function may be called multiple times for one account, so we use upsert.
-    pub async fn save_or_update(&self) -> RustMailerResult<()> {
-        upsert_impl(DB_MANAGER.meta_db(), self.clone()).await
+    pub async fn save_or_update(self) -> RustMailerResult<()> {
+        upsert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub async fn get(account_id: u64) -> RustMailerResult<Option<OAuth2AccessToken>> {

@@ -150,8 +150,8 @@ impl License {
         async_find_impl(DB_MANAGER.meta_db(), LICENSE_KEY).await
     }
 
-    pub async fn save(&self) -> RustMailerResult<()> {
-        upsert_impl(DB_MANAGER.meta_db(), self.to_owned()).await
+    pub async fn save(self) -> RustMailerResult<()> {
+        upsert_impl(DB_MANAGER.meta_db(), self).await
     }
 
     pub async fn check_license(license_str: &str) -> RustMailerResult<License> {
