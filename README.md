@@ -135,9 +135,9 @@ RUSTMAILER_GRPC_ENABLED=true
 # gRPC server listening port
 RUSTMAILER_GRPC_PORT=16630
 # IP address to bind the server to (0.0.0.0 means all interfaces)
-RUSTMAILER_BIND_IP="0.0.0.0"
+RUSTMAILER_BIND_IP=0.0.0.0
 # Public URL of the RustMailer service (used in links and callbacks)
-RUSTMAILER_PUBLIC_URL="http://localhost:15630"
+RUSTMAILER_PUBLIC_URL=http://localhost:15630
 # Enable logging output to a file
 RUSTMAILER_LOG_TO_FILE=true
 # Enable access token authentication for API requests
