@@ -5,7 +5,8 @@ pub struct MailFoldersResponse {
     /// The OData context URL
     #[serde(rename = "@odata.context")]
     pub odata_context: String,
-
+    #[serde(rename = "@odata.nextLink")]
+    pub next_link: Option<String>,
     /// The list of mail folders
     #[serde(rename = "value")]
     pub value: Vec<MailFolder>,
@@ -50,4 +51,80 @@ pub struct MailFolder {
     #[serde(rename = "childFolderCount")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child_folder_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MessageListResponse {
+    #[serde(rename = "@odata.context")]
+    pub context: Option<String>,
+
+    #[serde(rename = "@odata.nextLink")]
+    pub next_link: Option<String>,
+
+    pub value: Vec<Message>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Message {
+    #[serde(rename = "@odata.etag")]
+    pub etag: Option<String>,
+    pub id: String,
+    #[serde(rename = "internetMessageId")]
+    pub internet_message_id: Option<String>,
+    #[serde(rename = "conversationId")]
+    pub conversation_id: Option<String>,
+    pub subject: Option<String>,
+    #[serde(rename = "isRead")]
+    pub is_read: Option<bool>,
+    #[serde(rename = "receivedDateTime")]
+    pub received_date_time: Option<String>,
+    #[serde(rename = "sentDateTime")]
+    pub sent_date_time: Option<String>,
+    pub body: Option<ItemBody>,
+    #[serde(rename = "bodyPreview")]
+    pub body_preview: Option<String>,
+    pub categories: Option<Vec<String>>,
+    pub from: Option<Recipient>,
+    pub sender: Option<Recipient>,
+    #[serde(rename = "replyTo")]
+    pub reply_to: Option<Vec<Recipient>>,
+    #[serde(rename = "toRecipients")]
+    pub to_recipients: Option<Vec<Recipient>>,
+    #[serde(rename = "ccRecipients")]
+    pub cc_recipients: Option<Vec<Recipient>>,
+    #[serde(rename = "bccRecipients")]
+    pub bcc_recipients: Option<Vec<Recipient>>,
+    pub attachments: Option<Vec<Attachment>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ItemBody {
+    #[serde(rename = "contentType")]
+    pub content_type: Option<String>,
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Recipient {
+    #[serde(rename = "emailAddress")]
+    pub email_address: EmailAddress,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EmailAddress {
+    pub name: Option<String>,
+    pub address: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Attachment {
+    pub id: Option<String>,
+    pub name: Option<String>,
+    #[serde(rename = "contentType")]
+    pub content_type: Option<String>,
+    pub size: Option<i64>,
+    #[serde(rename = "isInline")]
+    pub is_inline: Option<bool>,
+    #[serde(rename = "microsoft.graph.fileAttachment/contentId")]
+    pub content_id: Option<String>,
 }

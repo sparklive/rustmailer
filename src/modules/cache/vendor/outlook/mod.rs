@@ -3,5 +3,6 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 pub mod model;
+pub mod sync;
 #[cfg(test)]
 mod tests;

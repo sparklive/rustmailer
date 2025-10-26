@@ -6,7 +6,7 @@ use crate::{
     modules::error::{code::ErrorCode, RustMailerResult},
     raise_error,
 };
-use chrono::{Datelike, Days, Local, Months, NaiveDate, Utc};
+use chrono::{Datelike, Days, Local, Months, NaiveDate, TimeZone, Utc};
 use poem_openapi::{Enum, Object};
 use serde::{Deserialize, Serialize};
 
@@ -147,6 +147,12 @@ impl RelativeDate {
         let date = self.compute_date()?;
         Ok(date.format("%Y/%m/%d").to_string())
     }
+
+    pub fn calculate_outlook_date(&self) -> RustMailerResult<String> {
+        let date = self.compute_date()?;
+        let dt_utc = date.with_timezone(&Utc);
+        Ok(dt_utc.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+    }
 }
 
 impl DateSince {
@@ -240,6 +246,26 @@ impl DateSince {
         Ok(date.format("%Y/%m/%d").to_string())
     }
 
+    pub fn format_for_outlook(&self, fixed: &str) -> RustMailerResult<String> {
+        let date = NaiveDate::parse_from_str(fixed, "%Y-%m-%d").map_err(|_| {
+            raise_error!(
+                format!(
+                "Invalid date format. Expected 'YYYY-MM-DD'. Example: '2024-11-19'. Provided: '{}'",
+                fixed
+            ),
+                ErrorCode::InvalidParameter
+            )
+        })?;
+        let naive_dt = date.and_hms_opt(0, 0, 0).ok_or_else(|| {
+            raise_error!(
+                format!("Invalid time components for date '{}'", fixed),
+                ErrorCode::InvalidParameter
+            )
+        })?;
+        let dt_utc = Utc.from_utc_datetime(&naive_dt);
+        Ok(dt_utc.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+    }
+
     pub fn since_date(&self) -> RustMailerResult<String> {
         // Handle the case where only one of `fixed` or `relative` is provided
         if let Some(r) = &self.relative {
@@ -262,6 +288,19 @@ impl DateSince {
             r.calculate_gmail_date()
         } else if let Some(f) = &self.fixed {
             self.format_for_gmail(f)
+        } else {
+            Err(raise_error!(
+                "You must provide either a 'fixed' or 'relative' date.".to_string(),
+                ErrorCode::InvalidParameter
+            ))
+        }
+    }
+
+    pub fn since_outlook_date(&self) -> RustMailerResult<String> {
+        if let Some(r) = &self.relative {
+            r.calculate_outlook_date()
+        } else if let Some(f) = &self.fixed {
+            self.format_for_outlook(f)
         } else {
             Err(raise_error!(
                 "You must provide either a 'fixed' or 'relative' date.".to_string(),
@@ -297,5 +336,30 @@ mod test {
         e.validate().unwrap();
 
         println!("{}", e.since_date().unwrap());
+    }
+
+
+    #[test]
+    fn test2() {
+        let e = DateSince {
+            fixed: Some("2014-09-12".to_string()),
+            relative: None,
+        };
+
+        e.validate().unwrap();
+
+        println!("{}", e.since_outlook_date().unwrap());
+
+        let e = DateSince {
+            fixed: None,
+            relative: Some(RelativeDate {
+                unit: Unit::Days,
+                value: 1,
+            }),
+        };
+
+        e.validate().unwrap();
+
+        println!("{}", e.since_outlook_date().unwrap());
     }
 }

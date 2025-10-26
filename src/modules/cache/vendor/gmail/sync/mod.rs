@@ -16,20 +16,15 @@ use ahash::AHashSet;
 use tracing::info;
 
 use crate::modules::{
-    account::{entity::MailerType, status::AccountRunningState, migration::AccountModel},
+    account::{entity::MailerType, migration::AccountModel, status::AccountRunningState},
     cache::{
-        imap::{
-            address::AddressEntity,
-            sync::sync_type::{determine_sync_type, SyncType},
-            thread::EmailThread,
-        },
-        vendor::gmail::sync::{
+        imap::{address::AddressEntity, thread::EmailThread}, sync_type::{determine_sync_type, SyncType}, vendor::gmail::sync::{
             envelope::GmailEnvelope,
             history::handle_history,
             labels::{GmailCheckPoint, GmailLabels},
             rebuild::{rebuild_cache, rebuild_cache_since_date, rebuild_single_label_cache},
             sync_labels::get_sync_labels,
-        },
+        }
     },
     error::RustMailerResult,
     hook::{

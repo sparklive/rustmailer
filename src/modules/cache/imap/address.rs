@@ -13,7 +13,12 @@ use tracing::info;
 use crate::{
     id,
     modules::{
-        cache::{imap::migration::EmailEnvelopeV3, vendor::gmail::sync::envelope::GmailEnvelope},
+        cache::{
+            imap::migration::EmailEnvelopeV3,
+            vendor::{
+                gmail::sync::envelope::GmailEnvelope, outlook::sync::envelope::OutlookEnvelope,
+            },
+        },
         database::{batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER},
         error::{code::ErrorCode, RustMailerResult},
         utils::envelope_hash,
@@ -274,6 +279,82 @@ impl AddressEntity {
         let internal_date = Some(envelope.internal_date.clone());
         let account_id = envelope.account_id;
         let mailbox_id = envelope.label_id;
+        let mut entities = Vec::new();
+
+        match (&envelope.to, &envelope.cc) {
+            (None, None) => {
+                entities.push(AddressEntity {
+                    account_id,
+                    mailbox_id,
+                    id: id!(96),
+                    from: from,
+                    to: None,
+                    cc: None,
+                    envelope_hash,
+                    date,
+                    internal_date,
+                });
+            }
+            (None, Some(cc)) => {
+                entities.extend(cc.iter().map(|c| {
+                    let from = from.clone();
+                    AddressEntity {
+                        account_id,
+                        mailbox_id,
+                        id: id!(96),
+                        from,
+                        to: None,
+                        cc: c.address.clone(),
+                        envelope_hash,
+                        date: date.clone(),
+                        internal_date: internal_date.clone(),
+                    }
+                }));
+            }
+            (Some(to), None) => {
+                entities.extend(to.iter().map(|t| {
+                    let from = from.clone();
+                    AddressEntity {
+                        account_id,
+                        mailbox_id,
+                        id: id!(96),
+                        from,
+                        to: t.address.clone(),
+                        cc: None,
+                        envelope_hash,
+                        date: date.clone(),
+                        internal_date: internal_date.clone(),
+                    }
+                }));
+            }
+            (Some(to), Some(cc)) => {
+                entities.extend(to.iter().flat_map(|t| {
+                    let from = from.clone();
+                    cc.iter().map(move |c| AddressEntity {
+                        account_id,
+                        mailbox_id,
+                        id: id!(96),
+                        from: from.clone(),
+                        to: t.address.clone(),
+                        cc: c.address.clone(),
+                        envelope_hash,
+                        date: date.clone(),
+                        internal_date: internal_date.clone(),
+                    })
+                }));
+            }
+        }
+
+        entities
+    }
+
+    pub fn extract3(envelope: &OutlookEnvelope) -> Vec<AddressEntity> {
+        let from = envelope.from.as_ref().map(|f| f.address.clone()).flatten();
+        let envelope_hash = envelope.create_envelope_id();
+        let date = envelope.date.clone();
+        let internal_date = Some(envelope.internal_date.clone());
+        let account_id = envelope.account_id;
+        let mailbox_id = envelope.folder_id;
         let mut entities = Vec::new();
 
         match (&envelope.to, &envelope.cc) {

@@ -3,8 +3,8 @@
 // Unauthorized copying, modification, or distribution is prohibited.
 
 use crate::modules::{
-    account::{entity::MailerType, status::AccountRunningState, migration::AccountModel},
-    cache::imap::{mailbox::MailBox, manager::EnvelopeFlagsManager},
+    account::{entity::MailerType, migration::AccountModel, status::AccountRunningState},
+    cache::{imap::{mailbox::MailBox, manager::EnvelopeFlagsManager}, sync_type::{determine_sync_type, SyncType}},
     error::RustMailerResult,
     hook::{
         channel::{Event, EVENT_CHANNEL},
@@ -19,13 +19,11 @@ use std::{
     time::Instant,
 };
 use sync_folders::get_sync_folders;
-use sync_type::{determine_sync_type, SyncType};
 use tracing::{debug, info};
 
 pub mod flow;
 pub mod rebuild;
 pub mod sync_folders;
-pub mod sync_type;
 
 static SYNC_COUNTER: AtomicUsize = AtomicUsize::new(0);
 

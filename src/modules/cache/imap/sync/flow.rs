@@ -14,12 +14,8 @@ use crate::{
                 manager::EnvelopeFlagsManager,
                 migration::EmailEnvelopeV3,
                 minimal::MinimalEnvelope,
-                sync::{
-                    rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
-                    sync_type::SyncType,
-                },
-            },
-            SEMAPHORE,
+                sync::rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
+            }, sync_type::SyncType, SEMAPHORE
         },
         common::AddrVec,
         context::executors::RUST_MAIL_CONTEXT,

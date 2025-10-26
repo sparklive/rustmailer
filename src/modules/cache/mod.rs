@@ -11,6 +11,7 @@ use crate::modules::settings::cli::SETTINGS;
 pub mod disk;
 pub mod imap;
 pub mod model;
+pub mod sync_type;
 pub mod vendor;
 
 pub static SEMAPHORE: LazyLock<Arc<Semaphore>> = LazyLock::new(|| {
