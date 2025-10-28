@@ -210,7 +210,8 @@ pub enum MailerType {
     /// Use IMAP/SMTP protocol
     #[default]
     ImapSmtp,
-
     /// Use Gmail API
     GmailApi,
+    /// Use Graph API
+    GraphApi,
 }

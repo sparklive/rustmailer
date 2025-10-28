@@ -9,7 +9,9 @@ use std::{future::Future, pin::Pin, time::Duration};
 
 use crate::{
     modules::{
-        cache::vendor::outlook::model::{MailFolder, MailFoldersResponse, MessageListResponse},
+        cache::vendor::outlook::model::{
+            MailFolder, MailFoldersResponse, Message, MessageListResponse,
+        },
         common::rustls::RustMailerTls,
         context::Initialize,
         error::{code::ErrorCode, RustMailerResult},
@@ -239,14 +241,7 @@ async fn test9() {
 #[tokio::test]
 async fn fetch_delta() {
     let access_token = access_token().await;
-    let mut url =
-        "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?\
-            $select=id,isRead,conversationId,internetMessageId,from,body,toRecipients,ccRecipients,\
-            bccRecipients,replyTo,sender,subject,receivedDateTime,sentDateTime,isRead,bodyPreview,categories&\
-            $expand=attachments($select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId)&\
-            $orderBy=receivedDateTime desc
-        "
-            .to_string();
+    let mut url = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$select=id&$orderBy=receivedDateTime desc".to_string();
     let client = reqwest::Client::builder()
         .user_agent(rustmailer_version!())
         .timeout(Duration::from_secs(10))
@@ -299,7 +294,7 @@ async fn fetch_delta() {
 async fn fetch_delta2() {
     let access_token = access_token().await;
     let mut url =
-        "https://graph.microsoft.com/v1.0/me/mailFolders('inbox')/messages/delta?$deltatoken=EYiPJwhbWv_RaMa6Pmw5E6U1QisCj5AIWyPQxgvPgSDyuXXU857vfYaf26QiigAqyySdRPjjG994PaAGYFUP21FRTx72KYI0d_u9hmqzjaLodClcNv6iZoz_JWKmce_Lh_14n7M6GlNlrwJLfZk8iKYMu_92_U_tJ0nd-mU1gJkW7-4w6ntpwPdUhYJgrK56-hxHDhKX8Jp7hX1Lzx04UoXkZVp6pTZF4gcWmk9Xhe7aksxG78IAMRuuM8hQiuDX6iZsexO2Mr2uyZ5MdbqCVu0v_4dEfUBcP7n4W05KmmxYzYtloJ23DwLVxOf6COpnESHUuVDrvkIpAvoGWP53vM5vKY4anIjRR8NE0xTEnBJ7xK8cd3G-Iqh5W4ERY-BoXCMwR45HFc7pROR8Uy9eOkybW8gCn4ZjNboykOwv5SWcqBNnpoZWNthOKjfrHs-0JwCKJJhAOauOym_0Eyxx2V-C_9-pt9IYLwZ3EorNBi4ehtpMQecYi0mv0NbELpX36mfTwAQsCEU8lARAX_rU9XqWD2Spfuf9tWb5Dmc1hFhzZi8p6dGTOokLwlovOPhMm1mS_bF-dkhil9YqIqSlTg.ZGam2nknrDorPIfcCajMuRW0Vj_4l3eouiYvVaB48d8"
+        "https://graph.microsoft.com/v1.0/me/mailFolders('inbox')/messages/delta?$deltatoken=gGpE9bWe1qFWcyG3HvbWkkunspLvA4xxmWqkeJWDye811LoJPSEs2ZjUPG0pKudlwejI_rsTDgNJAu_zA2ex-FgAPO2Di5TtbAbBZHRD2W4wUQqFja-VKSwMWTD2WTQ40_86JhGVgDhA_GpxYC-BBtGflJttseEOr6eCZyMVGlI.i7MKxGEvGLJfbZxhsubwycVsTVIyTbv4AIJH78wjsog"
             .to_string();
     let client = reqwest::Client::builder()
         .user_agent(rustmailer_version!())
@@ -384,6 +379,42 @@ async fn list_messages() {
 
     if res.status().is_success() {
         let body: MessageListResponse = res.json().await.unwrap();
+        println!("{:#?}", body);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn get_message() {
+    let access_token = access_token().await;
+    let mut url =
+        "https://graph.microsoft.com/v1.0/me/messages/AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAYiJVH0AAAA=?\
+               $select=id,isRead,conversationId,internetMessageId,from,body,toRecipients,ccRecipients,\
+               bccRecipients,replyTo,sender,subject,receivedDateTime,sentDateTime,isRead,bodyPreview,categories&\
+               $expand=attachments($select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId)"
+            .to_string();
+    let client = reqwest::Client::builder()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10))
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:22307").unwrap())
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let mut nextlink_count = 0;
+
+    let res = client
+        .get(&url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: Message = res.json().await.unwrap();
         println!("{:#?}", body);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());

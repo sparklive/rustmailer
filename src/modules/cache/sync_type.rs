@@ -4,7 +4,7 @@
 
 use crate::{
     modules::{
-        account::{entity::MailerType, status::AccountRunningState, migration::AccountModel},
+        account::{entity::MailerType, migration::AccountModel, status::AccountRunningState},
         error::RustMailerResult,
     },
     utc_now,
@@ -51,7 +51,7 @@ pub async fn determine_sync_type(account: &AccountModel) -> RustMailerResult<Syn
                         SyncType::SkipSync
                     }
                 }
-                MailerType::GmailApi => {
+                MailerType::GmailApi | MailerType::GraphApi => {
                     if incremental_sync {
                         AccountRunningState::set_incremental_sync_start(account.id).await?;
                         SyncType::IncrementalSync

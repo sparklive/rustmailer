@@ -12,20 +12,31 @@ import { AccountEntity, MailerType } from '../data/schema'
 interface DataTableRowActionsProps {
   row: Row<AccountEntity>
 }
-
 export function OAuth2Action({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useAccountContext()
+  const mailer = row.original
 
-  return (
-    (row.original.mailer_type === MailerType.ImapSmtp &&
-      row.original.imap?.auth.auth_type === 'OAuth2') ||
-    row.original.mailer_type === MailerType.GmailApi
-  ) ? (
-    <Button variant='ghost' onClick={() => {
-      setCurrentRow(row.original)
-      setOpen('oauth2')
-    }}><span className="text-xs text-blue-500 cursor-pointer underline hover:text-blue-700">OAuth2</span></Button>
-  ) : (
-    <span className="text-xs cursor-pointer">Password</span>
-  )
+  const isOAuth2 =
+    (mailer.mailer_type === MailerType.ImapSmtp &&
+      mailer.imap?.auth.auth_type === "OAuth2") ||
+    mailer.mailer_type === MailerType.GmailApi ||
+    mailer.mailer_type === MailerType.GraphApi
+
+  if (isOAuth2) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-xs text-blue-500 hover:text-blue-700 underline"
+        onClick={() => {
+          setCurrentRow(mailer)
+          setOpen("oauth2")
+        }}
+      >
+        OAuth2
+      </Button>
+    )
+  }
+
+  return <span className="text-xs text-muted-foreground">Password</span>
 }

@@ -70,5 +70,6 @@ pub async fn update_mailbox(
             })?;
             GmailClient::update_label(account_id, account.use_proxy, label_id, &payload).await
         }
+        MailerType::GraphApi => todo!(),
     }
 }

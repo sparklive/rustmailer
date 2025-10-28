@@ -73,6 +73,7 @@ impl AttachmentRequest {
                     ));
                 }
             }
+            MailerType::GraphApi => todo!(),
         }
         Ok(())
     }
@@ -171,6 +172,7 @@ pub async fn retrieve_email_attachment(
             let reader = retrieve_gmail_attachment(&account, &request.id, &attachment_info).await?;
             Ok((reader, filename))
         }
+        MailerType::GraphApi => todo!(),
     }
 }
 

@@ -103,7 +103,7 @@ pub async fn execute_gmail_sync(account: &AccountModel) -> RustMailerResult<()> 
 
     if !deleted_labels.is_empty() {
         info!(
-            "Account {}: Detected {} mailboxes missing from the IMAP server (not found in the LSUB response). \
+            "Account {}: Detected {} mailboxes missing from the Gmail server (not found in the Gmail API response). \
             Now cleaning up these mailboxes and their associated metadata locally.",
             account.id, deleted_labels.len()
         );

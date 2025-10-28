@@ -66,6 +66,7 @@ pub async fn move_to_trash(
             move_to_trash_or_delete_messages_directly(account_id, &uids, mailbox).await
         }
         MailerType::GmailApi => gmail_move_to_trash(&account, &request.ids).await,
+        MailerType::GraphApi => todo!(),
     }
 }
 

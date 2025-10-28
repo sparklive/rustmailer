@@ -20,14 +20,6 @@ export function isCustomFlag(flag: EmailFlag): boolean {
   return flag === 'Custom';
 }
 
-export function seen(envelope: EmailEnvelope): boolean {
-  return envelope.flags.some(flag => flag.flag === 'Seen');
-}
-
-export function gmail_unread(envelope: EmailEnvelope): boolean {
-  return envelope.labels.includes("UNREAD");
-}
-
 export function getBadgeVariantFromFlag(flag: EmailFlag): "default" | "secondary" | "destructive" | "outline" | null | undefined {
   switch (flag) {
     case 'Deleted':
@@ -47,8 +39,8 @@ export interface EmailEnvelope {
   id: string;
   internal_date?: number;
   size: number;
-  flags: EnvelopeFlag[];
-  flags_hash: number;
+  flags?: EnvelopeFlag[];
+  flags_hash?: number;
   bcc?: Addr[];
   cc?: Addr[];
   date?: number;
@@ -68,6 +60,7 @@ export interface EmailEnvelope {
   body_meta?: EmailBodyPart[];
   received?: Received;
   labels: string[];
+  is_read: boolean
 }
 
 

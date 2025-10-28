@@ -58,6 +58,7 @@ pub async fn retrieve_raw_email(
             retrieve_imap_raw_email(account_id, mailbox, uid).await
         }
         MailerType::GmailApi => retrieve_gmail_raw_email(&account, id).await,
+        MailerType::GraphApi => todo!(),
     }
 }
 

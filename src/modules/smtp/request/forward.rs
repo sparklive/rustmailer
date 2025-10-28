@@ -180,6 +180,7 @@ impl EmailBuilder for ForwardEmailRequest {
                     EmailHandler::get_gmail_envelope(account, &self.mailbox_name, &self.id).await?;
                 (envelope, None)
             }
+            MailerType::GraphApi => todo!(),
         };
         let from = Address::new_address(
             account.name.as_ref().map(|n| Cow::Owned(n.to_string())),

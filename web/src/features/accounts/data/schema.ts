@@ -68,4 +68,6 @@ export enum MailerType {
   ImapSmtp = "ImapSmtp",
   /** Use Gmail API */
   GmailApi = "GmailApi",
+  /** Use Graph API */
+  GraphApi = "GraphApi",
 }

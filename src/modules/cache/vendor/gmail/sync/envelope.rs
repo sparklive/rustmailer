@@ -8,8 +8,8 @@ use crate::{
         cache::{
             imap::{
                 address::AddressEntity,
-                thread::{EmailThread, EmailThreadKey},
                 migration::EmailEnvelopeV3,
+                thread::{EmailThread, EmailThreadKey},
             },
             model::Envelope,
         },
@@ -398,6 +398,8 @@ impl GmailEnvelope {
     }
 
     pub fn into_envelope(self, label_map: &AHashMap<String, String>) -> Envelope {
+        let is_read = self.label_ids.iter().any(|f| f == "UNREAD");
+
         let labels: Vec<String> = self
             .label_ids
             .into_iter()
@@ -431,6 +433,7 @@ impl GmailEnvelope {
             attachments: None,
             body_meta: None,
             received: None,
+            is_read,
             labels,
         }
     }

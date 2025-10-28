@@ -10,6 +10,8 @@ use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, MailBox};
 use crate::modules::cache::vendor::gmail::model::labels::{Label, LabelDetail};
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::labels::GmailLabels;
+use crate::modules::cache::vendor::outlook::sync::client::OutlookClient;
+use crate::modules::cache::vendor::outlook::sync::folders::OutlookFolder;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::{RustMailerError, RustMailerResult};
@@ -27,11 +29,25 @@ pub async fn get_account_mailboxes(
     match (&account.mailer_type, remote) {
         (MailerType::ImapSmtp, true) => request_imap_all_mailbox_list(account_id).await,
         (MailerType::ImapSmtp, false) => MailBox::list_all(account_id).await,
-
         (MailerType::GmailApi, true) => request_gmail_label_list(&account).await,
         (MailerType::GmailApi, false) => {
             let labels = GmailLabels::list_all(account_id).await?;
             Ok(labels.into_iter().map(Into::into).collect())
+        }
+        (MailerType::GraphApi, true) => {
+            let folders = OutlookClient::list_mailfolders(account_id, account.use_proxy).await?;
+            let mailboxes = folders
+                .into_iter()
+                .map(|f| {
+                    let folder: OutlookFolder = f.try_into()?;
+                    Ok(MailBox::from(folder))
+                })
+                .collect::<RustMailerResult<Vec<MailBox>>>()?;
+            Ok(mailboxes)
+        }
+        (MailerType::GraphApi, false) => {
+            let folders = OutlookFolder::list_all(account_id).await?;
+            Ok(folders.into_iter().map(Into::into).collect())
         }
     }
 }

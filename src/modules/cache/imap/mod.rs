@@ -11,13 +11,18 @@ use crate::{
             imap::{
                 address::AddressEntity,
                 envelope::EmailEnvelope,
+                migration::{EmailEnvelopeV2, EmailEnvelopeV3},
                 minimal::MinimalEnvelope,
                 thread::EmailThread,
-                migration::{EmailEnvelopeV2, EmailEnvelopeV3},
             },
-            vendor::gmail::sync::{
-                envelope::GmailEnvelope,
-                labels::{GmailCheckPoint, GmailLabels},
+            vendor::{
+                gmail::sync::{
+                    envelope::GmailEnvelope,
+                    labels::{GmailCheckPoint, GmailLabels},
+                },
+                outlook::sync::{
+                    delta::FolderDeltaLink, envelope::OutlookEnvelope, folders::OutlookFolder,
+                },
             },
         },
         database::ModelsAdapter,
@@ -30,13 +35,13 @@ pub mod address;
 pub mod envelope;
 pub mod mailbox;
 pub mod manager;
+pub mod migration;
 pub mod minimal;
 pub mod sync;
 pub mod task;
 #[cfg(test)]
 mod tests;
 pub mod thread;
-pub mod migration;
 
 pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
     let mut adapter = ModelsAdapter::new();
@@ -50,6 +55,9 @@ pub static ENVELOPE_MODELS: LazyLock<Models> = LazyLock::new(|| {
     adapter.register_model::<GmailEnvelope>();
     adapter.register_model::<GmailLabels>();
     adapter.register_model::<GmailCheckPoint>();
+    adapter.register_model::<OutlookFolder>();
+    adapter.register_model::<FolderDeltaLink>();
+    adapter.register_model::<OutlookEnvelope>();
     adapter.models
 });
 

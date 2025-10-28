@@ -76,7 +76,7 @@ pub async fn fetch_and_save_since_date(
                 AccountRunningState::set_initial_current_syncing_folder(
                     account_id,
                     label.name.clone(),
-                    total_batches,
+                    Some(total_batches),
                 )
                 .await?;
             }
@@ -134,7 +134,7 @@ pub async fn fetch_and_save_since_date(
                 history_ids.push(hid.to_string());
             }
             GmailEnvelope::save_envelopes(envelopes).await?;
-        } 
+        }
         // Break if API response has no next page
         if page_token.is_none() {
             break;
@@ -175,7 +175,7 @@ pub async fn fetch_and_save_full_label(
         AccountRunningState::set_initial_current_syncing_folder(
             account_id,
             label.name.clone(),
-            total_batches,
+            Some(total_batches),
         )
         .await?;
     }

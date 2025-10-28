@@ -353,6 +353,7 @@ impl TryFrom<i32> for MailerType {
         match value {
             0 => Ok(MailerType::ImapSmtp),
             1 => Ok(MailerType::GmailApi),
+            2 => Ok(MailerType::GraphApi),
             _ => Err("Invalid value for Unit"),
         }
     }
@@ -363,6 +364,7 @@ impl From<MailerType> for i32 {
         match value {
             MailerType::ImapSmtp => 0,
             MailerType::GmailApi => 1,
+            MailerType::GraphApi => 2,
         }
     }
 }

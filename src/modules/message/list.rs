@@ -9,8 +9,9 @@ use crate::{
         cache::{
             imap::{mailbox::MailBox, migration::EmailEnvelopeV3, thread::EmailThread},
             model::Envelope,
-            vendor::gmail::sync::{
-                client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
+            vendor::{
+                gmail::sync::{client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels},
+                outlook::sync::{envelope::OutlookEnvelope, folders::OutlookFolder},
             },
         },
         common::{decode_page_token, parallel::run_with_limit},
@@ -188,6 +189,7 @@ async fn fetch_remote_messages(
                 total_pages: Some(total_pages),
             })
         }
+        MailerType::GraphApi => todo!(),
     }
 }
 
@@ -256,7 +258,6 @@ async fn fetch_local_messages(
                 ))
             }
         }
-
         MailerType::GmailApi => {
             let target_label = GmailLabels::get_by_name(account.id, mailbox_name).await?;
             let DataPage {
@@ -291,6 +292,43 @@ async fn fetch_local_messages(
                     total_items,
                     Some(total_pages),
                     items.into_iter().map(|e| e.into_envelope(&map)).collect(),
+                ))
+            }
+        }
+        MailerType::GraphApi => {
+            let target_label = OutlookFolder::get_by_name(account.id, mailbox_name).await?;
+
+            let DataPage {
+                current_page: _,
+                page_size,
+                total_items,
+                items,
+                total_pages,
+            } = OutlookEnvelope::list_messages_in_folder(target_label.id, page, page_size, desc)
+                .await?;
+
+            if total_items == 0 {
+                Ok(CursorDataPage::new(None, page_size, 0, None, vec![]))
+            } else {
+                let total_pages = total_pages.ok_or_else(|| {
+                    raise_error!(
+                        "Internal error: total_pages is None (this should never happen)".into(),
+                        ErrorCode::InternalError
+                    )
+                })?;
+
+                let next_page_token = if page == total_pages {
+                    None
+                } else {
+                    Some(base64_encode_url_safe!((page + 1).to_string()))
+                };
+
+                Ok(CursorDataPage::new(
+                    next_page_token,
+                    page_size,
+                    total_items,
+                    Some(total_pages),
+                    items.into_iter().map(|e| e.into()).collect(),
                 ))
             }
         }
@@ -341,6 +379,7 @@ pub async fn list_threads_in_mailbox(
             let label = GmailLabels::get_by_name(account_id, mailbox_name).await?;
             EmailThread::list_threads_in_label(account, label.id, page, page_size, desc).await
         }
+        MailerType::GraphApi => todo!(),
     }
 }
 
@@ -371,5 +410,6 @@ pub async fn get_thread_messages(
                 .map(|e| e.into_envelope(&map))
                 .collect())
         }
+        MailerType::GraphApi => todo!(),
     }
 }

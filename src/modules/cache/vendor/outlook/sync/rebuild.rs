@@ -71,7 +71,7 @@ pub async fn rebuild_cache_since_date(
 ) -> RustMailerResult<()> {
     let start_time = Instant::now();
     let mut total_inserted = 0;
-    let date = date_since.since_gmail_date()?;
+    let date = date_since.since_outlook_date()?;
 
     let account_id = account.id;
     let use_proxy = account.use_proxy;
@@ -123,7 +123,7 @@ pub async fn rebuild_single_folder_cache(
     if folder.exists > 0 {
         match &account.date_since {
             Some(date_since) => {
-                let date = date_since.since_gmail_date()?;
+                let date = date_since.since_outlook_date()?;
                 match fetch_and_save_since_date(account, date.as_str(), folder, true).await {
                     Ok(inserted) => {
                         info!(

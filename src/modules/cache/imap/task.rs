@@ -5,6 +5,7 @@
 use crate::modules::account::entity::{AuthType, MailerType};
 use crate::modules::cache::imap::sync::execute_imap_sync;
 use crate::modules::cache::vendor::gmail::sync::execute_gmail_sync;
+use crate::modules::cache::vendor::outlook::sync::execute_outlook_sync;
 use crate::modules::oauth2::token::OAuth2AccessToken;
 use crate::modules::scheduler::periodic::TaskHandle;
 use crate::modules::{
@@ -86,6 +87,26 @@ impl AccountSyncTask {
                                         return Ok(());
                                     }
                                     if let Err(e) = execute_gmail_sync(&account).await {
+                                        STATUS_DISPATCHER
+                                            .append_error(
+                                                account_id,
+                                                format!("error in account sync task: {:#?}", e),
+                                            )
+                                            .await;
+                                        error!(
+                                            "Failed to synchronize mailbox data for '{}': {:?}",
+                                            account_id, e
+                                        )
+                                    }
+                                }
+                                MailerType::GraphApi => {
+                                    if OAuth2AccessToken::get(account.id).await?.is_none() {
+                                        if utc_now!() % 300_000 == 0 {
+                                            warn!("Account {}: Sync aborted. OAuth2 authorization not completed. Please visit the rustmailer admin page to authorize this account.", account_id);
+                                        }
+                                        return Ok(());
+                                    }
+                                    if let Err(e) = execute_outlook_sync(&account).await {
                                         STATUS_DISPATCHER
                                             .append_error(
                                                 account_id,

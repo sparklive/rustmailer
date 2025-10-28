@@ -43,7 +43,7 @@ pub async fn fetch_and_save_since_date(
             AccountRunningState::set_initial_current_syncing_folder(
                 account_id,
                 folder.name.clone(),
-                0, //无法知道到底多少条，因为graph api并不返回总数，只能一页页去获取
+                None,
             )
             .await?;
         }
@@ -96,7 +96,7 @@ pub async fn fetch_and_save_full_folder(
         AccountRunningState::set_initial_current_syncing_folder(
             account_id,
             folder.name.clone(),
-            total_batches,
+            Some(total_batches),
         )
         .await?;
     }

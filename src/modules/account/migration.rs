@@ -24,10 +24,15 @@ use crate::{
                 address::AddressEntity, mailbox::MailBox, manager::FLAGS_STATE_MAP,
                 migration::EmailEnvelopeV3, minimal::MinimalEnvelope, thread::EmailThread,
             },
-            vendor::gmail::sync::{
-                client::GmailClient,
-                envelope::GmailEnvelope,
-                labels::{GmailCheckPoint, GmailLabels},
+            vendor::{
+                gmail::sync::{
+                    client::GmailClient,
+                    envelope::GmailEnvelope,
+                    labels::{GmailCheckPoint, GmailLabels},
+                },
+                outlook::sync::{
+                    delta::FolderDeltaLink, envelope::OutlookEnvelope, folders::OutlookFolder,
+                },
             },
         },
         database::{insert_impl, list_all_impl},
@@ -309,7 +314,7 @@ impl AccountV3 {
                         ErrorCode::LicenseAccountLimitReached
                     ));
                 }
-            }
+            } 
         }
         let entity = request.create_entity()?;
         entity.clone().save().await?;
@@ -391,6 +396,11 @@ impl AccountV3 {
                 GmailLabels::clean(account_id).await?;
                 GmailEnvelope::clean_account(account.id).await?;
                 GmailCheckPoint::clean(account.id).await?;
+            }
+            MailerType::GraphApi => {
+                OutlookFolder::clean(account_id).await?;
+                OutlookEnvelope::clean_account(account.id).await?;
+                FolderDeltaLink::clean(account.id).await?;
             }
         }
         AddressEntity::clean_account(account.id).await?;

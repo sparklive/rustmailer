@@ -1,6 +1,8 @@
 use crate::{
     modules::{
-        cache::vendor::outlook::model::{MailFolder, MailFoldersResponse, MessageListResponse},
+        cache::vendor::outlook::model::{
+            MailFolder, MailFoldersResponse, Message, MessageListResponse,
+        },
         error::{code::ErrorCode, RustMailerResult},
         hook::http::HttpClient,
         oauth2::token::OAuth2AccessToken,
@@ -12,7 +14,7 @@ use std::{future::Future, pin::Pin};
 pub struct OutlookClient;
 
 impl OutlookClient {
-    async fn get_access_token(account_id: u64) -> RustMailerResult<String> {
+    pub async fn get_access_token(account_id: u64) -> RustMailerResult<String> {
         let record = OAuth2AccessToken::get(account_id).await?;
         record.and_then(|r| r.access_token).ok_or_else(|| {
             raise_error!(
@@ -45,7 +47,7 @@ impl OutlookClient {
         prefix: &'a str,
         output: &'a mut Vec<MailFolder>,
         access_token: &'a str,
-    ) -> Pin<Box<dyn Future<Output = RustMailerResult<()>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = RustMailerResult<()>> + Send + 'a>> {
         Box::pin(async move {
             let mut url = match folder_id {
                 Some(id) => {
@@ -84,13 +86,15 @@ impl OutlookClient {
         })
     }
 
-    async fn get_folder<'a>(
-        client: &'a HttpClient,
-        default_folder_name: &'a str,
-        access_token: &'a str,
+    pub async fn get_folder(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        default_folder_name: &str,
     ) -> RustMailerResult<MailFolder> {
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
         let url = format!("https://graph.microsoft.com/v1.0/me/mailFolders/{default_folder_name}");
-        let value = client.get(&url, access_token).await.map_err(|e| {
+        let value = client.get(&url, &access_token).await.map_err(|e| {
             raise_error!(format!("Request error: {e:#?}"), ErrorCode::InternalError)
         })?;
         let folder = serde_json::from_value::<MailFolder>(value)
@@ -109,16 +113,6 @@ impl OutlookClient {
         let access_token = Self::get_access_token(account_id).await?;
         let mut result = Vec::new();
         Self::fetch_recursive(&client, None, "", &mut result, &access_token).await?;
-        let inbox = Self::get_folder(&client, "inbox", &access_token).await?;
-        let sentitems = Self::get_folder(&client, "sentitems", &access_token).await?;
-        for folder in &mut result {
-            if folder.id == inbox.id {
-                folder.display_name = "inbox".to_string();
-            }
-            if folder.id == sentitems.id {
-                folder.display_name = "sentitems".to_string();
-            }
-        }
         Ok(result)
     }
 
@@ -171,12 +165,9 @@ impl OutlookClient {
         use_proxy: Option<u64>,
         folder_id: &str,
     ) -> RustMailerResult<String> {
-        let mut url = format!("https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages/delta?\
-            $select=id,isRead,conversationId,internetMessageId,from,body,toRecipients,ccRecipients,\
-            bccRecipients,replyTo,sender,subject,receivedDateTime,sentDateTime,isRead,bodyPreview,categories&\
-            $expand=attachments($select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId)&\
-            $orderBy=receivedDateTime desc
-        ");
+        let mut url = format!(
+            "https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages/delta?$select=id"
+        );
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
         loop {
@@ -211,45 +202,28 @@ impl OutlookClient {
         }
     }
 
-    pub async fn list_delta(
+    pub async fn get_message(
         account_id: u64,
         use_proxy: Option<u64>,
-        delta_link: &str,
-    ) -> RustMailerResult<String> {
-        let mut url = delta_link.to_string();
+        id: &str,
+    ) -> RustMailerResult<Message> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{id}?\
+               $select=id,isRead,conversationId,internetMessageId,from,body,toRecipients,ccRecipients,\
+               bccRecipients,replyTo,sender,subject,receivedDateTime,sentDateTime,isRead,bodyPreview,categories&\
+               $expand=attachments($select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId)");
+
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
-        loop {
-            let value = client.get(url.as_str(), &access_token).await?;
-            if let Some(next_link) = value.get("@odata.nextLink") {
-                //处理这一页的delta数据
-                url = next_link
-                    .as_str()
-                    .ok_or_else(|| {
-                        raise_error!(
-                            format!("unexpected type for @odata.nextLink in response at URL={url}"),
-                            ErrorCode::InternalError
-                        )
-                    })?
-                    .to_string();
-            } else if let Some(delta_link) = value.get("@odata.deltaLink") {
-                //delta处理完了拿到新的delta link，持久化
-                return Ok(delta_link
-                    .as_str()
-                    .ok_or_else(|| {
-                        raise_error!(
-                            format!(
-                                "unexpected type for @odata.deltaLink in response at URL={url}"
-                            ),
-                            ErrorCode::InternalError
-                        )
-                    })?
-                    .to_string());
-            } else {
-                return Err(raise_error!(format!(
-                    "neither @odata.nextLink nor @odata.deltaLink found in Graph API response at URL={url}"
-                ), ErrorCode::InternalError));
-            }
-        }
+        let value = client.get(url.as_str(), &access_token).await?;
+        let message = serde_json::from_value::<Message>(value).map_err(|e| {
+            raise_error!(
+                format!(
+                    "Failed to deserialize Graph API response into MessageListResponse: {:#?}. Possible model mismatch or API change.",
+                    e
+                ),
+                ErrorCode::InternalError
+            )
+        })?;
+        Ok(message)
     }
 }

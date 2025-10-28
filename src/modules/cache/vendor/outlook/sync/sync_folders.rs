@@ -19,7 +19,7 @@ use crate::{
 pub async fn get_sync_folders(account: &AccountModel) -> RustMailerResult<Vec<MailFolder>> {
     let all_mail_folders = OutlookClient::list_mailfolders(account.id, account.use_proxy).await?;
     debug!(
-        "Account {}: Retrieved {} visible labels from Gmail API: {:?}",
+        "Account {}: Retrieved {} visible folders from Graph API: {:?}",
         account.id,
         all_mail_folders.len(),
         all_mail_folders
@@ -42,7 +42,7 @@ pub async fn get_sync_folders(account: &AccountModel) -> RustMailerResult<Vec<Ma
             )
         );
     }
-    //目前邮件夹的变更检测，仍然是根据name来做的，而不是根据id
+
     detect_mailbox_changes(
         account,
         all_mail_folders
@@ -52,16 +52,16 @@ pub async fn get_sync_folders(account: &AccountModel) -> RustMailerResult<Vec<Ma
     )
     .await?;
 
-    //sync_folders stores the mailbox names for IMAP accounts, whereas for Gmail API accounts it stores the label IDs.
     let subscribed = &account.sync_folders;
     debug!(
         "Account {}: Current subscribed sync folders: {:?}",
         account.id, subscribed
     );
     // Filter folders according to the subscription list; matched_folders will not include any folders outside of it.
-    let mut matched_folders: Vec<&MailFolder> = if !subscribed.is_empty() {
+    let mut matched_folders: Vec<MailFolder> = if !subscribed.is_empty() {
         all_mail_folders
-            .iter()
+            .clone()
+            .into_iter()
             .filter(|f| subscribed.contains(&f.id))
             .collect()
     } else {
@@ -77,13 +77,17 @@ pub async fn get_sync_folders(account: &AccountModel) -> RustMailerResult<Vec<Ma
     );
     // If there are no subscriptions, default to the two special folders: inbox and sentitems
     if matched_folders.is_empty() {
+        let inbox = OutlookClient::get_folder(account.id, account.use_proxy, "inbox").await?;
+        let sentitems =
+            OutlookClient::get_folder(account.id, account.use_proxy, "sentitems").await?;
+
         matched_folders = all_mail_folders
-            .iter()
-            .filter(|label| label.display_name == "inbox" || label.display_name == "sentitems")
+            .into_iter()
+            .filter(|folder| folder.id == inbox.id || folder.id == sentitems.id)
             .collect();
 
         debug!(
-            "Account {}: Matched labels after default inbox/sentitems filter: {:?}",
+            "Account {}: Matched folders after default inbox/sentitems filter: {:?}",
             account.id,
             matched_folders
                 .iter()
@@ -103,5 +107,5 @@ pub async fn get_sync_folders(account: &AccountModel) -> RustMailerResult<Vec<Ma
             );
         }
     }
-    Ok(all_mail_folders)
+    Ok(matched_folders)
 }

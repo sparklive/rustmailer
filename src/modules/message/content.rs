@@ -98,6 +98,7 @@ impl MessageContentRequest {
                     ));
                 }
             }
+            MailerType::GraphApi => todo!(),
         }
         Ok(())
     }
@@ -423,6 +424,7 @@ pub async fn retrieve_email_content(
             retrieve_gmail_message_content(account_id, request.id, request.max_length, skip_cache)
                 .await
         }
+        MailerType::GraphApi => todo!(),
     }
 }
 

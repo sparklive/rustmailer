@@ -497,6 +497,7 @@ impl MessageSearchRequest {
                 self.gmail_api_search_impl(&account, next_page_token, page_size)
                     .await
             }
+            MailerType::GraphApi => todo!(),
         }
     }
 
@@ -831,6 +832,7 @@ impl UnifiedSearchRequest {
                     })?;
                     envelope.into_envelope(&label_map)
                 }
+                MailerType::GraphApi => todo!(),
             };
             items.push(envelope);
         }

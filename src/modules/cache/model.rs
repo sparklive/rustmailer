@@ -4,11 +4,18 @@
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
 
-use crate::{calculate_hash, id, modules::{
-    cache::imap::{envelope::Received, mailbox::EnvelopeFlag, migration::EmailEnvelopeV3},
-    common::Addr,
-    imap::section::{EmailBodyPart, ImapAttachment},
-}};
+use crate::{
+    calculate_hash, id,
+    modules::{
+        cache::imap::{
+            envelope::Received,
+            mailbox::{EmailFlag, EnvelopeFlag},
+            migration::EmailEnvelopeV3,
+        },
+        common::Addr,
+        imap::section::{EmailBodyPart, ImapAttachment},
+    },
+};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct Envelope {
@@ -111,6 +118,8 @@ pub struct Envelope {
     ///
     /// **Note:** This field is populated only for Gmail API accounts. For other account types, it will be empty.
     pub labels: Vec<String>,
+
+    pub is_read: bool,
 }
 
 impl Envelope {
@@ -134,6 +143,10 @@ impl From<EmailEnvelopeV3> for Envelope {
             mailbox_name: value.mailbox_name,
             internal_date: value.internal_date,
             size: value.size,
+            is_read: value
+                .flags
+                .iter()
+                .any(|f| matches!(f.flag, EmailFlag::Seen)),
             flags: Some(value.flags),
             flags_hash: Some(value.flags_hash),
             bcc: value.bcc,

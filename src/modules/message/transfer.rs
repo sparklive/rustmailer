@@ -178,5 +178,6 @@ pub async fn transfer_messages(
                 }
             }
         }
+        MailerType::GraphApi => todo!(),
     }
 }

@@ -35,5 +35,6 @@ pub async fn delete_mailbox(account_id: u64, mailbox_name: &str) -> RustMailerRe
             })?;
             GmailClient::delete_label(account_id, account.use_proxy, label_id).await
         }
+        MailerType::GraphApi => todo!(),
     }
 }

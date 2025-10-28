@@ -128,3 +128,35 @@ pub struct Attachment {
     #[serde(rename = "microsoft.graph.fileAttachment/contentId")]
     pub content_id: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DeltaResponse {
+    #[serde(rename = "@odata.context")]
+    pub context: Option<String>,
+
+    #[serde(rename = "@odata.nextLink")]
+    pub next_link: Option<String>,
+
+    #[serde(rename = "@odata.deltaLink")]
+    pub delta_link: Option<String>,
+
+    pub value: Option<Vec<PartialMessage>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PartialMessage {
+    #[serde(rename = "@odata.etag")]
+    pub etag: Option<String>,
+
+    #[serde(rename = "@odata.type")]
+    pub odata_type: Option<String>,
+
+    pub id: String,
+    #[serde(rename = "@removed")]
+    pub removed: Option<RemovedInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RemovedInfo {
+    pub reason: String,
+}

@@ -1,3 +1,4 @@
+use ahash::AHashSet;
 use itertools::Itertools;
 use native_db::*;
 use native_model::{native_model, Model};
@@ -6,11 +7,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     modules::{
+        account::migration::AccountModel,
+        cache::vendor::outlook::{
+            model::DeltaResponse,
+            sync::{client::OutlookClient, envelope::OutlookEnvelope, folders::OutlookFolder},
+        },
         database::{
             async_find_impl, batch_delete_impl, delete_impl, filter_by_secondary_key_impl,
             manager::DB_MANAGER, upsert_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
+        hook::http::HttpClient,
         utils::mailbox_id,
     },
     raise_error, utc_now,
@@ -91,4 +98,73 @@ impl FolderDeltaLink {
         .await?;
         Ok(())
     }
+}
+
+pub async fn handle_delta(
+    account: &AccountModel,
+    local_folders: &[OutlookFolder],
+    remote_folders: &[OutlookFolder],
+) -> RustMailerResult<()> {
+    let account_id = account.id;
+    let use_proxy = account.use_proxy.clone();
+    let remote_folders = find_existing_remote_folders(local_folders, remote_folders);
+    for remote in remote_folders {
+        let mut url = FolderDeltaLink::get(account_id, &remote.folder_id)
+            .await?
+            .link;
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = OutlookClient::get_access_token(account_id).await?;
+        let mut batch = Vec::new();
+        loop {
+            let value = client.get(url.as_str(), &access_token).await?;
+            let resp = serde_json::from_value::<DeltaResponse>(value).map_err(|e| {
+                raise_error!(
+                    format!(
+                        "Failed to deserialize Graph API response into MessageListResponse: {:#?}. Possible model mismatch or API change.",
+                        e
+                    ),
+                    ErrorCode::InternalError
+                )
+            })?;
+            if let Some(items) = resp.value {
+                for item in items {
+                    if item.removed.is_none() {
+                        let message =
+                            OutlookClient::get_message(account_id, use_proxy, &item.id).await?;
+                        let mut envelope: OutlookEnvelope = message.try_into()?;
+                        envelope.account_id = account_id;
+                        envelope.folder_id = remote.id;
+                        envelope.folder_name = remote.name.clone();
+                        batch.push(envelope);
+                    }
+                }
+            }
+            if let Some(next_link) = resp.next_link {
+                url = next_link;
+            } else if let Some(delta_link) = resp.delta_link {
+                let new_delta_link = delta_link;
+                FolderDeltaLink::upsert(account_id, &remote.folder_id, &new_delta_link).await?;
+                break;
+            } else {
+                return Err(raise_error!(format!(
+                    "neither @odata.nextLink nor @odata.deltaLink found in Graph API response at URL={url}"
+                ), ErrorCode::InternalError));
+            }
+        }
+        OutlookEnvelope::save_envelopes(batch).await?;
+        OutlookFolder::upsert(remote).await?;
+    }
+    Ok(())
+}
+
+pub fn find_existing_remote_folders(
+    local_folders: &[OutlookFolder],
+    remote_folders: &[OutlookFolder],
+) -> Vec<OutlookFolder> {
+    let local_ids: AHashSet<_> = local_folders.iter().map(|l| &l.id).collect();
+    remote_folders
+        .iter()
+        .filter(|remote| local_ids.contains(&remote.id))
+        .cloned()
+        .collect()
 }

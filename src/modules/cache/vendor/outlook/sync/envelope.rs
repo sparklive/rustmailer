@@ -16,12 +16,16 @@ use crate::{
                 address::AddressEntity,
                 thread::{EmailThread, EmailThreadKey},
             },
+            model::Envelope,
             vendor::outlook::model::{Message, Recipient},
         },
         common::Addr,
-        database::{batch_delete_impl, manager::DB_MANAGER, with_transaction},
+        database::{
+            batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
+            secondary_find_impl, with_transaction,
+        },
         error::{code::ErrorCode, RustMailerError, RustMailerResult},
-        message::attachment,
+        rest::response::DataPage,
         utils::envelope_hash_from_id,
     },
     raise_error,
@@ -59,7 +63,7 @@ pub struct OutlookEnvelope {
     ///
     /// Corresponds to the Microsoft Graph API field `receivedDateTime`.
     /// May be `None` if the value is unavailable.
-    pub internal_date: i64,
+    pub internal_date: Option<i64>,
     /// The estimated size of the email in bytes.
     ///
     /// This is calculated locally as the sum of the email body length in bytes
@@ -133,19 +137,49 @@ pub struct OutlookEnvelope {
     /// Each element is a string representing an Outlook category name. This field
     /// reflects the current categories assigned to the email in Outlook.
     pub categories: Vec<String>,
+
+    pub is_read: bool,
 }
 
 impl OutlookEnvelope {
     pub fn pk(&self) -> String {
         format!(
             "{}_{}",
-            self.internal_date,
+            self.internal_date.unwrap_or_default(),
             envelope_hash_from_id(self.account_id, self.folder_id, &self.id)
         )
     }
 
     pub fn create_envelope_id(&self) -> u64 {
         envelope_hash_from_id(self.account_id, self.folder_id, &self.id)
+    }
+
+    pub async fn exists(&self) -> RustMailerResult<bool> {
+        let target = secondary_find_impl::<OutlookEnvelope>(
+            DB_MANAGER.envelope_db(),
+            OutlookEnvelopeKey::create_envelope_id,
+            self.create_envelope_id(),
+        )
+        .await?;
+        Ok(target.is_some())
+    }
+
+    pub async fn list_messages_in_folder(
+        folder_id: u64,
+        page: u64,
+        page_size: u64,
+        desc: bool,
+    ) -> RustMailerResult<DataPage<OutlookEnvelope>> {
+        paginate_secondary_scan_impl(
+            DB_MANAGER.envelope_db(),
+            Some(page),
+            Some(page_size),
+            Some(desc),
+            OutlookEnvelopeKey::folder_id,
+            folder_id,
+        )
+        .await
+        .map(DataPage::from)
     }
 
     pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {
@@ -182,6 +216,42 @@ impl OutlookEnvelope {
         Ok(())
     }
 
+    pub async fn clean_folder_envelopes(account_id: u64, folder_id: u64) -> RustMailerResult<()> {
+        const BATCH_SIZE: usize = 200;
+        let mut total_deleted = 0usize;
+        let start_time = Instant::now();
+        loop {
+            let deleted = batch_delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+                let to_delete: Vec<OutlookEnvelope> = rw
+                    .scan()
+                    .secondary(OutlookEnvelopeKey::folder_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .start_with(folder_id)
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .filter_map(Result::ok) // filter only Ok values
+                    .filter(|e: &OutlookEnvelope| e.account_id == account_id)
+                    .take(BATCH_SIZE)
+                    .collect();
+                Ok(to_delete)
+            })
+            .await?;
+            total_deleted += deleted;
+            // If this batch is empty, break the loop
+            if deleted == 0 {
+                break;
+            }
+        }
+
+        info!(
+            "Finished deleting outlook envelopes for folder_id={} account_id={} total_deleted={} in {:?}",
+            folder_id,
+            account_id,
+            total_deleted,
+            start_time.elapsed()
+        );
+        Ok(())
+    }
+
     pub async fn save_envelopes(envelopes: Vec<OutlookEnvelope>) -> RustMailerResult<()> {
         with_transaction(DB_MANAGER.envelope_db(), move |rw| {
             for e in envelopes {
@@ -206,7 +276,7 @@ impl OutlookEnvelope {
                         envelope_id,
                         e.account_id,
                         e.folder_id,
-                        Some(e.internal_date),
+                        e.internal_date,
                         e.date,
                     );
                     // --- Thread upsert ---
@@ -240,6 +310,10 @@ impl OutlookEnvelope {
                             raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
                         })?;
                     }
+                } else {
+                    rw.upsert::<OutlookEnvelope>(e.clone()).map_err(|err| {
+                        raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
+                    })?;
                 }
             }
             Ok(())
@@ -252,18 +326,19 @@ impl TryFrom<Message> for OutlookEnvelope {
     type Error = RustMailerError;
 
     fn try_from(msg: Message) -> Result<Self, Self::Error> {
-        fn parse_datetime(dt: &Option<String>) -> RustMailerResult<i64> {
-            if let Some(s) = dt {
-                let parsed: DateTime<Utc> = s.parse().map_err(|e| {
-                    raise_error!(
-                        format!("Invalid datetime {}: {}", s, e),
-                        ErrorCode::InternalError
-                    )
-                })?;
-                Ok(parsed.timestamp_millis())
-            } else {
-                Ok(0)
-            }
+        fn parse_datetime(dt: &Option<String>) -> RustMailerResult<Option<i64>> {
+            dt.as_ref()
+                .map(|s| {
+                    s.parse::<DateTime<Utc>>()
+                        .map(|dt| dt.timestamp_millis())
+                        .map_err(|e| {
+                            raise_error!(
+                                format!("Invalid datetime {}: {}", s, e),
+                                ErrorCode::InternalError
+                            )
+                        })
+                })
+                .transpose()
         }
 
         fn recipient_to_addr(r: &Option<Recipient>) -> Option<Addr> {
@@ -284,7 +359,7 @@ impl TryFrom<Message> for OutlookEnvelope {
             })
         }
         let internal_date = parse_datetime(&msg.received_date_time)?;
-        let date = parse_datetime(&msg.sent_date_time).ok();
+        let date = parse_datetime(&msg.sent_date_time)?;
         let body_len = msg
             .body
             .as_ref()
@@ -312,11 +387,16 @@ impl TryFrom<Message> for OutlookEnvelope {
             size,
             bcc: recipients_to_addrs(&msg.bcc_recipients),
             cc: recipients_to_addrs(&msg.cc_recipients),
-            date: Some(date.unwrap_or(0)),
+            date: date,
             from: recipient_to_addr(&msg.from),
-            in_reply_to: msg.internet_message_id.clone(),
+            in_reply_to: None,
             sender: recipient_to_addr(&msg.sender),
-            message_id: msg.internet_message_id.clone(),
+            message_id: msg.internet_message_id.as_ref().map(|s| {
+                s.strip_prefix('<')
+                    .and_then(|s| s.strip_suffix('>'))
+                    .unwrap_or(s)
+                    .to_string()
+            }),
             subject: msg.subject.clone(),
             thread_id,
             mime_version: None,
@@ -326,6 +406,42 @@ impl TryFrom<Message> for OutlookEnvelope {
             snippet: msg.body_preview.clone(),
             conversation_id: msg.conversation_id.clone(),
             categories: msg.categories.clone().unwrap_or_default(),
+            is_read: msg.is_read.unwrap_or_default(),
         })
+    }
+}
+
+impl From<OutlookEnvelope> for Envelope {
+    fn from(value: OutlookEnvelope) -> Self {
+        Self {
+            id: value.id,
+            account_id: value.account_id,
+            mailbox_id: value.folder_id,
+            mailbox_name: value.folder_name,
+            internal_date: value.internal_date,
+            size: value.size,
+            flags: None,
+            flags_hash: None,
+            bcc: value.bcc,
+            cc: value.cc,
+            date: value.date,
+            from: value.from,
+            in_reply_to: value.in_reply_to,
+            sender: value.sender,
+            return_address: None,
+            message_id: value.message_id,
+            subject: value.subject,
+            thread_name: None,
+            thread_id: value.thread_id,
+            mime_version: value.mime_version,
+            references: value.references,
+            reply_to: value.reply_to,
+            to: value.to,
+            attachments: None,
+            body_meta: None,
+            received: None,
+            labels: value.categories,
+            is_read: value.is_read,
+        }
     }
 }

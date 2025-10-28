@@ -157,6 +157,7 @@ impl EmailBuilder for ReplyEmailRequest {
                     EmailHandler::get_gmail_envelope(account, &self.mailbox_name, &self.id).await?;
                 (envelope, None)
             }
+            MailerType::GraphApi => todo!(),
         };
 
         let from = Address::new_address(

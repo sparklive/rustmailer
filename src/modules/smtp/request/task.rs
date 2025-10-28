@@ -322,6 +322,7 @@ impl Task for SmtpTask {
                         }
                     }
                 }
+                MailerType::GraphApi => todo!(),
             }
         })
     }

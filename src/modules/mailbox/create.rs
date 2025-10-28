@@ -91,5 +91,6 @@ pub async fn create_mailbox(
         MailerType::GmailApi => {
             GmailClient::create_label(account_id, account.use_proxy, request).await
         }
+        MailerType::GraphApi => todo!(),
     }
 }

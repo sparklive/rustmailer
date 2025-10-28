@@ -49,6 +49,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
                 case MailerType.GmailApi:
                   setOpen("gmail-api-edit");
                   break;
+                case MailerType.GraphApi:
+                  setOpen("graph-api-edit");
+                  break;
               }
             }}
           >

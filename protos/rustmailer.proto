@@ -297,6 +297,8 @@ enum MailerType {
     IMAP_SMTP = 0;
     // Use Gmail API
     GMAIL_API = 1;
+    // Use Graph API
+    GRAPH_API = 2;
 }
 
 // AccountService provides APIs for managing email accounts.

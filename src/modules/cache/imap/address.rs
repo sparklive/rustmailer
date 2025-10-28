@@ -352,7 +352,7 @@ impl AddressEntity {
         let from = envelope.from.as_ref().map(|f| f.address.clone()).flatten();
         let envelope_hash = envelope.create_envelope_id();
         let date = envelope.date.clone();
-        let internal_date = Some(envelope.internal_date.clone());
+        let internal_date = envelope.internal_date.clone();
         let account_id = envelope.account_id;
         let mailbox_id = envelope.folder_id;
         let mut entities = Vec::new();

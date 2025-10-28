@@ -152,12 +152,12 @@ impl AccountRunningState {
     pub async fn set_initial_current_syncing_folder(
         account_id: u64,
         current_syncing_folder: String,
-        total_sync_batches: u32,
+        total_sync_batches: Option<u32>,
     ) -> RustMailerResult<()> {
         Self::update_account_running_state(account_id, move |current| {
             let mut updated = current.clone();
             updated.current_syncing_folder = Some(current_syncing_folder);
-            updated.current_total_batches = Some(total_sync_batches);
+            updated.current_total_batches = total_sync_batches;
             Ok(updated)
         })
         .await

@@ -7,7 +7,7 @@
 import { cn, formatFileSize } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
-import { EmailEnvelope, getBadgeVariantFromFlag, gmail_unread, isCustomFlag, seen } from "../data/schema"
+import { EmailEnvelope, getBadgeVariantFromFlag, isCustomFlag } from "../data/schema"
 import { MailIcon, MailOpen, Paperclip, Trash2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -72,9 +72,7 @@ export function MailList({
 
         <div className="grid grid-cols-1 gap-1.5 p-1 sm:p-2">
             {items.map((item) => {
-                const isUnread = item.labels && item.labels.length > 0
-                    ? gmail_unread(item)
-                    : !seen(item);
+                const isUnread = !item.is_read;
                 const hasAttachments = item.attachments && item.attachments.length > 0;
                 const attachmentCount = item.attachments?.length || 0;
 
@@ -107,9 +105,9 @@ export function MailList({
                                 ) : (
                                     <MailOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 )}
-                                <span className="text-xs text-muted-foreground">
+                                {/* <span className="text-xs text-muted-foreground">
                                     {isGmailApi ? `mid: ${item.id}` : `uid: ${item.id}`}
-                                </span>
+                                </span> */}
 
                                 <p className={cn(
                                     "text-xs font-medium truncate ml-1",

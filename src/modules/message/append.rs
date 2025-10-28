@@ -108,6 +108,7 @@ impl AppendReplyToDraftRequest {
                 self.append_reply_to_draft_gmail(&account, account_id)
                     .await?
             }
+            MailerType::GraphApi => todo!(),
         }
 
         Ok(())

@@ -15,7 +15,9 @@ use crate::{
                 migration::EmailEnvelopeV3,
                 minimal::MinimalEnvelope,
                 sync::rebuild::{rebuild_mailbox_cache, rebuild_mailbox_cache_since_date},
-            }, sync_type::SyncType, SEMAPHORE
+            },
+            sync_type::SyncType,
+            SEMAPHORE,
         },
         common::AddrVec,
         context::executors::RUST_MAIL_CONTEXT,
@@ -91,7 +93,7 @@ pub async fn fetch_and_save_since_date(
         AccountRunningState::set_initial_current_syncing_folder(
             account_id,
             mailbox.name.clone(),
-            uid_batches.len() as u32,
+            Some(uid_batches.len() as u32),
         )
         .await?;
     }
@@ -177,7 +179,7 @@ pub async fn fetch_and_save_full_mailbox(
         AccountRunningState::set_initial_current_syncing_folder(
             account_id,
             mailbox.name.clone(),
-            total_batches,
+            Some(total_batches),
         )
         .await?;
     }

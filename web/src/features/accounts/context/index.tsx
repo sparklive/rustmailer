@@ -7,7 +7,7 @@
 import React from 'react'
 import { AccountEntity } from '../data/schema'
 
-export type AccountDialogType = 'imap-smtp-add' | 'imap-smtp-edit' | 'gmail-api-add' | 'gmail-api-edit' | 'delete' | 'detail' | 'oauth2' | 'running-state' | 'sync-folders'
+export type AccountDialogType = 'imap-smtp-add' | 'imap-smtp-edit' | 'gmail-api-add' | 'gmail-api-edit' | 'delete' | 'detail' | 'oauth2' | 'running-state' | 'sync-folders' | 'graph-api-add' | 'graph-api-edit'
 
 interface AccountContextType {
   open: AccountDialogType | null

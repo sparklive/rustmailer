@@ -63,9 +63,18 @@ export function RunningStateDialog({ currentRow, open, onOpenChange }: Props) {
 
   // Helper function to render sync progress
   const renderSyncProgress = (current?: number | null, total?: number | null) => {
-    if (current === null || current === undefined ||
-      total === null || total === undefined) {
+    if (current === null || current === undefined) {
       return <span className="text-muted-foreground">n/a</span>;
+    }
+
+    if (total === null || total === undefined) {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">
+            Batch {current}
+          </span>
+        </div>
+      );
     }
 
     const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
