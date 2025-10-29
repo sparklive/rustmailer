@@ -2,6 +2,7 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use crate::modules::cache::disk::DISK_CACHE;
 use crate::modules::common::auth::ClientContext;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::overview::Overview;
@@ -105,5 +106,20 @@ impl SystemApi {
     ) -> ApiResult<()> {
         context.require_root()?;
         Ok(Proxy::update(id.0, url.0).await?)
+    }
+
+    /// Delete all entries in the disk cache. Requires root permission.
+    ///
+    /// The disk cache stores temporary files such as email bodies, attachments,
+    /// and outgoing emails waiting to be sent. This operation will clear all
+    /// cached data, freeing disk space but removing all temporary content.
+    #[oai(
+        path = "/disk-cache",
+        method = "delete",
+        operation_id = "clear_disk_cache"
+    )]
+    async fn clear_disk_cache(&self, context: ClientContext) -> ApiResult<()> {
+        context.require_root()?;
+        Ok(DISK_CACHE.clear().await?)
     }
 }

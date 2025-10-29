@@ -5,8 +5,8 @@
 use crate::{
     modules::{
         database::{
-            async_find_impl, delete_impl, list_all_impl, manager::DB_MANAGER, update_impl,
-            upsert_impl,
+            async_find_impl, batch_delete_impl, delete_impl, list_all_impl, manager::DB_MANAGER,
+            update_impl, upsert_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
         settings::dir::DATA_DIR_MANAGER,
@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
     sync::LazyLock,
+    time::Instant,
 };
 use sysinfo::Disks;
 use tokio::io::AsyncWriteExt;
@@ -58,6 +59,39 @@ impl CacheItem {
 
     pub async fn save(self) -> RustMailerResult<()> {
         upsert_impl(DB_MANAGER.meta_db(), self).await
+    }
+
+    pub async fn clear() -> RustMailerResult<()> {
+        const BATCH_SIZE: usize = 200;
+        let mut total_deleted = 0usize;
+        let start_time = Instant::now();
+        loop {
+            let deleted = batch_delete_impl(DB_MANAGER.meta_db(), move |rw| {
+                let to_delete: Vec<CacheItem> = rw
+                    .scan()
+                    .primary()
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .all()
+                    .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+                    .filter_map(Result::ok) // filter only Ok values
+                    .take(BATCH_SIZE)
+                    .collect();
+                Ok(to_delete)
+            })
+            .await?;
+            total_deleted += deleted;
+            // If this batch is empty, break the loop
+            if deleted == 0 {
+                break;
+            }
+        }
+
+        info!(
+            "Finished deleting cacheitems total_deleted={} in {:?}",
+            total_deleted,
+            start_time.elapsed()
+        );
+        Ok(())
     }
 
     pub async fn check_exist(key: &str) -> RustMailerResult<bool> {
@@ -159,6 +193,23 @@ impl DiskCache {
         Ok(Some(reader))
     }
 
+    pub async fn clear(&self) -> RustMailerResult<()> {
+        CacheItem::clear().await?;
+        let cache_dir_str = match self.cache_dir.to_str() {
+            Some(dir) => dir,
+            None => {
+                error!("Failed to convert cache_dir to string");
+                return Err(raise_error!(
+                    "Failed to convert cache_dir to string".into(),
+                    ErrorCode::InternalError
+                ));
+            }
+        };
+        cacache::clear(cache_dir_str)
+            .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))
+    }
+
     pub async fn clean_cache_if_needed(&self) {
         let cache_items = match CacheItem::list().await {
             Ok(items) => {
@@ -211,7 +262,9 @@ impl DiskCache {
 
     // Helper function to handle item removal
     async fn remove_cache_item(cache_dir: &str, item: &CacheItem) -> Result<(), String> {
-        cacache::remove(cache_dir, &item.key)
+        cacache::RemoveOpts::new()
+            .remove_fully(true)
+            .remove(cache_dir, &item.key)
             .await
             .map_err(|e| format!("Failed to remove cache item from disk: {:?}", e))?;
         item.delete()
