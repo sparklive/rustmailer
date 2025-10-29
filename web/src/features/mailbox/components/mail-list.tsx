@@ -39,8 +39,6 @@ export function MailList({
         setOpen("move-to-trash");
     }
 
-    const isGmailApi = items.some(item => item.id && isNaN(Number(item.id)));
-
     const handleCheckboxChange = (value: boolean | 'indeterminate', id: string) => {
         if (value === true) {
             setSelectedIds((prev) => [...prev, id]);

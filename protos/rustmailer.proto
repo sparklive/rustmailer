@@ -1089,9 +1089,9 @@ message AttachmentInfo {
   // MIME content type of the attachment (e.g., "image/png", "application/pdf").
   string file_type = 1;
   // Content transfer encoding (usually "base64").
-  string transfer_encoding = 2;
+  optional string transfer_encoding = 2;
   // Content-ID, used for inline attachments (referenced in HTML by `cid:` URLs).
-  string content_id = 3;
+  optional string content_id = 3;
   // Whether the attachment is marked as inline (true) or a regular file (false).
   bool inline = 4;
   // Original filename of the attachment, if provided.

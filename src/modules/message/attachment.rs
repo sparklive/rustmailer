@@ -317,7 +317,7 @@ async fn retrieve_gmail_attachment(
     }
 
     let body =
-        GmailClient::get_attachments(account.id, account.use_proxy, mid, &attachment.id).await?;
+        GmailClient::get_attachment(account.id, account.use_proxy, mid, &attachment.id).await?;
 
     match body {
         PartBody::Body { data, .. } => {

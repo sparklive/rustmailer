@@ -6,7 +6,10 @@ use crate::modules::account::entity::MailerType;
 use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::vendor::gmail::model::messages::PartBody;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
+use crate::modules::cache::vendor::outlook::model::{Attachment, Message};
+use crate::modules::cache::vendor::outlook::sync::client::OutlookClient;
 use crate::modules::error::code::ErrorCode;
+use crate::modules::error::RustMailerError;
 use crate::modules::imap::section::Encoding;
 use crate::modules::message::attachment::inline_attachment_diskcache_key;
 use crate::{base64_decode_url_safe, base64_encode, calculate_hash};
@@ -78,10 +81,10 @@ impl MessageContentRequest {
                     ));
                 }
             }
-            MailerType::GmailApi => {
+            MailerType::GmailApi | MailerType::GraphApi => {
                 if self.mailbox.is_some() {
                     return Err(raise_error!(
-                        "`mailbox` must not be set for Gmail API accounts.".into(),
+                        "`mailbox` must not be set for Gmail/Graph API accounts.".into(),
                         ErrorCode::InvalidParameter
                     ));
                 }
@@ -98,7 +101,6 @@ impl MessageContentRequest {
                     ));
                 }
             }
-            MailerType::GraphApi => todo!(),
         }
         Ok(())
     }
@@ -114,9 +116,9 @@ pub struct AttachmentInfo {
     /// MIME content type of the attachment (e.g., `image/png`, `application/pdf`).
     pub file_type: String,
     /// Content transfer encoding (usually `"base64"`).
-    pub transfer_encoding: String,
+    pub transfer_encoding: Option<String>,
     /// Content-ID, used for inline attachments (referenced in HTML by `cid:` URLs).
-    pub content_id: String,
+    pub content_id: Option<String>,
     /// Whether the attachment is marked as inline (true) or a regular file (false).
     pub inline: bool,
     /// Original filename of the attachment, if provided.
@@ -132,8 +134,8 @@ impl AttachmentInfo {
         let s = format!(
             "{}|{}|{}|{}|{}|{}",
             self.file_type,
-            self.transfer_encoding,
-            self.content_id,
+            self.transfer_encoding.as_deref().unwrap_or("n/a"),
+            self.content_id.as_deref().unwrap_or("n/a"),
             self.inline,
             self.filename,
             self.size
@@ -207,6 +209,10 @@ fn email_content_diskcache_key(
 
 fn gmail_content_diskcache_key(account_id: u64, mid: &str) -> String {
     format!("gmail_content_{}_{}", account_id, mid)
+}
+
+fn outlook_content_diskcache_key(account_id: u64, mid: &str) -> String {
+    format!("outlook_content_{}_{}", account_id, mid)
 }
 
 async fn read_string_from_reader(reader: &mut Reader) -> RustMailerResult<Option<String>> {
@@ -424,7 +430,10 @@ pub async fn retrieve_email_content(
             retrieve_gmail_message_content(account_id, request.id, request.max_length, skip_cache)
                 .await
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            retrieve_outlook_message_content(account_id, request.id, request.max_length, skip_cache)
+                .await
+        }
     }
 }
 
@@ -573,7 +582,7 @@ async fn retrieve_imap_message_content(
     })
 }
 
-async fn embed_inline_attachments(
+async fn gmail_embed_inline_attachments(
     account_id: u64,
     use_proxy: Option<u64>,
     mid: &str,
@@ -583,11 +592,11 @@ async fn embed_inline_attachments(
         (&message_content.attachments, &mut message_content.html)
     {
         for att in attachments {
-            if att.inline && !att.content_id.is_empty() {
+            if att.inline && att.content_id.is_some() {
                 if let PartBody::Body { data, .. } =
-                    GmailClient::get_attachments(account_id, use_proxy, mid, &att.id).await?
+                    GmailClient::get_attachment(account_id, use_proxy, mid, &att.id).await?
                 {
-                    let cid_ref = format!("cid:{}", att.content_id);
+                    let cid_ref = format!("cid:{}", att.content_id.as_deref().unwrap());
                     let data_uri =
                         format!("data:{};base64,{}", att.file_type, normalize_base64(&data)?);
                     *html = html.replace(&cid_ref, &data_uri);
@@ -609,7 +618,7 @@ fn normalize_base64(data: &str) -> RustMailerResult<String> {
         .map(|bytes| base64_encode!(bytes))
 }
 
-async fn fetch_and_cache(
+async fn gmail_fetch_and_cache(
     account_id: u64,
     use_proxy: Option<u64>,
     mid: &str,
@@ -630,7 +639,7 @@ async fn fetch_and_cache(
     }
 
     //Check for inline attachments; if present, download and embed them into the HTML, then cache the result. This approach is simplified compared to the IMAP method.
-    embed_inline_attachments(account_id, use_proxy, mid, &mut message_content).await?;
+    gmail_embed_inline_attachments(account_id, use_proxy, mid, &mut message_content).await?;
 
     let json = serde_json::to_string(&message_content).map_err(|e| {
         raise_error!(
@@ -657,7 +666,8 @@ async fn retrieve_gmail_message_content(
     let account = AccountModel::get(account_id).await?;
     let cache_key = gmail_content_diskcache_key(account_id, &mid);
     if skip_cache {
-        return fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await;
+        return gmail_fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length)
+            .await;
     }
 
     if let Some(mut reader) = DISK_CACHE.get_cache(&cache_key).await? {
@@ -684,7 +694,7 @@ async fn retrieve_gmail_message_content(
             return Ok(message);
         }
     }
-    fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await
+    gmail_fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await
 }
 
 async fn fetch_mail_part_from_imap(
@@ -716,6 +726,167 @@ async fn fetch_mail_part_from_imap(
             ErrorCode::InternalError
         )
     })
+}
+
+async fn retrieve_outlook_message_content(
+    account_id: u64,
+    mid: String,
+    max_length: Option<usize>,
+    skip_cache: bool,
+) -> RustMailerResult<FullMessageContent> {
+    let account = AccountModel::get(account_id).await?;
+    let cache_key = outlook_content_diskcache_key(account_id, &mid);
+    if skip_cache {
+        return outlook_fetch_and_cache(
+            account_id,
+            account.use_proxy,
+            &mid,
+            &cache_key,
+            max_length,
+        )
+        .await;
+    }
+
+    if let Some(mut reader) = DISK_CACHE.get_cache(&cache_key).await? {
+        if let Some(json) = read_string_from_reader(&mut reader).await? {
+            let mut message: FullMessageContent = serde_json::from_str(&json).map_err(|e| {
+                raise_error!(
+                    format!(
+                        "Failed to deserialize cached JSON into FullMessageContent.\nError: {:#?}",
+                        e
+                    ),
+                    ErrorCode::InternalError
+                )
+            })?;
+            if let Some(max_len) = max_length {
+                if let Some(plain) = &mut message.plain {
+                    if plain.content.len() > max_len {
+                        plain.content.truncate(max_len);
+                        plain.truncated = true;
+                    } else {
+                        plain.truncated = false;
+                    }
+                }
+            }
+            return Ok(message);
+        }
+    }
+    outlook_fetch_and_cache(account_id, account.use_proxy, &mid, &cache_key, max_length).await
+}
+
+async fn outlook_fetch_and_cache(
+    account_id: u64,
+    use_proxy: Option<u64>,
+    mid: &str,
+    cache_key: &str,
+    max_length: Option<usize>,
+) -> RustMailerResult<FullMessageContent> {
+    let full_message = OutlookClient::get_message(account_id, use_proxy, mid).await?;
+    // println!("{:#?}", &full_message.body);
+    let mut message_content: FullMessageContent = full_message.try_into()?;
+    if let Some(max_len) = max_length {
+        if let Some(plain) = &mut message_content.plain {
+            if plain.content.len() > max_len {
+                plain.content.truncate(max_len);
+                plain.truncated = true;
+            } else {
+                plain.truncated = false;
+            }
+        }
+    }
+
+    //Check for inline attachments; if present, download and embed them into the HTML, then cache the result. This approach is simplified compared to the IMAP method.
+    outlook_embed_inline_attachments(account_id, use_proxy, mid, &mut message_content).await?;
+
+    let json = serde_json::to_string(&message_content).map_err(|e| {
+        raise_error!(
+            format!(
+                "Failed to serialize FullMessageContent into JSON for caching.\nError: {:#?}",
+                e
+            ),
+            ErrorCode::InternalError
+        )
+    })?;
+    DISK_CACHE
+        .put_cache(cache_key, json.as_bytes(), false)
+        .await?;
+
+    Ok(message_content)
+}
+
+async fn outlook_embed_inline_attachments(
+    account_id: u64,
+    use_proxy: Option<u64>,
+    mid: &str,
+    message_content: &mut FullMessageContent,
+) -> RustMailerResult<()> {
+    if let (Some(attachments), Some(html)) =
+        (&message_content.attachments, &mut message_content.html)
+    {
+        for att in attachments {
+            if att.inline && att.content_id.is_some() {
+                let data =
+                    OutlookClient::get_attachment(account_id, use_proxy, mid, &att.id).await?;
+                let cid_ref = format!("cid:{}", att.content_id.as_deref().unwrap());
+                let data_uri = format!("data:{};base64,{}", att.file_type, &data);
+                //Inline attachments in Outlook do not need to be decoded and then re-encoded; it seems unrelated to URL-safe encoding.
+                *html = html.replace(&cid_ref, &data_uri);
+            }
+        }
+    }
+    Ok(())
+}
+
+impl TryFrom<Message> for FullMessageContent {
+    type Error = RustMailerError;
+
+    fn try_from(value: Message) -> Result<Self, Self::Error> {
+        let attachments = value
+            .attachments
+            .map(|v| v.into_iter().map(Into::into).collect());
+
+        let body = value.body.ok_or_else(|| {
+            raise_error!("Missing body in Message".into(), ErrorCode::InternalError)
+        })?;
+
+        let content_type = body.content_type.trim().to_ascii_lowercase();
+
+        match content_type.as_str() {
+            "text" => Ok(Self {
+                plain: Some(PlainText {
+                    content: body.content,
+                    truncated: false,
+                }),
+                html: None,
+                attachments,
+            }),
+
+            "html" => Ok(Self {
+                plain: None,
+                html: Some(body.content),
+                attachments,
+            }),
+
+            other => Err(raise_error!(
+                format!("Unsupported body content type: {}", other),
+                ErrorCode::InternalError
+            )),
+        }
+    }
+}
+
+impl From<Attachment> for AttachmentInfo {
+    fn from(value: Attachment) -> Self {
+        Self {
+            file_type: value.content_type,
+            transfer_encoding: None,
+            content_id: value.content_id,
+            inline: value.is_inline,
+            filename: value.name,
+            id: value.id,
+            size: value.size,
+        }
+    }
 }
 
 #[cfg(test)]

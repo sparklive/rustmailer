@@ -146,7 +146,7 @@ impl HttpClient {
                                 status = ?status,
                                 url = %url,
                                 response = %text,
-                                "Gmail API client error"
+                                "API client error"
                             );
 
                             if matches!(status, StatusCode::BAD_REQUEST) {
@@ -154,7 +154,7 @@ impl HttpClient {
                                     || text.contains("FAILED_PRECONDITION");
                                 if is_failed_precondition && attempt < max_attempts {
                                     tracing::warn!(
-                                        "Gmail API call to {} returned FAILED_PRECONDITION on attempt {}. Retrying after {}ms...",
+                                        "API call to {} returned FAILED_PRECONDITION on attempt {}. Retrying after {}ms...",
                                         url, attempt, delay_ms
                                     );
                                     tokio::time::sleep(std::time::Duration::from_millis(delay_ms))
@@ -166,7 +166,7 @@ impl HttpClient {
 
                             return Err(raise_error!(
                                 format!(
-                                "Gmail API returned client error (status {}) for {}. Response: {}",
+                                "API returned client error (status {}) for {}. Response: {}",
                                 status, url, text
                             ),
                                 ErrorCode::GmailApiInvalidHistoryId
@@ -175,7 +175,7 @@ impl HttpClient {
 
                         if attempt < max_attempts && status.is_server_error() {
                             tracing::warn!(
-                                "Gmail API call to {} returned server error {} on attempt {}. Retrying after {}ms...",
+                                "API call to {} returned server error {} on attempt {}. Retrying after {}ms...",
                                 url, status, attempt, delay_ms
                             );
                             tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
@@ -185,7 +185,7 @@ impl HttpClient {
 
                         return Err(raise_error!(
                             format!(
-                                "Gmail API call to {} failed with status {}: {}",
+                                "API call to {} failed with status {}: {}",
                                 url, status, text
                             ),
                             ErrorCode::GmailApiCallFailed

@@ -495,22 +495,22 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
                         <span>{currentEnvelope.from?.address}</span>
                       </div>
                     )}
-                    {currentEnvelope.to && (
+                    {currentEnvelope.to && currentEnvelope.to.length > 0 && (
                       <div className="line-clamp-1 text-xs space-x-2">
                         <Multilines title='To' lines={formatAddressList(currentEnvelope.to)} />
                       </div>
                     )}
-                    {currentEnvelope.reply_to && (
+                    {currentEnvelope.reply_to && currentEnvelope.reply_to.length > 0 && (
                       <div className="line-clamp-1 text-xs space-x-2">
                         <Multilines title='Reply To' lines={formatAddressList(currentEnvelope.reply_to)} />
                       </div>
                     )}
-                    {currentEnvelope.cc && (
+                    {currentEnvelope.cc && currentEnvelope.cc.length > 0 && (
                       <div className="line-clamp-1 text-xs space-x-2">
                         <Multilines title='Cc' lines={formatAddressList(currentEnvelope.cc)} />
                       </div>
                     )}
-                    {currentEnvelope.bcc && (
+                    {currentEnvelope.bcc && currentEnvelope.bcc.length > 0 && (
                       <div className="line-clamp-1 text-xs space-x-2">
                         <Multilines title='Bcc' lines={formatAddressList(currentEnvelope.bcc)} />
                       </div>

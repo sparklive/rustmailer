@@ -226,4 +226,27 @@ impl OutlookClient {
         })?;
         Ok(message)
     }
+
+    pub async fn get_attachment(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+        aid: &str,
+    ) -> RustMailerResult<String> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{mid}/attachments/{aid}");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.get(url.as_str(), &access_token).await?;
+        let data = value
+            .get("contentBytes")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                raise_error!(
+                    "Attachment missing contentBytes — possibly a reference or item attachment."
+                        .into(),
+                    ErrorCode::InternalError
+                )
+            })?;
+        Ok(data.into())
+    }
 }

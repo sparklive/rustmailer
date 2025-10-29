@@ -154,15 +154,15 @@ impl OutlookEnvelope {
         envelope_hash_from_id(self.account_id, self.folder_id, &self.id)
     }
 
-    pub async fn exists(&self) -> RustMailerResult<bool> {
-        let target = secondary_find_impl::<OutlookEnvelope>(
-            DB_MANAGER.envelope_db(),
-            OutlookEnvelopeKey::create_envelope_id,
-            self.create_envelope_id(),
-        )
-        .await?;
-        Ok(target.is_some())
-    }
+    // pub async fn exists(&self) -> RustMailerResult<bool> {
+    //     let target = secondary_find_impl::<OutlookEnvelope>(
+    //         DB_MANAGER.envelope_db(),
+    //         OutlookEnvelopeKey::create_envelope_id,
+    //         self.create_envelope_id(),
+    //     )
+    //     .await?;
+    //     Ok(target.is_some())
+    // }
 
     pub async fn list_messages_in_folder(
         folder_id: u64,
@@ -360,16 +360,11 @@ impl TryFrom<Message> for OutlookEnvelope {
         }
         let internal_date = parse_datetime(&msg.received_date_time)?;
         let date = parse_datetime(&msg.sent_date_time)?;
-        let body_len = msg
-            .body
-            .as_ref()
-            .and_then(|b| b.content.as_ref())
-            .map(|s| s.len())
-            .unwrap_or(0);
+        let body_len = msg.body.as_ref().map(|b| b.content.len()).unwrap_or(0);
         let attachments_size: usize = msg
             .attachments
             .as_ref()
-            .map(|atts| atts.iter().map(|a| a.size.unwrap_or(0) as usize).sum())
+            .map(|atts| atts.iter().map(|a| a.size as usize).sum())
             .unwrap_or(0);
         let size = (body_len + attachments_size) as u32;
 

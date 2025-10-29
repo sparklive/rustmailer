@@ -100,8 +100,8 @@ pub struct Message {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ItemBody {
     #[serde(rename = "contentType")]
-    pub content_type: Option<String>,
-    pub content: Option<String>,
+    pub content_type: String,
+    pub content: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -118,14 +118,14 @@ pub struct EmailAddress {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Attachment {
-    pub id: Option<String>,
-    pub name: Option<String>,
+    pub id: String,
+    pub name: String,
     #[serde(rename = "contentType")]
-    pub content_type: Option<String>,
-    pub size: Option<i64>,
+    pub content_type: String,
+    pub size: u32,
     #[serde(rename = "isInline")]
-    pub is_inline: Option<bool>,
-    #[serde(rename = "microsoft.graph.fileAttachment/contentId")]
+    pub is_inline: bool,
+    #[serde(rename = "contentId")]
     pub content_id: Option<String>,
 }
 

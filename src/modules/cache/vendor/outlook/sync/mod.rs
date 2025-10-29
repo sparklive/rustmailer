@@ -92,8 +92,8 @@ pub async fn execute_outlook_sync(account: &AccountModel) -> RustMailerResult<()
 
     handle_delta(account, &local_folders, &remote_folders).await?;
 
-    let deleted_folders = find_deleted_labels(&local_folders, &remote_folders);
-    let missing_folders = find_missing_labels(&local_folders, &remote_folders);
+    let deleted_folders = find_deleted_folders(&local_folders, &remote_folders);
+    let missing_folders = find_missing_folders(&local_folders, &remote_folders);
     if !deleted_folders.is_empty() {
         info!(
             "Account {}: Detected {} mailboxes missing from the Graph API server. \
@@ -148,7 +148,7 @@ pub async fn should_rebuild_cache(
     Ok(true)
 }
 
-pub fn find_deleted_labels(
+pub fn find_deleted_folders(
     local_folders: &[OutlookFolder],
     remote_folders: &[OutlookFolder],
 ) -> Vec<OutlookFolder> {
@@ -161,7 +161,7 @@ pub fn find_deleted_labels(
         .collect()
 }
 
-pub fn find_missing_labels(
+pub fn find_missing_folders(
     local_folders: &[OutlookFolder],
     remote_folders: &[OutlookFolder],
 ) -> Vec<OutlookFolder> {
@@ -193,19 +193,19 @@ async fn cleanup_deleted_folders(
     Ok(())
 }
 
-async fn cleanup_single_label(
-    account: &AccountModel,
-    folder: &OutlookFolder,
-) -> RustMailerResult<()> {
-    let start_time = Instant::now();
-    OutlookEnvelope::clean_folder_envelopes(account.id, folder.id).await?;
-    AddressEntity::clean_mailbox_envelopes(account.id, folder.id).await?;
-    EmailThread::clean_mailbox_envelopes(account.id, folder.id).await?;
-    OutlookFolder::delete(folder.id).await?;
-    let elapsed_time = start_time.elapsed().as_secs();
-    info!(
-        "Cleanup OutlookFolders completed: {} seconds elapsed.",
-        elapsed_time
-    );
-    Ok(())
-}
+// async fn cleanup_single_label(
+//     account: &AccountModel,
+//     folder: &OutlookFolder,
+// ) -> RustMailerResult<()> {
+//     let start_time = Instant::now();
+//     OutlookEnvelope::clean_folder_envelopes(account.id, folder.id).await?;
+//     AddressEntity::clean_mailbox_envelopes(account.id, folder.id).await?;
+//     EmailThread::clean_mailbox_envelopes(account.id, folder.id).await?;
+//     OutlookFolder::delete(folder.id).await?;
+//     let elapsed_time = start_time.elapsed().as_secs();
+//     info!(
+//         "Cleanup OutlookFolders completed: {} seconds elapsed.",
+//         elapsed_time
+//     );
+//     Ok(())
+// }

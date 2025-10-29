@@ -203,9 +203,7 @@ impl MessageApi {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
 
-        Ok(Json(
-            get_thread_messages(account_id, thread_id.0).await?,
-        ))
+        Ok(Json(get_thread_messages(account_id, thread_id.0).await?))
     }
 
     /// Fetches the content of a specific email for the given account.
@@ -225,7 +223,7 @@ impl MessageApi {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
         Ok(Json(
-            retrieve_email_content(account_id, payload.0, false).await?,
+            retrieve_email_content(account_id, payload.0, true).await?,
         ))
     }
 
@@ -284,12 +282,7 @@ impl MessageApi {
         let mailbox_opt = mailbox.0.as_ref().map(|m| m.trim().to_owned());
         let id = id.0.trim();
 
-        let reader = retrieve_raw_email(
-            account_id,
-            mailbox_opt.as_deref(),
-            id
-        )
-        .await?;
+        let reader = retrieve_raw_email(account_id, mailbox_opt.as_deref(), id).await?;
         let body = Body::from_async_read(reader);
         let attachment = Attachment::new(body)
             .attachment_type(AttachmentType::Attachment)

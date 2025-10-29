@@ -33,7 +33,7 @@ async fn access_token() -> String {
     grpc_client.set_send_compressed(CompressionEncoding::GZIP);
 
     let request = GetOAuth2TokensRequest {
-        account_id: 711146144129468,
+        account_id: 1770162132609912,
     };
 
     let mut request = poem_grpc::Request::new(request);
@@ -351,7 +351,6 @@ async fn list_messages() {
     let access_token = access_token().await;
     let mut url =
         "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=3&\
-               $skip=3&\
                $orderBy=receivedDateTime desc&\
                $filter=receivedDateTime ge 2025-10-01T00:00:00Z&\
                $select=id,isRead,conversationId,internetMessageId,from,body,toRecipients,ccRecipients,\
@@ -389,7 +388,7 @@ async fn list_messages() {
 async fn get_message() {
     let access_token = access_token().await;
     let mut url =
-        "https://graph.microsoft.com/v1.0/me/messages/AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAYiJVH0AAAA=?\
+        "https://graph.microsoft.com/v1.0/me/messages/AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAVpj5Y4AAAA=?\
                $select=id,isRead,conversationId,internetMessageId,from,body,toRecipients,ccRecipients,\
                bccRecipients,replyTo,sender,subject,receivedDateTime,sentDateTime,isRead,bodyPreview,categories&\
                $expand=attachments($select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId)"
@@ -414,7 +413,42 @@ async fn get_message() {
         .unwrap();
 
     if res.status().is_success() {
-        let body: Message = res.json().await.unwrap();
+        let body: serde_json::Value = res.json().await.unwrap();
+        println!("{:#?}", body);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn get_attachment() {
+    let access_token = access_token().await;
+    let attachment_id =  "AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAYiJVIAAAAABEgAQAFv-yJzy5mVEmtL1_F7Z6DM=";
+    let url = format!(
+        "https://graph.microsoft.com/v1.0/me/messages/{}/attachments/{}",
+        "AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAYiJVIAAAAA=", attachment_id
+    );
+    let client = reqwest::Client::builder()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10))
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:22307").unwrap())
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let mut nextlink_count = 0;
+
+    let res = client
+        .get(&url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: serde_json::Value = res.json().await.unwrap();
         println!("{:#?}", body);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());

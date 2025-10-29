@@ -47,17 +47,17 @@ impl FolderDeltaLink {
         upsert_impl(DB_MANAGER.envelope_db(), item).await
     }
 
-    pub async fn delete(id: u64) -> RustMailerResult<()> {
-        delete_impl(DB_MANAGER.envelope_db(), move |rw| {
-            rw.get()
-                .primary::<FolderDeltaLink>(id)
-                .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
-                .ok_or_else(|| {
-                    raise_error!("folder delta link missing".into(), ErrorCode::InternalError)
-                })
-        })
-        .await
-    }
+    // pub async fn delete(id: u64) -> RustMailerResult<()> {
+    //     delete_impl(DB_MANAGER.envelope_db(), move |rw| {
+    //         rw.get()
+    //             .primary::<FolderDeltaLink>(id)
+    //             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::InternalError))?
+    //             .ok_or_else(|| {
+    //                 raise_error!("folder delta link missing".into(), ErrorCode::InternalError)
+    //             })
+    //     })
+    //     .await
+    // }
 
     pub async fn get(account_id: u64, folder_id: &str) -> RustMailerResult<Self> {
         let id = mailbox_id(account_id, folder_id);

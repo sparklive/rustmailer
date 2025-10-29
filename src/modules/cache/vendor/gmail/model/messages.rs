@@ -120,7 +120,7 @@ impl TryFrom<MessageMeta> for GmailEnvelope {
             gmail_thread_id: value.thread_id,
             label_ids: value.label_ids,
         };
-        
+
         for header in payload.headers {
             let name = header.name.to_ascii_lowercase();
             match name.as_str() {
@@ -283,9 +283,9 @@ fn walk_part(
                             .trim_end_matches('>')
                             .to_string();
                     }
-                    a.content_id = value;
+                    a.content_id = Some(value);
                 } else if name == "content-transfer-encoding" {
-                    a.transfer_encoding = value;
+                    a.transfer_encoding = Some(value);
                 }
             }
             attachments.push(a);

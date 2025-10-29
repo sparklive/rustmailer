@@ -356,7 +356,7 @@ impl GmailClient {
         Ok(message)
     }
 
-    pub async fn get_attachments(
+    pub async fn get_attachment(
         account_id: u64,
         use_proxy: Option<u64>,
         mid: &str,
