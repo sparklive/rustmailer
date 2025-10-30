@@ -6,9 +6,8 @@ use core::convert::Into;
 use std::{collections::HashMap, fmt, sync::LazyLock};
 
 use payload::{
-    AccountChange, Attachment, EmailAddedToFolder, EmailBounce, EmailFeedBackReport,
-    EmailFlagsChanged, EmailSendingError, EmailSentSuccess, MailboxChange, MailboxCreation,
-    MailboxDeletion,
+    AccountChange, EmailAddedToFolder, EmailBounce, EmailFeedBackReport, EmailFlagsChanged,
+    EmailSendingError, EmailSentSuccess, MailboxChange, MailboxCreation, MailboxDeletion,
 };
 use poem_openapi::Enum;
 use serde::{Deserialize, Serialize};
@@ -189,12 +188,6 @@ impl RustMailerEvent {
                 thread_id: id!(64),
                 reply_to: Some(vec![addr("reply@example.com")]),
                 to: Some(vec![addr("recipient@example.com")]),
-                attachments: Some(vec![Attachment {
-                    filename: Some("notes.pdf".into()),
-                    inline: false,
-                    size: 1024,
-                    file_type: "application/pdf".into(),
-                }]),
                 labels: vec![]
             }
         );

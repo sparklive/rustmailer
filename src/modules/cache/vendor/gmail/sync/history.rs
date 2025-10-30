@@ -24,7 +24,7 @@ use crate::{
         hook::{
             channel::{Event, EVENT_CHANNEL},
             events::{
-                payload::{Attachment, EmailAddedToFolder, EmailFlagsChanged},
+                payload::{EmailAddedToFolder, EmailFlagsChanged},
                 EventPayload, EventType, RustMailerEvent,
             },
             task::EventHookTask,
@@ -342,10 +342,6 @@ async fn dispatch_new_email_notification(
                         message: message_content,
                         thread_name: envelope.thread_name,
                         reply_to: envelope.reply_to,
-                        attachments: envelope
-                            .attachments
-                            .as_ref()
-                            .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
                         thread_id: envelope.thread_id,
                         labels: envelope.labels,
                     }),

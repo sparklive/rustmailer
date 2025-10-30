@@ -32,9 +32,7 @@ use crate::{
         hook::{
             channel::{Event, EVENT_CHANNEL},
             events::{
-                payload::{
-                    Attachment, EmailAddedToFolder, EmailBounce, EmailFeedBackReport, MailboxChange,
-                },
+                payload::{EmailAddedToFolder, EmailBounce, EmailFeedBackReport, MailboxChange},
                 EventPayload, EventType, RustMailerEvent,
             },
             task::EventHookTask,
@@ -932,10 +930,6 @@ async fn process_email_added_events(
                         message: message_content,
                         thread_name: envelope.thread_name,
                         reply_to: envelope.reply_to,
-                        attachments: envelope
-                            .attachments
-                            .as_ref()
-                            .map(|atts| atts.iter().cloned().map(Attachment::from).collect()),
                         thread_id,
                         labels: vec![],
                     }),

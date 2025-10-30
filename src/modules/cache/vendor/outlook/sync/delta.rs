@@ -17,7 +17,13 @@ use crate::{
             upsert_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
-        hook::http::HttpClient,
+        hook::{
+            channel::{Event, EVENT_CHANNEL},
+            events::{payload::EmailAddedToFolder, EventPayload, EventType, RustMailerEvent},
+            http::HttpClient,
+            task::EventHookTask,
+        },
+        message::content::FullMessageContent,
         utils::mailbox_id,
     },
     raise_error, utc_now,
@@ -114,7 +120,9 @@ pub async fn handle_delta(
             .link;
         let client = HttpClient::new(use_proxy).await?;
         let access_token = OutlookClient::get_access_token(account_id).await?;
-        let mut batch = Vec::new();
+        //This includes both new and modified emails. For modified emails, a local comparison is needed to determine what has changed.
+        let mut updated = Vec::new();
+        let mut added = Vec::new();
         loop {
             let value = client.get(url.as_str(), &access_token).await?;
             let resp = serde_json::from_value::<DeltaResponse>(value).map_err(|e| {
@@ -128,14 +136,20 @@ pub async fn handle_delta(
             })?;
             if let Some(items) = resp.value {
                 for item in items {
+                    //The deletion scenario will not be handled for now.
                     if item.removed.is_none() {
                         let message =
                             OutlookClient::get_message(account_id, use_proxy, &item.id).await?;
+                        let full_message: FullMessageContent = message.clone().try_into()?;
                         let mut envelope: OutlookEnvelope = message.try_into()?;
                         envelope.account_id = account_id;
                         envelope.folder_id = remote.id;
                         envelope.folder_name = remote.name.clone();
-                        batch.push(envelope);
+                        if envelope.exists().await? {
+                            updated.push(envelope);
+                        } else {
+                            added.push((envelope, full_message));
+                        }
                     }
                 }
             }
@@ -151,7 +165,9 @@ pub async fn handle_delta(
                 ), ErrorCode::InternalError));
             }
         }
-        OutlookEnvelope::save_envelopes(batch).await?;
+        notify_outlook_envelopes(&account, &added).await?;
+        OutlookEnvelope::save_envelopes(added.into_iter().map(|t| t.0).collect()).await?;
+        OutlookEnvelope::update_envelopes(updated).await?;
         OutlookFolder::upsert(remote).await?;
     }
     Ok(())
@@ -167,4 +183,48 @@ pub fn find_existing_remote_folders(
         .filter(|remote| local_ids.contains(&remote.id))
         .cloned()
         .collect()
+}
+
+pub async fn notify_outlook_envelopes(
+    account: &AccountModel,
+    envelopes: &[(OutlookEnvelope, FullMessageContent)],
+) -> RustMailerResult<()> {
+    let account_id = account.id;
+    if EventHookTask::is_watching_email_add_event(account_id).await? {
+        for message in envelopes {
+            EVENT_CHANNEL
+                .queue(Event::new(
+                    account_id,
+                    &account.email,
+                    RustMailerEvent::new(
+                        EventType::EmailAddedToFolder,
+                        EventPayload::EmailAddedToFolder(EmailAddedToFolder {
+                            account_id: account.id,
+                            account_email: account.email.clone(),
+                            mailbox_name: message.0.folder_name.clone(),
+                            id: message.0.id.clone(),
+                            internal_date: message.0.internal_date,
+                            date: message.0.date,
+                            from: message.0.from.clone(),
+                            subject: message.0.subject.clone(),
+                            to: message.0.to.clone(),
+                            size: message.0.size,
+                            flags: vec![],
+                            cc: message.0.cc.clone(),
+                            bcc: message.0.bcc.clone(),
+                            in_reply_to: message.0.in_reply_to.clone(),
+                            sender: message.0.sender.clone(),
+                            message_id: message.0.message_id.clone(),
+                            message: message.1.clone(),
+                            thread_name: None,
+                            reply_to: message.0.reply_to.clone(),
+                            thread_id: message.0.thread_id,
+                            labels: message.0.categories.clone(),
+                        }),
+                    ),
+                ))
+                .await;
+        }
+    }
+    Ok(())
 }

@@ -21,7 +21,8 @@ use crate::{
         },
         common::Addr,
         database::{
-            batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl, with_transaction,
+            batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
+            secondary_find_impl, with_transaction,
         },
         error::{code::ErrorCode, RustMailerError, RustMailerResult},
         rest::response::DataPage,
@@ -153,15 +154,15 @@ impl OutlookEnvelope {
         envelope_hash_from_id(self.account_id, self.folder_id, &self.id)
     }
 
-    // pub async fn exists(&self) -> RustMailerResult<bool> {
-    //     let target = secondary_find_impl::<OutlookEnvelope>(
-    //         DB_MANAGER.envelope_db(),
-    //         OutlookEnvelopeKey::create_envelope_id,
-    //         self.create_envelope_id(),
-    //     )
-    //     .await?;
-    //     Ok(target.is_some())
-    // }
+    pub async fn exists(&self) -> RustMailerResult<bool> {
+        let target = secondary_find_impl::<OutlookEnvelope>(
+            DB_MANAGER.envelope_db(),
+            OutlookEnvelopeKey::create_envelope_id,
+            self.create_envelope_id(),
+        )
+        .await?;
+        Ok(target.is_some())
+    }
 
     pub async fn list_messages_in_folder(
         folder_id: u64,
@@ -255,65 +256,60 @@ impl OutlookEnvelope {
         with_transaction(DB_MANAGER.envelope_db(), move |rw| {
             for e in envelopes {
                 let envelope_id = e.create_envelope_id();
-                // Idempotent write
-                if rw
-                    .get()
-                    .secondary::<OutlookEnvelope>(
-                        OutlookEnvelopeKey::create_envelope_id,
-                        envelope_id,
-                    )
-                    .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?
-                    .is_none()
-                {
-                    rw.insert::<OutlookEnvelope>(e.clone()).map_err(|err| {
-                        raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
-                    })?;
+                //new emails added here
+                rw.insert::<OutlookEnvelope>(e.clone())
+                    .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?;
 
-                    let address_entities = AddressEntity::extract3(&e);
-                    let thread = EmailThread::new(
-                        e.thread_id,
-                        envelope_id,
-                        e.account_id,
-                        e.folder_id,
-                        e.internal_date,
-                        e.date,
-                    );
-                    // --- Thread upsert ---
-                    match rw
-                        .get()
-                        .secondary::<EmailThread>(EmailThreadKey::thread_id, thread.thread_id)
-                        .map_err(|err| {
-                            raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
-                        })? {
-                        Some(current) => {
-                            // Only replace if current.internal_date is older than new internal_date
-                            if current.need_update(&thread) {
-                                rw.remove(current).map_err(|err| {
-                                    raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
-                                })?;
-                                rw.insert::<EmailThread>(thread).map_err(|err| {
-                                    raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
-                                })?;
-                            }
-                        }
-                        None => {
+                let address_entities = AddressEntity::extract3(&e);
+                let thread = EmailThread::new(
+                    e.thread_id,
+                    envelope_id,
+                    e.account_id,
+                    e.folder_id,
+                    e.internal_date,
+                    e.date,
+                );
+                // --- Thread upsert ---
+                match rw
+                    .get()
+                    .secondary::<EmailThread>(EmailThreadKey::thread_id, thread.thread_id)
+                    .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?
+                {
+                    Some(current) => {
+                        // Only replace if current.internal_date is older than new internal_date
+                        if current.need_update(&thread) {
+                            rw.remove(current).map_err(|err| {
+                                raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
+                            })?;
                             rw.insert::<EmailThread>(thread).map_err(|err| {
                                 raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
                             })?;
                         }
                     }
-
-                    // --- Store address entities ---
-                    for addr in address_entities {
-                        rw.insert::<AddressEntity>(addr).map_err(|err| {
+                    None => {
+                        rw.insert::<EmailThread>(thread).map_err(|err| {
                             raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
                         })?;
                     }
-                } else {
-                    rw.upsert::<OutlookEnvelope>(e.clone()).map_err(|err| {
+                }
+
+                // --- Store address entities ---
+                for addr in address_entities {
+                    rw.insert::<AddressEntity>(addr).map_err(|err| {
                         raise_error!(format!("{:#?}", err), ErrorCode::InternalError)
                     })?;
                 }
+            }
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn update_envelopes(envelopes: Vec<OutlookEnvelope>) -> RustMailerResult<()> {
+        with_transaction(DB_MANAGER.envelope_db(), move |rw| {
+            for e in envelopes {
+                rw.upsert::<OutlookEnvelope>(e)
+                    .map_err(|err| raise_error!(format!("{:#?}", err), ErrorCode::InternalError))?;
             }
             Ok(())
         })
