@@ -5,7 +5,6 @@
 use crate::modules::{
     bounce::parser::{DeliveryStatus, FeedbackReport, RawEmailHeaders},
     common::Addr,
-    imap::section::ImapAttachment,
     message::content::FullMessageContent,
 };
 use serde::{Deserialize, Serialize};
@@ -55,8 +54,6 @@ pub struct EmailAddedToFolder {
     pub reply_to: Option<Vec<Addr>>,
     /// Optional list of recipient addresses (To field) for the email.
     pub to: Option<Vec<Addr>>,
-    /// Optional list of attachments included in the email.
-    pub attachments: Option<Vec<Attachment>>,
     /// A list of labels applied to the message.
     ///
     /// Each element is a string representing a Gmail label ID (e.g., "INBOX", "UNREAD").
@@ -66,28 +63,28 @@ pub struct EmailAddedToFolder {
     pub labels: Vec<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Attachment {
-    /// Optional filename of the attachment, as specified in the email.
-    pub filename: Option<String>,
-    /// Indicates whether the attachment is inline (e.g., embedded in the email body) or not.
-    pub inline: bool,
-    /// Size of the attachment in bytes.
-    pub size: usize,
-    /// MIME type of the attachment (e.g., "application/pdf", "image/jpeg").
-    pub file_type: String,
-}
+// #[derive(Clone, Serialize, Deserialize, Debug)]
+// pub struct Attachment {
+//     /// Optional filename of the attachment, as specified in the email.
+//     pub filename: Option<String>,
+//     /// Indicates whether the attachment is inline (e.g., embedded in the email body) or not.
+//     pub inline: bool,
+//     /// Size of the attachment in bytes.
+//     pub size: usize,
+//     /// MIME type of the attachment (e.g., "application/pdf", "image/jpeg").
+//     pub file_type: String,
+// }
 
-impl From<ImapAttachment> for Attachment {
-    fn from(value: ImapAttachment) -> Self {
-        Self {
-            filename: value.filename,
-            inline: value.inline,
-            size: value.size,
-            file_type: value.file_type,
-        }
-    }
-}
+// impl From<ImapAttachment> for Attachment {
+//     fn from(value: ImapAttachment) -> Self {
+//         Self {
+//             filename: value.filename,
+//             inline: value.inline,
+//             size: value.size,
+//             file_type: value.file_type,
+//         }
+//     }
+// }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct EmailFlagsChanged {
