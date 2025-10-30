@@ -30,7 +30,7 @@ Typical use cases and industries include:
 
 RustMailer enables developers to focus on core application logic without building complex mail infrastructure from scratch.
 
-<img width="1060" height="545" alt="image" src="https://github.com/user-attachments/assets/915fbf53-029a-4940-a3fa-378993cd159b" />
+<img width="1141" height="480" alt="image" src="https://github.com/user-attachments/assets/a143096b-e5d4-4966-af03-82eb53003a64" />
 
 ## 💡 Why RustMailer?
 
