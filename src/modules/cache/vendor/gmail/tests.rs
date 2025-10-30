@@ -44,7 +44,7 @@ async fn access_token() -> String {
     grpc_client.set_send_compressed(CompressionEncoding::GZIP);
 
     let request = GetOAuth2TokensRequest {
-        account_id: 2499101108918052,
+        account_id: 658031352292246,
     };
 
     let mut request = poem_grpc::Request::new(request);

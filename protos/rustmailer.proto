@@ -1129,7 +1129,7 @@ message AppendReplyToDraftRequest {
     // The name of the mailbox or label containing the original message
     // - For IMAP accounts, this is the mailbox name where the source message resides.
     // - For Gmail API accounts, this refers to the label name associated with the source message.
-    string mailbox_name = 2;
+    optional string mailbox_name = 2;
     // The unique ID of the message, either IMAP UID or Gmail API MID.
     // - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
     //   that can be parsed back to a `u32`.

@@ -48,7 +48,7 @@ pub enum ErrorCode {
     SmtpConnectionFailed = 50040,
     MailBoxNotCached = 50050,
     AutoconfigFetchFailed = 50060,
-    GmailApiCallFailed = 50070,
+    ApiCallFailed = 50070,
     GmailApiInvalidHistoryId = 50080,
 
     // Message queue errors (60000–60999)
@@ -85,7 +85,7 @@ impl ErrorCode {
             ErrorCode::InternalError
             | ErrorCode::AutoconfigFetchFailed
             | ErrorCode::ImapCommandFailed
-            | ErrorCode::GmailApiCallFailed
+            | ErrorCode::ApiCallFailed
             | ErrorCode::GmailApiInvalidHistoryId
             | ErrorCode::ImapUnexpectedResult
             | ErrorCode::HttpResponseError

@@ -166,9 +166,9 @@ impl HttpClient {
 
                             return Err(raise_error!(
                                 format!(
-                                "API returned client error (status {}) for {}. Response: {}",
-                                status, url, text
-                            ),
+                                    "API returned client error (status {}) for {}. Response: {}",
+                                    status, url, text
+                                ),
                                 ErrorCode::GmailApiInvalidHistoryId
                             ));
                         }
@@ -188,7 +188,7 @@ impl HttpClient {
                                 "API call to {} failed with status {}: {}",
                                 url, status, text
                             ),
-                            ErrorCode::GmailApiCallFailed
+                            ErrorCode::ApiCallFailed
                         ));
                     }
                 }
@@ -210,7 +210,7 @@ impl HttpClient {
                                 "Request to {} failed after {} attempts: {:#?}",
                                 url, attempt, e
                             ),
-                            ErrorCode::GmailApiCallFailed
+                            ErrorCode::ApiCallFailed
                         ));
                     }
                 }
@@ -219,11 +219,11 @@ impl HttpClient {
     }
 
     /// Wrapper around the Gmail API `POST` request.
-    pub async fn post(
+    pub async fn post<T: Serialize>(
         &self,
         url: &str,
         access_token: &str,
-        body: Option<&impl Serialize>,
+        body: Option<&T>,
         expect_json_response: bool,
     ) -> RustMailerResult<serde_json::Value> {
         let mut builder = self
@@ -267,10 +267,10 @@ impl HttpClient {
             // Return the error with status and response text for more context
             Err(raise_error!(
                 format!(
-                    "Gmail API call to {} failed with status {}: {}",
+                    "API call to {} failed with status {}: {}",
                     url, status, text
                 ),
-                ErrorCode::GmailApiCallFailed
+                ErrorCode::ApiCallFailed
             ))
         }
     }
@@ -304,10 +304,10 @@ impl HttpClient {
             // Return the error with status and response text for more context
             Err(raise_error!(
                 format!(
-                    "Gmail API call to {} failed with status {}: {}",
+                    "API call to {} failed with status {}: {}",
                     url, status, text
                 ),
-                ErrorCode::GmailApiCallFailed
+                ErrorCode::ApiCallFailed
             ))
         }
     }
@@ -352,10 +352,58 @@ impl HttpClient {
             // Return the error with status and response text for more context
             Err(raise_error!(
                 format!(
-                    "Gmail API call to {} failed with status {}: {}",
+                    "API call to {} failed with status {}: {}",
                     url, status, text
                 ),
-                ErrorCode::GmailApiCallFailed
+                ErrorCode::ApiCallFailed
+            ))
+        }
+    }
+
+    pub async fn patch<T: Serialize + ?Sized>(
+        &self,
+        url: &str,
+        access_token: &str,
+        body: &T,
+    ) -> RustMailerResult<serde_json::Value> {
+        let res = self
+            .client
+            .patch(url)
+            .header(AUTHORIZATION, format!("Bearer {}", access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| {
+                raise_error!(
+                    format!("Request failed: {:#?}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+
+        if res.status().is_success() {
+            let json: serde_json::Value = res.json().await.map_err(|e| {
+                raise_error!(
+                    format!("Failed to parse response: {:#?}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+            Ok(json)
+        } else {
+            let status = res.status();
+            let text = res.text().await.map_err(|e| {
+                raise_error!(
+                    format!("Failed to read error response: {:#?}", e),
+                    ErrorCode::InternalError
+                )
+            })?;
+            // Return the error with status and response text for more context
+            Err(raise_error!(
+                format!(
+                    "API call to {} failed with status {}: {}",
+                    url, status, text
+                ),
+                ErrorCode::ApiCallFailed
             ))
         }
     }

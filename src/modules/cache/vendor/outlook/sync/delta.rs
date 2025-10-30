@@ -13,8 +13,8 @@ use crate::{
             sync::{client::OutlookClient, envelope::OutlookEnvelope, folders::OutlookFolder},
         },
         database::{
-            async_find_impl, batch_delete_impl, delete_impl, filter_by_secondary_key_impl,
-            manager::DB_MANAGER, upsert_impl,
+            async_find_impl, batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
+            upsert_impl,
         },
         error::{code::ErrorCode, RustMailerResult},
         hook::http::HttpClient,

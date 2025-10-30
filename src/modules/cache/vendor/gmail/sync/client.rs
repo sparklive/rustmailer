@@ -21,6 +21,7 @@ use crate::{
         error::{code::ErrorCode, RustMailerResult},
         hook::http::HttpClient,
         mailbox::{create::CreateMailboxRequest, rename::MailboxUpdateRequest},
+        message::append::ReplyDraft,
         oauth2::token::OAuth2AccessToken,
     },
     raise_error,
@@ -409,12 +410,32 @@ impl GmailClient {
         account_id: u64,
         use_proxy: Option<u64>,
         body: serde_json::Value,
-    ) -> RustMailerResult<serde_json::Value> {
+    ) -> RustMailerResult<ReplyDraft> {
         let url = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
         let value = client.post(url, &access_token, Some(&body), true).await?;
-        Ok(value)
+        let message_id = value
+            .get("message")
+            .and_then(|m| m.get("id"))
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                raise_error!(
+                    "Missing message.id from Gmail create draft response".into(),
+                    ErrorCode::InternalError
+                )
+            })?;
+        let map = Self::label_map(account_id, use_proxy).await?;
+        let name = map.get("DRAFT").ok_or_else(|| {
+            raise_error!(
+                "Cannot find 'DRAFT' label in Gmail account label map".into(),
+                ErrorCode::InternalError
+            )
+        })?;
+        Ok(ReplyDraft {
+            id: message_id.into(),
+            draft_folder: name.into(),
+        })
     }
 
     pub async fn send_email(

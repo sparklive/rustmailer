@@ -1,3 +1,5 @@
+use serde_json::json;
+
 use crate::{
     modules::{
         cache::vendor::outlook::model::{
@@ -5,6 +7,7 @@ use crate::{
         },
         error::{code::ErrorCode, RustMailerResult},
         hook::http::HttpClient,
+        message::append::ReplyDraft,
         oauth2::token::OAuth2AccessToken,
     },
     raise_error,
@@ -248,5 +251,59 @@ impl OutlookClient {
                 )
             })?;
         Ok(data.into())
+    }
+
+    pub async fn create_reply(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+        text: Option<&str>,
+        html: Option<&str>,
+    ) -> RustMailerResult<ReplyDraft> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{mid}/createReply");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client
+            .post::<()>(url.as_str(), &access_token, None, true)
+            .await?;
+        let id = value.get("id").and_then(|v| v.as_str()).ok_or_else(|| {
+            raise_error!(
+                "Missing id from createReply response.".into(),
+                ErrorCode::InternalError
+            )
+        })?;
+
+        let (content_type, content) = if let Some(html_body) = html {
+            ("html", html_body)
+        } else if let Some(text_body) = text {
+            ("text", text_body)
+        } else {
+            ("text", "")
+        };
+
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{id}");
+        let data = json!({
+            "body": {
+                "contentType": content_type,
+                "content": content,
+            },
+            "importance": "high",
+            "isReadReceiptRequested": true,
+            "isRead": false
+        });
+        client.patch(&url, &access_token, &data).await?;
+        let url = format!("https://graph.microsoft.com/v1.0/me/mailFolders/drafts");
+        let value = client.get(&url, &access_token).await.map_err(|e| {
+            raise_error!(format!("Request error: {e:#?}"), ErrorCode::InternalError)
+        })?;
+        let folder = serde_json::from_value::<MailFolder>(value)
+            .map_err(|e| raise_error!(format!(
+                "Failed to deserialize Graph API response into MailFolder: {:#?}. Possible model mismatch or API change.",
+                e
+            ), ErrorCode::InternalError))?;
+        Ok(ReplyDraft {
+            id: id.into(),
+            draft_folder: folder.display_name,
+        })
     }
 }

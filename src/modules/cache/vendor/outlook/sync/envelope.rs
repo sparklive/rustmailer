@@ -21,8 +21,7 @@ use crate::{
         },
         common::Addr,
         database::{
-            batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
-            secondary_find_impl, with_transaction,
+            batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl, with_transaction,
         },
         error::{code::ErrorCode, RustMailerError, RustMailerResult},
         rest::response::DataPage,

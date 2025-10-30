@@ -13,17 +13,25 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    base64_encode_url_safe, encode_mailbox_name,
+    base64_encode_url_safe,
     modules::{
         account::{entity::MailerType, migration::AccountModel},
-        cache::vendor::gmail::sync::{
-            client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels,
+        cache::{
+            imap::mailbox::AttributeEnum,
+            vendor::{
+                gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
+                outlook::sync::client::OutlookClient,
+            },
         },
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
-        smtp::request::{
-            reply::{apply_references, apply_references2},
-            EmailHandler,
+        mailbox::list::request_imap_all_mailbox_list,
+        smtp::{
+            request::{
+                reply::{apply_references, apply_references2},
+                EmailHandler,
+            },
+            util::generate_message_id,
         },
     },
     raise_error,
@@ -36,7 +44,7 @@ pub struct AppendReplyToDraftRequest {
     /// - For IMAP accounts, this is the mailbox name where the source message resides.
     /// - For Gmail API accounts, this refers to the label name associated with the source message.
     /// This is used to locate the message being replied to.
-    pub mailbox_name: String,
+    pub mailbox_name: Option<String>,
     /// The unique ID of the message, either IMAP UID or Gmail API MID.
     ///
     /// - For IMAP accounts, this is the UID converted to a string. It must be a valid numeric string
@@ -58,39 +66,28 @@ pub struct AppendReplyToDraftRequest {
     /// This field is optional and can be used to provide HTML content.
     #[oai(validator(min_length = "1", max_length = "50000"))]
     pub html: Option<String>,
-    /// The path of the folder used to store drafts (IMAP accounts only).
-    ///
-    /// For example: "[Gmail]/Drafts".
-    /// This can be obtained from the `name` field of the mailbox via the list-mailboxes endpoint.
-    /// For Gmail API accounts, this field is ignored.
-    pub draft_folder_path: Option<String>,
 }
 
 impl AppendReplyToDraftRequest {
-    fn validate(&self, is_gmail_api: bool) -> RustMailerResult<()> {
-        if self.mailbox_name.trim().is_empty() {
-            return Err(raise_error!(
-                "mailbox_name cannot be empty".into(),
-                ErrorCode::InvalidParameter
-            ));
-        }
-
-        if !is_gmail_api {
-            // IMAP account: uid and draft_folder_path required
+    fn validate(&self, gmail_or_graph: bool) -> RustMailerResult<()> {
+        if !gmail_or_graph {
+            // IMAP account: uid and mailbox_name required
             if self.id.parse::<u32>().is_err() {
                 return Err(raise_error!(
                     "Invalid IMAP UID: `id` must be a numeric string".into(),
                     ErrorCode::InvalidParameter
                 ));
             }
+
+            // IMAP account: mailbox_name must be present
             if self
-                .draft_folder_path
+                .mailbox_name
                 .as_ref()
                 .map(|s| s.is_empty())
                 .unwrap_or(true)
             {
                 return Err(raise_error!(
-                    "draft_folder_path cannot be empty for IMAP accounts".into(),
+                    "For IMAP accounts, `mailbox_name` is required".into(),
                     ErrorCode::InvalidParameter
                 ));
             }
@@ -98,26 +95,51 @@ impl AppendReplyToDraftRequest {
         Ok(())
     }
 
-    pub async fn append_reply_to_draft(&self, account_id: u64) -> RustMailerResult<()> {
+    pub async fn append_reply_to_draft(&self, account_id: u64) -> RustMailerResult<ReplyDraft> {
         let account = AccountModel::check_account_active(account_id, false).await?;
-        self.validate(matches!(account.mailer_type, MailerType::GmailApi))?;
+        self.validate(matches!(
+            account.mailer_type,
+            MailerType::GmailApi | MailerType::GraphApi
+        ))?;
 
         match account.mailer_type {
-            MailerType::ImapSmtp => self.append_reply_to_draft_imap(&account).await?,
-            MailerType::GmailApi => {
-                self.append_reply_to_draft_gmail(&account, account_id)
-                    .await?
+            MailerType::ImapSmtp => self.append_reply_to_draft_imap(&account).await,
+            MailerType::GmailApi => self.append_reply_to_draft_gmail(&account, account_id).await,
+            MailerType::GraphApi => {
+                OutlookClient::create_reply(
+                    account_id,
+                    account.use_proxy,
+                    &self.id,
+                    self.text.as_deref(),
+                    self.html.as_deref(),
+                )
+                .await
             }
-            MailerType::GraphApi => todo!(),
         }
-
-        Ok(())
     }
 
-    async fn append_reply_to_draft_imap(&self, account: &AccountModel) -> RustMailerResult<()> {
+    async fn append_reply_to_draft_imap(
+        &self,
+        account: &AccountModel,
+    ) -> RustMailerResult<ReplyDraft> {
+        let mailboxes = request_imap_all_mailbox_list(account.id).await?;
+        let drafts_mailbox = mailboxes
+            .iter()
+            .find(|mb| {
+                mb.attributes
+                    .iter()
+                    .any(|attr| matches!(attr.attr, AttributeEnum::Drafts))
+            })
+            .ok_or_else(|| {
+                raise_error!(
+                    "Cannot find Drafts mailbox in the account".into(),
+                    ErrorCode::InternalError
+                )
+            })?;
+
         let envelope = EmailHandler::get_envelope(
             account,
-            &self.mailbox_name,
+            self.mailbox_name.as_deref().unwrap(),
             self.id.parse::<u32>().ok().unwrap(),
         )
         .await?;
@@ -146,6 +168,8 @@ impl AppendReplyToDraftRequest {
             .from(from)
             .to(Address::from(to.clone()))
             .subject(subject);
+        let message_id = generate_message_id();
+        builder = builder.message_id(message_id.clone());
         builder = apply_references(builder, &envelope)?;
         builder = self.apply_content(builder)?;
         let message = builder.into_message().map_err(|e| {
@@ -156,33 +180,35 @@ impl AppendReplyToDraftRequest {
         })?;
 
         let executor = RUST_MAIL_CONTEXT.imap(account.id).await?;
-        let drafts =
-            encode_mailbox_name!(&self.draft_folder_path.as_ref().ok_or_else(|| raise_error!(
-                "draft_folder_path is missing but required for IMAP accounts".into(),
-                ErrorCode::InternalError
-            ))?);
-        executor.append(drafts, None, None, message.body).await?;
-        Ok(())
+        executor
+            .append(
+                drafts_mailbox.encoded_name().as_str(),
+                None,
+                None,
+                message.body,
+            )
+            .await?;
+        //Why not use UID SEARCH? Because it’s unreliable—searching by Message-ID may not consistently return results,
+        //possibly due to differences in how the IMAP server is implemented.
+        let uid = executor
+            .get_uid_by_message_id(
+                message_id.trim_matches(['<', '>'].as_ref()),
+                &drafts_mailbox.encoded_name(),
+            )
+            .await?;
+        Ok(ReplyDraft {
+            id: uid.to_string(),
+            draft_folder: drafts_mailbox.name.clone(),
+        })
     }
 
     async fn append_reply_to_draft_gmail(
         &self,
         account: &AccountModel,
         account_id: u64,
-    ) -> RustMailerResult<()> {
-        let target_label = GmailLabels::get_by_name(account_id, &self.mailbox_name).await?;
-        let envelope = GmailEnvelope::find(account_id, target_label.id, &self.id)
-            .await?
-            .ok_or_else(|| {
-                raise_error!(
-                    format!(
-                        "Gmail message with id '{}' not found in label '{}' for account {}",
-                        self.id, target_label.name, account_id
-                    ),
-                    ErrorCode::ResourceNotFound
-                )
-            })?;
-
+    ) -> RustMailerResult<ReplyDraft> {
+        let envelope = GmailClient::get_message(account_id, account.use_proxy, &self.id).await?;
+        let envelope: GmailEnvelope = envelope.try_into()?;
         let from = Address::new_address(
             account.name.as_ref().map(|n| Cow::Owned(n.to_string())),
             Cow::Owned(account.email.clone()),
@@ -224,8 +250,7 @@ impl AppendReplyToDraftRequest {
             }
         });
 
-        GmailClient::create_draft(account_id, account.use_proxy, body).await?;
-        Ok(())
+        GmailClient::create_draft(account_id, account.use_proxy, body).await
     }
 
     fn apply_content(
@@ -241,4 +266,18 @@ impl AppendReplyToDraftRequest {
         }
         Ok(builder)
     }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
+pub struct ReplyDraft {
+    /// Message identifier:
+    /// - For IMAP accounts, this is the UID of the message;
+    /// - For Gmail / Graph API, this is the message ID.
+    pub id: String,
+    /// Draft folder name:
+    /// - In IMAP, this is the name of the drafts folder;
+    /// - In Gmail API, this is the name of the draft label;
+    /// - In Graph API, this is the name of the drafts folder;
+    /// These names can all be used as `mailbox_name` in RustMailer API.
+    pub draft_folder: String,
 }

@@ -35,7 +35,7 @@ fn gmail_raw_email_diskcache_key(account_id: u64, mid: &str) -> String {
     format!("gmail_raw_email_{}_{}", account_id, mid)
 }
 
-pub async fn retrieve_raw_email(
+pub async fn  retrieve_raw_email(
     account_id: u64,
     mailbox: Option<&str>,
     id: &str,

@@ -2,9 +2,13 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use futures::StreamExt;
 use mail_parser::MessageParser;
 
-use crate::{base64_encode_url_safe, modules::{account::entity::Encryption, imap::client::Client}};
+use crate::{
+    base64_encode_url_safe,
+    modules::{account::entity::Encryption, imap::client::Client},
+};
 
 #[tokio::test]
 async fn testxx() {
@@ -13,10 +17,29 @@ async fn testxx() {
     let client = Client::connection("imap.zoho.com".into(), Encryption::Ssl, 993, None)
         .await
         .unwrap();
-    let mut session = client.login("pollybase@zohomail.com", "xxx").await.unwrap();
-    session.select("INBOX").await.unwrap();
-    let result = session.uid_search("LARGER 1024").await.unwrap();
-    println!("{:#?}", result);
+    let mut session = client
+        .login("pollybase@zohomail.com", "xx")
+        .await
+        .unwrap();
+    session.select("Drafts").await.unwrap();
+
+    let mut stream = session
+        .fetch("1:*", "(UID BODY.PEEK[HEADER.FIELDS (Message-ID)])")
+        .await
+        .unwrap();
+
+    while let Some(fetch_res) = stream.next().await {
+        match fetch_res {
+            Ok(fetch) => {
+                let uid = fetch.uid;
+                let header = fetch.header().unwrap();
+                let headers = MessageParser::default().parse_headers(&header).unwrap();
+                let message_id = headers.message_id();
+                println!("UID={:#?} Message-ID={:#?}", uid, message_id);
+            }
+            Err(e) => eprintln!("fetch error: {:?}", e),
+        }
+    }
 }
 
 #[tokio::test]

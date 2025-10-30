@@ -185,7 +185,7 @@ async fn test6() {
 
     let request = AppendReplyToDraftRequest {
         account_id: 6637484689546669,
-        mailbox_name: "INBOX".into(),
+        mailbox_name: Some("INBOX".into()),
         id: "395".into(),
         preview: None,
         text: Some("hello world.".into()),
@@ -245,7 +245,7 @@ async fn test8() {
 
     let request = AppendReplyToDraftRequest {
         account_id: 4391092875701825,
-        mailbox_name: "INBOX".into(),
+        mailbox_name: Some("INBOX".into()),
         preview: None,
         text: Some("hello world.".into()),
         html: None,

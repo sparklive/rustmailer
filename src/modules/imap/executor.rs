@@ -8,7 +8,8 @@ use crate::modules::{error::RustMailerResult, imap::manager::ImapConnectionManag
 use crate::raise_error;
 use async_imap::types::{Fetch, Mailbox, Name};
 use bb8::Pool;
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
+use mail_parser::MessageParser;
 use std::collections::HashSet;
 use tracing::{debug, info};
 
@@ -24,6 +25,8 @@ const BODYSTRUCTURE: &str = "(UID BODYSTRUCTURE RFC822.SIZE)";
 //     "(UID BODY.PEEK[HEADER.FIELDS (List-Unsubscribe List-Subscribe List-ID)])";
 
 const BODY_FETCH_COMMAND: &str = "(BODY.PEEK[])";
+
+const HEADER_MESSAGE_ID_QUERY: &str = "(UID BODY.PEEK[HEADER.FIELDS (Message-ID)])";
 
 pub struct ImapExecutor {
     pool: Pool<ImapConnectionManager>,
@@ -157,6 +160,86 @@ impl ImapExecutor {
             .await
             .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?;
         Ok(result)
+    }
+
+    /// Get the UID of a message by its Message-ID in the specified mailbox.
+    ///
+    /// ⚠️ Note:
+    /// This function is intended for use in the **Drafts mailbox**, where the number of
+    /// messages is typically small. It performs a linear scan of all messages in the mailbox,
+    /// so it should **not be used for large mailboxes** as it may be inefficient.
+    pub async fn get_uid_by_message_id(
+        &self,
+        target_message_id: &str,
+        mailbox_name: &str,
+    ) -> RustMailerResult<u32> {
+        let mut session = self.pool.get().await?;
+        session
+            .examine(mailbox_name)
+            .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?;
+
+        let mut stream = session
+            .fetch("1:*", HEADER_MESSAGE_ID_QUERY)
+            .await
+            .map_err(|e| raise_error!(format!("{:#?}", e), ErrorCode::ImapCommandFailed))?;
+
+        while let Some(fetch_res) = stream.next().await {
+            match fetch_res {
+                Ok(fetch) => {
+                    let uid = fetch.uid.ok_or_else(|| {
+                        raise_error!(
+                            format!("Missing UID in a fetch from mailbox '{}'", mailbox_name),
+                            ErrorCode::InternalError
+                        )
+                    })?;
+                    let header = fetch.header().ok_or_else(|| {
+                        raise_error!(
+                            format!(
+                                "Missing header in UID {} from mailbox '{}'",
+                                uid, mailbox_name
+                            ),
+                            ErrorCode::InternalError
+                        )
+                    })?;
+                    let headers =
+                        MessageParser::default()
+                            .parse_headers(&header)
+                            .ok_or_else(|| {
+                                raise_error!(
+                                    format!(
+                                        "Failed to parse headers for UID {} in mailbox '{}'",
+                                        uid, mailbox_name
+                                    ),
+                                    ErrorCode::InternalError
+                                )
+                            })?;
+                    let message_id = headers.message_id().ok_or_else(|| {
+                        raise_error!(
+                            format!(
+                                "No Message-ID found for UID {} in mailbox '{}'",
+                                uid, mailbox_name
+                            ),
+                            ErrorCode::InternalError
+                        )
+                    })?;
+                    if message_id == target_message_id {
+                        return Ok(uid);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("fetch error: {:?}", e);
+                    return Err(raise_error!(format!("{:#?}", e), ErrorCode::InternalError));
+                }
+            }
+        }
+        Err(raise_error!(
+            format!(
+                "Message-ID '{}' not found in mailbox '{}'",
+                target_message_id, mailbox_name
+            ),
+            ErrorCode::ResourceNotFound
+        ))
     }
 
     pub async fn retrieve_metadata_paginated(

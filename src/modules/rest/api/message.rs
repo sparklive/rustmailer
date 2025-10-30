@@ -5,7 +5,7 @@
 use crate::current_datetime;
 use crate::modules::cache::model::Envelope;
 use crate::modules::common::auth::ClientContext;
-use crate::modules::message::append::AppendReplyToDraftRequest;
+use crate::modules::message::append::{AppendReplyToDraftRequest, ReplyDraft};
 use crate::modules::message::attachment::{retrieve_email_attachment, AttachmentRequest};
 use crate::modules::message::content::{
     retrieve_email_content, FullMessageContent, MessageContentRequest,
@@ -386,12 +386,11 @@ impl MessageApi {
         payload: Json<AppendReplyToDraftRequest>,
         /// Request context (authentication, authorization).
         context: ClientContext,
-    ) -> ApiResult<()> {
+    ) -> ApiResult<Json<ReplyDraft>> {
         let account_id = account_id.0;
         // Verify that the client has permission to access the account.
         context.require_account_access(account_id)?;
         // Perform the draft creation and append operation.
-        payload.0.append_reply_to_draft(account_id).await?;
-        Ok(())
+        Ok(Json(payload.0.append_reply_to_draft(account_id).await?))
     }
 }
