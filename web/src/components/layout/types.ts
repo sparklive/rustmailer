@@ -6,12 +6,6 @@
 
 import { LinkProps } from '@tanstack/react-router'
 
-interface User {
-  name: string
-  email: string
-  avatar: string
-}
-
 interface BaseNavItem {
   title: string
   badge?: string
@@ -36,7 +30,6 @@ interface NavGroup {
 }
 
 interface SidebarData {
-  user: User
   navGroups: NavGroup[]
 }
 
