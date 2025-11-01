@@ -292,11 +292,11 @@ export function ActionDialog({ currentRow, open, onOpenChange }: Props) {
             variant="secondary"
             size="sm"
             onClick={() => {
-              form.setValue("auth_url", "https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
-              form.setValue("token_url", "https://login.microsoftonline.com/common/oauth2/v2.0/token");
+              form.setValue("auth_url", "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize");
+              form.setValue("token_url", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
               form.setValue("enabled", true);
-              form.setValue("scopes", [{ value: "https://outlook.office.com/IMAP.AccessAsUser.All" }, { value: "https://outlook.office.com/SMTP.Send" }]);
-              form.setValue("extra_params", [{ key: "client_info", value: "1" }, { key: "prompt", value: "select_account" }])
+              form.setValue("scopes", [{ value: "https://graph.microsoft.com/Mail.ReadWrite" }, { value: "https://graph.microsoft.com/Mail.Send" }, { value: "offline_access" }]);
+              form.setValue("extra_params", [{ key: "prompt", value: "consent" }])
             }}
           >
             Outlook
