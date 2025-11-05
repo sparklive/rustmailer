@@ -359,4 +359,15 @@ impl OutlookClient {
             .await?;
         Ok(())
     }
+
+    pub async fn delete_message(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{mid}");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        client.delete(url.as_str(), &access_token).await
+    }
 }

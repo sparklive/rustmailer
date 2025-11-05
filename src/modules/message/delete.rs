@@ -6,6 +6,7 @@ use crate::modules::account::entity::MailerType;
 use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::imap::mailbox::{AttributeEnum, MailBox};
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
+use crate::modules::cache::vendor::outlook::sync::client::OutlookClient;
 use crate::modules::context::executors::RUST_MAIL_CONTEXT;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::{envelope::generate_uid_set, error::RustMailerResult};
@@ -24,7 +25,7 @@ pub struct MessageDeleteRequest {
     /// The decoded, human-readable name of the mailbox containing the email (e.g., "INBOX").  (IMAP only)
     /// This name is presented as it appears to users, with any encoding (e.g., UTF-7) automatically handled by the system,
     /// so no manual decoding is required.
-    /// In Gmail API, this field is not required and can be set to `None`.
+    /// In Gmail/Graph API, this field is not required and can be set to `None`.
     pub mailbox: Option<String>,
 }
 
@@ -66,7 +67,7 @@ pub async fn move_to_trash(
             move_to_trash_or_delete_messages_directly(account_id, &uids, mailbox).await
         }
         MailerType::GmailApi => gmail_move_to_trash(&account, &request.ids).await,
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => outlook_move_to_trash(&account, &request.ids).await,
     }
 }
 
@@ -74,6 +75,18 @@ pub async fn gmail_move_to_trash(account: &AccountModel, mids: &[String]) -> Rus
     let account_id = account.id;
     let use_proxy = account.use_proxy;
     GmailClient::batch_delete(account_id, use_proxy, mids).await
+}
+
+pub async fn outlook_move_to_trash(
+    account: &AccountModel,
+    mids: &[String],
+) -> RustMailerResult<()> {
+    let account_id = account.id;
+    let use_proxy = account.use_proxy;
+    for mid in mids {
+        OutlookClient::delete_message(account_id, use_proxy, mid).await?;
+    }
+    Ok(())
 }
 
 async fn move_to_trash_or_delete_messages_directly(
