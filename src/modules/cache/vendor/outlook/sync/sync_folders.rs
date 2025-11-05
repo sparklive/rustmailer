@@ -77,13 +77,9 @@ pub async fn get_sync_folders(account: &AccountModel) -> RustMailerResult<Vec<Ma
     );
     // If there are no subscriptions, default to the two special folders: inbox and sentitems
     if matched_folders.is_empty() {
-        let inbox = OutlookClient::get_folder(account.id, account.use_proxy, "inbox").await?;
-        let sentitems =
-            OutlookClient::get_folder(account.id, account.use_proxy, "sentitems").await?;
-
         matched_folders = all_mail_folders
             .into_iter()
-            .filter(|folder| folder.id == inbox.id || folder.id == sentitems.id)
+            .filter(|folder| folder.display_name == "INBOX" || folder.display_name == "SENTITEMS")
             .collect();
 
         debug!(

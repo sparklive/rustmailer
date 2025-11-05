@@ -117,6 +117,20 @@ impl OutlookClient {
         let access_token = Self::get_access_token(account_id).await?;
         let mut result = Vec::new();
         Self::fetch_recursive(&client, None, "", &mut result, &access_token).await?;
+
+        let inbox = Self::get_folder(account_id, use_proxy, "inbox").await?;
+        let sentitems = Self::get_folder(account_id, use_proxy, "sentitems").await?;
+        let drafts = Self::get_folder(account_id, use_proxy, "sentitems").await?;
+
+        for folder in &mut result {
+            if folder.id == inbox.id {
+                folder.display_name = "INBOX".to_string();
+            } else if folder.id == sentitems.id {
+                folder.display_name = "SENTITEMS".to_string();
+            } else if folder.id == drafts.id {
+                folder.display_name = "DRAFTS".to_string();
+            }
+        }
         Ok(result)
     }
 
