@@ -4,10 +4,7 @@
 
 use std::time::Duration;
 
-use crate::{
-    modules::{error::code::ErrorCode, hook::http::HttpClient},
-    raise_error, rustmailer_version,
-};
+use crate::{modules::{common::http::HttpClient, error::code::ErrorCode}, raise_error, rustmailer_version};
 
 #[tokio::test]
 async fn test_connect_timeout() {
@@ -103,7 +100,7 @@ async fn test_connect_use_proxy() {
     let client = HttpClient::create(client);
     let url = "https://discord.com/api/webhooks/1397150752484622416/9yb6QJSJkszn-uiDge3No3ri9B2-shKMKOT1ruijnPbVtd_k9HAuqspn8C2cOXIqu4l5";
     let payload = json!({
-        "avatar_url": "https://github.com/rustmailer.png", 
+        "avatar_url": "https://github.com/rustmailer.png",
         "content": "hello world",
         "embeds": [
             {
@@ -145,7 +142,7 @@ async fn test_connect_use_proxy() {
     let result = client
         .send_json_request(None, HttpMethod::Post, url, &payload, None)
         .await;
- 
+
     match result {
         Err(e) => {
             let err_str = e.to_string();

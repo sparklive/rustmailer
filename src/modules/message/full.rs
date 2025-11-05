@@ -6,7 +6,10 @@ use crate::{
     base64_decode_url_safe,
     modules::{
         account::{entity::MailerType, migration::AccountModel},
-        cache::{disk::DISK_CACHE, vendor::gmail::sync::client::GmailClient},
+        cache::{
+            disk::DISK_CACHE,
+            vendor::{gmail::sync::client::GmailClient, outlook::sync::client::OutlookClient},
+        },
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
     },
@@ -35,7 +38,11 @@ fn gmail_raw_email_diskcache_key(account_id: u64, mid: &str) -> String {
     format!("gmail_raw_email_{}_{}", account_id, mid)
 }
 
-pub async fn  retrieve_raw_email(
+fn outlook_raw_email_diskcache_key(account_id: u64, mid: &str) -> String {
+    format!("outlook_raw_email_{}_{}", account_id, mid)
+}
+
+pub async fn retrieve_raw_email(
     account_id: u64,
     mailbox: Option<&str>,
     id: &str,
@@ -58,7 +65,7 @@ pub async fn  retrieve_raw_email(
             retrieve_imap_raw_email(account_id, mailbox, uid).await
         }
         MailerType::GmailApi => retrieve_gmail_raw_email(&account, id).await,
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => retrieve_outlook_raw_email(&account, id).await,
     }
 }
 
@@ -142,6 +149,22 @@ async fn retrieve_gmail_raw_email(
         )
     })?;
 
+    DISK_CACHE.put_cache(&cache_key, &data, false).await?;
+    DISK_CACHE
+        .get_cache(&cache_key)
+        .await?
+        .ok_or_else(|| raise_error!("Unexpected cache miss".into(), ErrorCode::InternalError))
+}
+
+async fn retrieve_outlook_raw_email(
+    account: &AccountModel,
+    mid: &str,
+) -> RustMailerResult<cacache::Reader> {
+    let cache_key = outlook_raw_email_diskcache_key(account.id, mid);
+    if let Some(reader) = DISK_CACHE.get_cache(&cache_key).await? {
+        return Ok(reader);
+    }
+    let data = OutlookClient::get_raw_message(account.id, account.use_proxy, mid).await?;
     DISK_CACHE.put_cache(&cache_key, &data, false).await?;
     DISK_CACHE
         .get_cache(&cache_key)

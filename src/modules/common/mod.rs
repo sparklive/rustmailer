@@ -23,6 +23,7 @@ use tracing::error;
 
 pub mod auth;
 pub mod error;
+pub mod http;
 pub mod log;
 pub mod lru;
 pub mod paginated;

@@ -7,24 +7,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     modules::{
-        account::migration::AccountModel,
-        cache::vendor::outlook::{
+        account::migration::AccountModel, cache::vendor::outlook::{
             model::DeltaResponse,
             sync::{client::OutlookClient, envelope::OutlookEnvelope, folders::OutlookFolder},
-        },
-        database::{
+        }, common::http::HttpClient, database::{
             async_find_impl, batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
             upsert_impl,
-        },
-        error::{code::ErrorCode, RustMailerResult},
-        hook::{
-            channel::{Event, EVENT_CHANNEL},
-            events::{payload::EmailAddedToFolder, EventPayload, EventType, RustMailerEvent},
-            http::HttpClient,
+        }, error::{RustMailerResult, code::ErrorCode}, hook::{
+            channel::{EVENT_CHANNEL, Event},
+            events::{EventPayload, EventType, RustMailerEvent, payload::EmailAddedToFolder},
             task::EventHookTask,
-        },
-        message::content::FullMessageContent,
-        utils::mailbox_id,
+        }, message::content::FullMessageContent, utils::mailbox_id
     },
     raise_error, utc_now,
 };

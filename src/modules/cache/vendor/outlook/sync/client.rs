@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use serde_json::json;
 
 use crate::{
@@ -5,8 +6,8 @@ use crate::{
         cache::vendor::outlook::model::{
             MailFolder, MailFoldersResponse, Message, MessageListResponse,
         },
+        common::http::HttpClient,
         error::{code::ErrorCode, RustMailerResult},
-        hook::http::HttpClient,
         message::append::ReplyDraft,
         oauth2::token::OAuth2AccessToken,
     },
@@ -228,6 +229,18 @@ impl OutlookClient {
             )
         })?;
         Ok(message)
+    }
+
+    pub async fn get_raw_message(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        id: &str,
+    ) -> RustMailerResult<Bytes> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{id}/$value");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let value = client.get_bytes(url.as_str(), &access_token).await?;
+        Ok(value)
     }
 
     pub async fn get_attachment(

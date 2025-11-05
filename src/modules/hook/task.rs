@@ -5,11 +5,12 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
+use crate::modules::common::http::HttpClient;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::error::RustMailerError;
+use crate::modules::hook::entity::EventHooks;
 use crate::modules::hook::vrl::payload::VrlScriptTestRequest;
 use crate::modules::hook::vrl::resolve_vrl_input;
-use crate::modules::hook::{entity::EventHooks, http::HttpClient};
 use crate::modules::metrics::{
     FAILURE, RUSTMAILER_EVENT_DISPATCH_DURATION_SECONDS_BY_TYPE_STATUS_AND_DESTINATION,
     RUSTMAILER_EVENT_DISPATCH_TOTAL_BY_TYPE_STATUS_AND_DESTINATION, SUCCESS,

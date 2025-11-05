@@ -2,8 +2,9 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
+use bytes::Bytes;
 use dashmap::DashMap;
-use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
 use http::StatusCode;
 use serde::Serialize;
 use tracing::error;
@@ -172,6 +173,84 @@ impl HttpClient {
                                 ErrorCode::GmailApiInvalidHistoryId
                             ));
                         }
+
+                        if attempt < max_attempts && status.is_server_error() {
+                            tracing::warn!(
+                                "API call to {} returned server error {} on attempt {}. Retrying after {}ms...",
+                                url, status, attempt, delay_ms
+                            );
+                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                            delay_ms *= 2;
+                            continue;
+                        }
+
+                        return Err(raise_error!(
+                            format!(
+                                "API call to {} failed with status {}: {}",
+                                url, status, text
+                            ),
+                            ErrorCode::ApiCallFailed
+                        ));
+                    }
+                }
+                Err(e) => {
+                    if attempt < max_attempts {
+                        tracing::warn!(
+                            "Request to {} failed on attempt {}: {:#?}, retrying after {}ms",
+                            url,
+                            attempt,
+                            e,
+                            delay_ms
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        delay_ms *= 2;
+                        continue;
+                    } else {
+                        return Err(raise_error!(
+                            format!(
+                                "Request to {} failed after {} attempts: {:#?}",
+                                url, attempt, e
+                            ),
+                            ErrorCode::ApiCallFailed
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    pub async fn get_bytes(
+        &self,
+        url: &str,
+        access_token: &str,
+    ) -> RustMailerResult<Bytes> {
+        let mut attempt = 0;
+        let max_attempts = 4;
+        let mut delay_ms = 500;
+
+        loop {
+            attempt += 1;
+            let res_result = self
+                .client
+                .get(url)
+                .header(AUTHORIZATION, format!("Bearer {}", access_token))
+                .header(ACCEPT, "application/octet-stream")
+                .send()
+                .await;
+
+            match res_result {
+                Ok(res) => {
+                    if res.status().is_success() {
+                        let bytes = res.bytes().await.map_err(|e| {
+                            raise_error!(
+                                format!("Failed to parse response: {:#?}", e),
+                                ErrorCode::InternalError
+                            )
+                        })?;
+                        return Ok(bytes);
+                    } else {
+                        let status = res.status();
+                        let text = res.text().await.unwrap_or_default();
 
                         if attempt < max_attempts && status.is_server_error() {
                             tracing::warn!(
