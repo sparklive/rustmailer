@@ -319,4 +319,44 @@ impl OutlookClient {
             draft_folder: folder.display_name,
         })
     }
+
+    pub async fn copy_message(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+        target_folder_id: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{mid}/copy");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+
+        let data = json!({
+          "destinationId": target_folder_id
+        });
+
+        client
+            .post(url.as_str(), &access_token, Some(&data), false)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn move_message(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mid: &str,
+        target_folder_id: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/messages/{mid}/move");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+
+        let data = json!({
+          "destinationId": target_folder_id
+        });
+
+        client
+            .post(url.as_str(), &access_token, Some(&data), false)
+            .await?;
+        Ok(())
+    }
 }

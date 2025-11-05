@@ -5,6 +5,7 @@
 use http::header::{ACCEPT, CONTENT_TYPE};
 use poem_grpc::{ClientConfig, CompressionEncoding};
 use reqwest::{header::AUTHORIZATION, Client};
+use serde_json::json;
 use std::{fs::File, future::Future, io::Write, pin::Pin, time::Duration};
 
 use crate::{
@@ -514,6 +515,83 @@ async fn get_raw_message() {
         let bytes = res.bytes().await.unwrap();
         let mut file = File::create("e:\\message.eml").unwrap();
         file.write_all(&bytes).unwrap();
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+#[tokio::test]
+async fn copy_message() {
+    let access_token = access_token().await;
+    let url = format!(
+        "https://graph.microsoft.com/v1.0/me/messages/{}/copy",
+        "AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAYiJVIEAAAA="
+    );
+    let client = reqwest::Client::builder()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10))
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:22307").unwrap())
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let data = json!({
+      "destinationId": "AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoALgAAA_KUk7xWPSBEntPHShr61lgBAOo9V4GwHndCjf0x1uoIcwUAAYiJQtoAAAA="
+    });
+
+    let res = client
+        .post(&url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&data)
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: serde_json::Value = res.json().await.unwrap();
+        println!("{:#?}", body);
+    } else {
+        eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
+    }
+}
+
+
+
+
+#[tokio::test]
+async fn move_message() {
+    let access_token = access_token().await;
+    let url = format!(
+        "https://graph.microsoft.com/v1.0/me/messages/{}/move",
+        "AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoARgAAA_KUk7xWPSBEntPHShr61lgHAOo9V4GwHndCjf0x1uoIcwUAAAIBDAAAAOo9V4GwHndCjf0x1uoIcwUAAYiJVIEAAAA="
+    );
+    let client = reqwest::Client::builder()
+        .user_agent(rustmailer_version!())
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(10))
+        .proxy(reqwest::Proxy::all("http://127.0.0.1:22307").unwrap())
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let data = json!({
+      "destinationId": "AQMkADAwATMwMAItNzE0OC1jZTEzLTAwAi0wMAoALgAAA_KUk7xWPSBEntPHShr61lgBAOo9V4GwHndCjf0x1uoIcwUAAYiJQtoAAAA="
+    });
+
+    let res = client
+        .post(&url)
+        .header(AUTHORIZATION, format!("Bearer {}", access_token))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&data)
+        .send()
+        .await
+        .unwrap();
+
+    if res.status().is_success() {
+        let body: serde_json::Value = res.json().await.unwrap();
+        println!("{:#?}", body);
     } else {
         eprintln!("Error: {} - {:?}", res.status(), res.text().await.unwrap());
     }

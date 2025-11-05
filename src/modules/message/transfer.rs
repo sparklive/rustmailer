@@ -6,7 +6,7 @@ use crate::{
     encode_mailbox_name,
     modules::{
         account::{entity::MailerType, migration::AccountModel},
-        cache::vendor::gmail::sync::client::GmailClient,
+        cache::vendor::{gmail::sync::client::GmailClient, outlook::sync::client::OutlookClient},
         context::executors::RUST_MAIL_CONTEXT,
         envelope::generate_uid_set,
         error::{code::ErrorCode, RustMailerResult},
@@ -27,7 +27,7 @@ pub struct MailboxTransferRequest {
     /// The name of the mailbox from which the messages will be moved.
     /// For IMAP: the decoded, human-readable name of the mailbox (e.g., "INBOX").
     /// For Gmail API: represents the label name.
-    pub current_mailbox: String,
+    pub current_mailbox: Option<String>,
     /// The name of the mailbox to which the messages will be moved.
     /// For IMAP: the decoded, human-readable name of the mailbox (e.g., "INBOX").
     /// For Gmail API: represents the label name.
@@ -74,8 +74,16 @@ pub async fn transfer_messages(
             let uid_set = generate_uid_set(uids);
             let executor = RUST_MAIL_CONTEXT.imap(account_id).await?;
             // Encode the mailbox names using UTF-7 encoding
-            let current_mailbox = encode_mailbox_name!(payload.current_mailbox.clone());
-            let target_mailbox = encode_mailbox_name!(payload.target_mailbox.clone());
+            if payload.current_mailbox.is_none() {
+                return Err(
+                    raise_error!("IMAP/SMTP accounts must provide a current_mailbox. Please ensure that the account type is properly configured.".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                );
+            }
+
+            let current_mailbox = encode_mailbox_name!(payload.current_mailbox.as_deref().unwrap());
+            let target_mailbox = encode_mailbox_name!(payload.target_mailbox.as_str());
 
             match transfer {
                 MessageTransfer::Move => {
@@ -102,6 +110,14 @@ pub async fn transfer_messages(
         }
         MailerType::GmailApi => {
             let mids = &payload.ids;
+
+            if payload.current_mailbox.is_none() {
+                return Err(raise_error!(
+                        "When moving emails with a Gmail API account, the current_mailbox parameter must be provided.".into(),
+                        ErrorCode::InvalidParameter
+                    )
+                );
+            }
 
             if mids.is_empty() {
                 return Err(raise_error!(
@@ -135,12 +151,13 @@ pub async fn transfer_messages(
                             )
                         })?;
 
-                    let current_label_id =
-                        labels_map.get(&payload.current_mailbox).ok_or_else(|| {
+                    let current_label_id = labels_map
+                        .get(payload.current_mailbox.as_deref().unwrap())
+                        .ok_or_else(|| {
                             raise_error!(
                                 format!(
                                     "Current mailbox/label `{}` not found in Gmail labels",
-                                    payload.current_mailbox
+                                    payload.current_mailbox.as_deref().unwrap()
                                 ),
                                 ErrorCode::InvalidParameter
                             )
@@ -178,6 +195,65 @@ pub async fn transfer_messages(
                 }
             }
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            let mids = &payload.ids;
+            if mids.is_empty() {
+                return Err(raise_error!(
+                    "Graph API copy requires at least one message ID".into(),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+
+            if mids.len() > 500 {
+                return Err(raise_error!(
+                    format!(
+                        "Graph API batchModify supports at most 500 message IDs, got {}",
+                        mids.len()
+                    ),
+                    ErrorCode::InvalidParameter
+                ));
+            }
+
+            let target_folder_id = OutlookClient::list_mailfolders(account_id, account.use_proxy)
+                .await?
+                .into_iter()
+                .find(|f| f.display_name == payload.target_mailbox)
+                .map(|f| f.id)
+                .ok_or_else(|| {
+                    raise_error!(
+                        format!(
+                            "Target mailbox '{}' not found. Please ensure this folder exists in the Outlook account.",
+                            payload.target_mailbox
+                        ),
+                        ErrorCode::InvalidParameter
+                    )
+                })?;
+
+            match transfer {
+                MessageTransfer::Move => {
+                    for mid in mids {
+                        OutlookClient::move_message(
+                            account_id,
+                            account.use_proxy,
+                            mid,
+                            target_folder_id.as_str(),
+                        )
+                        .await?;
+                    }
+                }
+                MessageTransfer::Copy => {
+                    for mid in mids {
+                        OutlookClient::copy_message(
+                            account_id,
+                            account.use_proxy,
+                            mid,
+                            target_folder_id.as_str(),
+                        )
+                        .await?;
+                    }
+                }
+            }
+            Ok(())
+        }
     }
 }

@@ -39,7 +39,9 @@ pub async fn get_account_mailboxes(
             let mailboxes = folders
                 .into_iter()
                 .map(|f| {
-                    let folder: OutlookFolder = f.try_into()?;
+                    let mut folder: OutlookFolder = f.try_into()?;
+                    folder.account_id = account_id;
+                    folder.id = mailbox_id(account_id, &folder.folder_id);
                     Ok(MailBox::from(folder))
                 })
                 .collect::<RustMailerResult<Vec<MailBox>>>()?;

@@ -588,7 +588,8 @@ message MailboxTransferRequest {
   // The name of the mailbox or label from which to transfer messages.
   // For IMAP: decoded human-readable mailbox name (e.g., "INBOX").
   // For Gmail API: the label name.
-  string current_mailbox = 3;
+  // For Graph API: the folder name.
+  optional string current_mailbox = 3;
   // The name of the target mailbox or label to which messages will be transferred.
   // For IMAP: decoded human-readable mailbox name (e.g., "INBOX").
   // For Gmail API: the label name.
