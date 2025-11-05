@@ -21,8 +21,8 @@ use crate::{
         },
         common::Addr,
         database::{
-            batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl,
-            secondary_find_impl, with_transaction,
+            batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
+            paginate_secondary_scan_impl, secondary_find_impl, with_transaction,
         },
         error::{code::ErrorCode, RustMailerError, RustMailerResult},
         rest::response::DataPage,
@@ -154,6 +154,15 @@ impl OutlookEnvelope {
         envelope_hash_from_id(self.account_id, self.folder_id, &self.id)
     }
 
+    pub async fn get(envelope_id: u64) -> RustMailerResult<Option<OutlookEnvelope>> {
+        secondary_find_impl(
+            DB_MANAGER.envelope_db(),
+            OutlookEnvelopeKey::create_envelope_id,
+            envelope_id,
+        )
+        .await
+    }
+
     pub async fn exists(&self) -> RustMailerResult<bool> {
         let target = secondary_find_impl::<OutlookEnvelope>(
             DB_MANAGER.envelope_db(),
@@ -180,6 +189,28 @@ impl OutlookEnvelope {
         )
         .await
         .map(DataPage::from)
+    }
+
+    pub async fn get_thread(
+        account_id: u64,
+        thread_id: u64,
+    ) -> RustMailerResult<Vec<OutlookEnvelope>> {
+        let envelopes = filter_by_secondary_key_impl::<OutlookEnvelope>(
+            DB_MANAGER.envelope_db(),
+            OutlookEnvelopeKey::thread_id,
+            thread_id,
+        )
+        .await?;
+
+        let mut result = Vec::with_capacity(envelopes.len());
+        for e in envelopes {
+            if e.account_id == account_id {
+                result.push(e);
+            }
+        }
+        // Sort by internal_date in descending order
+        result.sort_by(|a, b| b.internal_date.cmp(&a.internal_date));
+        Ok(result)
     }
 
     pub async fn clean_account(account_id: u64) -> RustMailerResult<()> {

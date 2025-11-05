@@ -379,7 +379,10 @@ pub async fn list_threads_in_mailbox(
             let label = GmailLabels::get_by_name(account_id, mailbox_name).await?;
             EmailThread::list_threads_in_label(account, label.id, page, page_size, desc).await
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            let folder = OutlookFolder::get_by_name(account_id, mailbox_name).await?;
+            EmailThread::list_threads_in_folder(folder.id, page, page_size, desc).await
+        }
     }
 }
 
@@ -410,6 +413,9 @@ pub async fn get_thread_messages(
                 .map(|e| e.into_envelope(&map))
                 .collect())
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            let envelopes = OutlookEnvelope::get_thread(account_id, thread_id).await?;
+            Ok(envelopes.into_iter().map(|e| e.into()).collect())
+        }
     }
 }

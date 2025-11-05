@@ -18,7 +18,10 @@ use crate::{
         cache::{
             imap::migration::EmailEnvelopeV3,
             model::Envelope,
-            vendor::gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
+            vendor::{
+                gmail::sync::{client::GmailClient, envelope::GmailEnvelope},
+                outlook::sync::envelope::OutlookEnvelope,
+            },
         },
         database::{batch_delete_impl, manager::DB_MANAGER, paginate_secondary_scan_impl},
         error::{code::ErrorCode, RustMailerResult},
@@ -244,6 +247,46 @@ impl EmailThread {
             .into_iter()
             .map(|e| e.into_envelope(&map))
             .collect();
+        Ok(DataPage {
+            current_page: threads.page,
+            page_size: threads.page_size,
+            total_items: threads.total_items,
+            items: envelopes,
+            total_pages: threads.total_pages,
+        })
+    }
+
+    pub async fn list_threads_in_folder(
+        folder_id: u64,
+        page: u64,
+        page_size: u64,
+        desc: bool,
+    ) -> RustMailerResult<DataPage<Envelope>> {
+        let threads = paginate_secondary_scan_impl::<EmailThread>(
+            DB_MANAGER.envelope_db(),
+            Some(page),
+            Some(page_size),
+            Some(desc),
+            EmailThreadKey::mailbox_id,
+            folder_id,
+        )
+        .await?;
+
+        let fetch_tasks = threads.items.into_iter().map(|thread| async move {
+            OutlookEnvelope::get(thread.envelope_id)
+                .await?
+                .ok_or_else(|| {
+                    raise_error!(
+                        format!("Envelope not found: {}", thread.envelope_id),
+                        ErrorCode::InternalError
+                    )
+                })
+        });
+
+        let results: RustMailerResult<Vec<OutlookEnvelope>> =
+            join_all(fetch_tasks).await.into_iter().collect();
+
+        let envelopes = results?.into_iter().map(|e| e.into()).collect();
         Ok(DataPage {
             current_page: threads.page,
             page_size: threads.page_size,
