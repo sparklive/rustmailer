@@ -95,7 +95,7 @@ impl From<rustmailer_grpc::CreateMailboxRequest> for CreateMailboxRequest {
     fn from(value: rustmailer_grpc::CreateMailboxRequest) -> Self {
         Self {
             mailbox_name: value.mailbox_name,
-            parent_id: value.parent_id,
+            parent_name: value.parent_name,
             label_color: value.label_color.map(|c| c.into()),
         }
     }

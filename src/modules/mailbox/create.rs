@@ -72,8 +72,8 @@ pub struct CreateMailboxRequest {
     ///
     /// Only applicable for **Graph API** accounts.  
     /// For IMAP or Gmail API accounts, this field is always `None`.  
-    /// The ID can be retrieved via the **`/list-mailboxes?remote=true`** endpoint.
-    pub parent_id: Option<u64>,
+    /// The name can be retrieved via the **`/list-mailboxes?remote=true`** endpoint.
+    pub parent_name: Option<String>,
     /// Optional color settings for the label (Gmail API only).
     ///
     /// Only applicable to Gmail API accounts. See [`LabelColor`] for the allowed
@@ -101,7 +101,7 @@ pub async fn create_mailbox(
             OutlookClient::create_folder(
                 account_id,
                 account.use_proxy,
-                request.parent_id,
+                request.parent_name.clone(),
                 &request.mailbox_name,
             )
             .await
