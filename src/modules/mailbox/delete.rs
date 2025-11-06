@@ -6,7 +6,7 @@ use crate::{
     encode_mailbox_name,
     modules::{
         account::{entity::MailerType, migration::AccountModel},
-        cache::vendor::gmail::sync::client::GmailClient,
+        cache::vendor::{gmail::sync::client::GmailClient, outlook::sync::client::OutlookClient},
         context::executors::RUST_MAIL_CONTEXT,
         error::{code::ErrorCode, RustMailerResult},
     },
@@ -35,6 +35,22 @@ pub async fn delete_mailbox(account_id: u64, mailbox_name: &str) -> RustMailerRe
             })?;
             GmailClient::delete_label(account_id, account.use_proxy, label_id).await
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            let mailboxes = OutlookClient::list_mailfolders(account_id, account.use_proxy).await?;
+            let target_folder = mailboxes
+                .iter()
+                .find(|f| f.display_name == mailbox_name)
+                .cloned();
+
+            if let Some(folder) = target_folder {
+                OutlookClient::delete_folder(account_id, account.use_proxy, &folder.id).await?;
+                return Ok(());
+            } else {
+                return Err(raise_error!(
+                    format!("Mailbox '{}' not found.", mailbox_name),
+                    ErrorCode::ResourceNotFound
+                ));
+            }
+        }
     }
 }

@@ -219,11 +219,7 @@ impl HttpClient {
         }
     }
 
-    pub async fn get_bytes(
-        &self,
-        url: &str,
-        access_token: &str,
-    ) -> RustMailerResult<Bytes> {
+    pub async fn get_bytes(&self, url: &str, access_token: &str) -> RustMailerResult<Bytes> {
         let mut attempt = 0;
         let max_attempts = 4;
         let mut delay_ms = 500;

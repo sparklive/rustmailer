@@ -181,11 +181,15 @@ impl GmailClient {
 
         let mut body = json!({
             "id": label_id,
-            "name": request.new_name,
             "messageListVisibility": "show",
             "labelListVisibility": "labelShow",
             "type": "user"
         });
+
+        if let Some(new_name) = &request.new_name {
+            body["name"] = json!(new_name);
+        }
+
         if let Some(color) = &request.label_color {
             body["color"] = json!({
                 "textColor": color.text_color,

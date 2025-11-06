@@ -417,4 +417,31 @@ impl OutlookClient {
         client.post(&url, &access_token, Some(&body), false).await?;
         Ok(())
     }
+
+    pub async fn delete_folder(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        folder_id: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        client.delete(url.as_str(), &access_token).await
+    }
+
+    pub async fn rename_folder(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        folder_id: &str,
+        new_name: &str,
+    ) -> RustMailerResult<()> {
+        let url = format!("https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}");
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let data = json!({
+          "displayName": new_name
+        });
+        client.patch(url.as_str(), &access_token, &data).await?;
+        Ok(())
+    }
 }
