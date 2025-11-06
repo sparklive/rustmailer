@@ -8,7 +8,7 @@ use crate::{
     encode_mailbox_name,
     modules::{
         account::{entity::MailerType, migration::AccountModel},
-        cache::vendor::gmail::sync::client::GmailClient,
+        cache::vendor::{gmail::sync::client::GmailClient, outlook::sync::client::OutlookClient},
         context::executors::RUST_MAIL_CONTEXT,
         error::RustMailerResult,
     },
@@ -68,6 +68,12 @@ pub struct CreateMailboxRequest {
     /// - For Gmail API accounts, this corresponds to the label's name.  
     ///   Gmail labels do not require the parent to exist beforehand; nested labels are created automatically.
     pub mailbox_name: String,
+    /// Parent mailbox ID.
+    ///
+    /// Only applicable for **Graph API** accounts.  
+    /// For IMAP or Gmail API accounts, this field is always `None`.  
+    /// The ID can be retrieved via the **`/list-mailboxes?remote=true`** endpoint.
+    pub parent_id: Option<u64>,
     /// Optional color settings for the label (Gmail API only).
     ///
     /// Only applicable to Gmail API accounts. See [`LabelColor`] for the allowed
@@ -91,6 +97,14 @@ pub async fn create_mailbox(
         MailerType::GmailApi => {
             GmailClient::create_label(account_id, account.use_proxy, request).await
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            OutlookClient::create_folder(
+                account_id,
+                account.use_proxy,
+                request.parent_id,
+                &request.mailbox_name,
+            )
+            .await
+        }
     }
 }

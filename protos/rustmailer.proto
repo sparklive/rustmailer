@@ -528,10 +528,16 @@ message CreateMailboxRequest {
   // - For Gmail API accounts, this corresponds to the label's name.  
   //   Gmail labels do not require the parent to exist beforehand; nested labels are created automatically.
   string mailbox_name = 2;
+  /// Parent mailbox ID.
+  ///
+  /// Only applicable for **Graph API** accounts.  
+  /// For IMAP or Gmail API accounts, this field is always `None`.  
+  /// The ID can be retrieved via the **`/list-mailboxes?remote=true`** endpoint.
+  optional uint64 parent_id = 3;
   // Optional color settings for the label (Gmail API only).
   // Only applicable to Gmail API accounts. See [`LabelColor`] for the allowed
   // `text_color` and `background_color` values.
-  optional LabelColor label_color = 3;
+  optional LabelColor label_color = 4;
 }
 
 // DeleteMailboxRequest is used to delete a mailbox.

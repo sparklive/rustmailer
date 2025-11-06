@@ -10,6 +10,7 @@ use crate::{
         error::{code::ErrorCode, RustMailerResult},
         message::append::ReplyDraft,
         oauth2::token::OAuth2AccessToken,
+        utils::mailbox_id,
     },
     raise_error,
 };
@@ -383,5 +384,39 @@ impl OutlookClient {
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
         client.delete(url.as_str(), &access_token).await
+    }
+
+    pub async fn create_folder(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        parent_id: Option<u64>,
+        folder_name: &str,
+    ) -> RustMailerResult<()> {
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+        let mut url = "https://graph.microsoft.com/v1.0/me/mailFolders".to_string();
+        let body = json!({ "displayName": folder_name });
+
+        if let Some(parent_id) = parent_id {
+            let mailboxes = Self::list_mailfolders(account_id, use_proxy).await?;
+            if let Some(parent) = mailboxes
+                .into_iter()
+                .find(|m| mailbox_id(account_id, &m.id) == parent_id)
+            {
+                // parent.id 是 Graph API 的 folder id（字符串），将请求发到父文件夹的 childFolders 端点
+                url = format!(
+                    "https://graph.microsoft.com/v1.0/me/mailFolders/{}/childFolders",
+                    parent.id
+                );
+            } else {
+                return Err(raise_error!(
+                    format!("Parent folder not found: {}", parent_id),
+                    ErrorCode::InternalError
+                ));
+            }
+        }
+
+        client.post(&url, &access_token, Some(&body), false).await?;
+        Ok(())
     }
 }
