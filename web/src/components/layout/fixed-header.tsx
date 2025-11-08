@@ -8,6 +8,7 @@ import { ThemeSwitch } from "../theme-switch";
 import { ProfileDropdown } from "../profile-dropdown";
 import { Header } from "./header";
 import { NotificationPopover } from "./notification";
+import { GithubLinkButton } from "./github";
 
 export const FixedHeader = () => {
     return (
@@ -15,6 +16,7 @@ export const FixedHeader = () => {
             {/* <Search /> */}
             <div className='ml-auto flex items-center space-x-4'>
                 <NotificationPopover />
+                <GithubLinkButton />
                 <ThemeSwitch />
                 <ProfileDropdown />
             </div>
