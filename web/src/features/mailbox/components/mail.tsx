@@ -177,7 +177,7 @@ export function Mail({
     const pageTokenMapRef = React.useRef<Record<number, string | undefined>>({});
 
     const [page, setPage] = React.useState(0);
-    const [pageSize, setPageSize] = React.useState(10);
+    const [pageSize, setPageSize] = React.useState(30);
     const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
     const [deleteIds, setDeleteIds] = React.useState<string[]>([]);
     const [currentFilter, setCurrentFilter] = React.useState<FilterForm | undefined>(undefined);
