@@ -4,20 +4,28 @@ use native_db::*;
 use native_model::{native_model, Model};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::{
     modules::{
-        account::migration::AccountModel, cache::vendor::outlook::{
+        account::migration::AccountModel,
+        cache::vendor::outlook::{
             model::DeltaResponse,
             sync::{client::OutlookClient, envelope::OutlookEnvelope, folders::OutlookFolder},
-        }, common::http::HttpClient, database::{
+        },
+        common::http::HttpClient,
+        database::{
             async_find_impl, batch_delete_impl, filter_by_secondary_key_impl, manager::DB_MANAGER,
             upsert_impl,
-        }, error::{RustMailerResult, code::ErrorCode}, hook::{
-            channel::{EVENT_CHANNEL, Event},
-            events::{EventPayload, EventType, RustMailerEvent, payload::EmailAddedToFolder},
+        },
+        error::{code::ErrorCode, RustMailerResult},
+        hook::{
+            channel::{Event, EVENT_CHANNEL},
+            events::{payload::EmailAddedToFolder, EventPayload, EventType, RustMailerEvent},
             task::EventHookTask,
-        }, message::content::FullMessageContent, utils::mailbox_id
+        },
+        message::content::FullMessageContent,
+        utils::mailbox_id,
     },
     raise_error, utc_now,
 };
@@ -118,15 +126,24 @@ pub async fn handle_delta(
         let mut added = Vec::new();
         loop {
             let value = client.get(url.as_str(), &access_token).await?;
-            let resp = serde_json::from_value::<DeltaResponse>(value).map_err(|e| {
-                raise_error!(
-                    format!(
-                        "Failed to deserialize Graph API response into MessageListResponse: {:#?}. Possible model mismatch or API change.",
+            let resp = match serde_json::from_value::<DeltaResponse>(value.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!(
+                        "Failed to deserialize Graph API response into DeltaResponse: {:#?}",
                         e
-                    ),
-                    ErrorCode::InternalError
-                )
-            })?;
+                    );
+                    error!("Original JSON: {}", value);
+                    return Err(raise_error!(
+                        format!(
+                            "Failed to deserialize Graph API response into DeltaResponse: {:#?}. Possible model mismatch or API change.",
+                            e
+                        ),
+                        ErrorCode::InternalError
+                    ));
+                }
+            };
+
             if let Some(items) = resp.value {
                 for item in items {
                     //The deletion scenario will not be handled for now.

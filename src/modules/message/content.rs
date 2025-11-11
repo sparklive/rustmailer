@@ -845,46 +845,51 @@ impl TryFrom<Message> for FullMessageContent {
             .attachments
             .map(|v| v.into_iter().map(Into::into).collect());
 
-        let body = value.body.ok_or_else(|| {
-            raise_error!("Missing body in Message".into(), ErrorCode::InternalError)
-        })?;
+        // body maybe None
+        let (plain, html) = if let Some(body) = value.body {
+            let content_type = body
+                .content_type
+                .as_ref()
+                .map(|s| s.trim().to_ascii_lowercase())
+                .unwrap_or_else(|| "text".to_string());
 
-        let content_type = body.content_type.trim().to_ascii_lowercase();
+            let content = body.content.unwrap_or_default();
 
-        match content_type.as_str() {
-            "text" => Ok(Self {
-                plain: Some(PlainText {
-                    content: body.content,
-                    truncated: false,
-                }),
-                html: None,
-                attachments,
-            }),
+            match content_type.as_str() {
+                "text" | "text/plain" => (
+                    Some(PlainText {
+                        content,
+                        truncated: false,
+                    }),
+                    None,
+                ),
+                "html" | "text/html" => (None, Some(content)),
+                _ => (None, None), // ingore
+            }
+        } else {
+            (None, None)
+        };
 
-            "html" => Ok(Self {
-                plain: None,
-                html: Some(body.content),
-                attachments,
-            }),
-
-            other => Err(raise_error!(
-                format!("Unsupported body content type: {}", other),
-                ErrorCode::InternalError
-            )),
-        }
+        Ok(Self {
+            plain,
+            html,
+            attachments,
+        })
     }
 }
 
 impl From<Attachment> for AttachmentInfo {
     fn from(value: Attachment) -> Self {
         Self {
-            file_type: value.content_type,
+            file_type: value
+                .content_type
+                .unwrap_or_else(|| "application/octet-stream".to_string()),
             transfer_encoding: None,
             content_id: value.content_id,
-            inline: value.is_inline,
-            filename: value.name,
+            inline: value.is_inline.unwrap_or(false),
+            filename: value.name.unwrap_or_else(|| "unknown".to_string()),
             id: value.id,
-            size: value.size,
+            size: value.size.unwrap_or(0),
         }
     }
 }

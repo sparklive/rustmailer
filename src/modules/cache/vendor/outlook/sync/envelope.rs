@@ -386,11 +386,21 @@ impl TryFrom<Message> for OutlookEnvelope {
         }
         let internal_date = parse_datetime(&msg.received_date_time)?;
         let date = parse_datetime(&msg.sent_date_time)?;
-        let body_len = msg.body.as_ref().map(|b| b.content.len()).unwrap_or(0);
+        let body_len = msg
+            .body
+            .as_ref()
+            .and_then(|b| b.content.as_ref())
+            .map(|c| c.len())
+            .unwrap_or(0);
+
         let attachments_size: usize = msg
             .attachments
             .as_ref()
-            .map(|atts| atts.iter().map(|a| a.size as usize).sum())
+            .map(|atts| {
+                atts.iter()
+                    .map(|a| a.size.unwrap_or(0) as usize)
+                    .sum::<usize>()
+            })
             .unwrap_or(0);
         let size = (body_len + attachments_size) as u32;
 

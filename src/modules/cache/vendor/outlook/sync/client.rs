@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use serde_json::json;
+use tracing::error;
 
 use crate::{
     modules::{
@@ -166,15 +167,18 @@ impl OutlookClient {
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
         let value = client.get(url.as_str(), &access_token).await?;
-        let list = serde_json::from_value::<MessageListResponse>(value).map_err(|e| {
-            raise_error!(
-                format!(
-                    "Failed to deserialize Graph API response into MessageListResponse: {:#?}. Possible model mismatch or API change.",
+        let list = match serde_json::from_value::<MessageListResponse>(value.clone()) {
+            Ok(res) => res,
+            Err(e) => {
+                error!(
+                    "Failed to deserialize Graph API response into MessageListResponse: {:#?}",
                     e
-                ),
-                ErrorCode::InternalError
-            )
-        })?;
+                );
+                error!("Original JSON: {}", value);
+                return Err(raise_error!(format!("Failed to deserialize Graph API response into MessageListResponse: {:#?}. Possible model mismatch or API change.",e),ErrorCode::InternalError));
+            }
+        };
+
         Ok(list)
     }
 
@@ -233,15 +237,24 @@ impl OutlookClient {
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
         let value = client.get(url.as_str(), &access_token).await?;
-        let message = serde_json::from_value::<Message>(value).map_err(|e| {
-            raise_error!(
-                format!(
-                    "Failed to deserialize Graph API response into MessageListResponse: {:#?}. Possible model mismatch or API change.",
+        let message = match serde_json::from_value::<Message>(value.clone()) {
+            Ok(msg) => msg,
+            Err(e) => {
+                error!(
+                    "Failed to deserialize Graph API response into Message: {:#?}",
                     e
-                ),
-                ErrorCode::InternalError
-            )
-        })?;
+                );
+                error!("Original JSON: {}", value);
+                return Err(raise_error!(
+                    format!(
+                        "Failed to deserialize Graph API response into Message: {:#?}. Possible model mismatch or API change.",
+                        e
+                    ),
+                    ErrorCode::InternalError
+                ));
+            }
+        };
+
         Ok(message)
     }
 
