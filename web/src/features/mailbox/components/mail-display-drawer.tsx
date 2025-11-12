@@ -483,11 +483,9 @@ export function MailDisplayDrawer({ open, setOpen, onOpenChange, currentEnvelope
               <div className="flex flex-1 flex-col">
                 <div className="flex items-start">
                   <div className="grid gap-1">
-                    <div className="line-clamp-1 text-xs space-x-2">
-                      <span className="font-medium text-gray-400">
-                        {isGmailApi ? "Mid:" : "Uid:"}
-                      </span>
-                      <span>{currentEnvelope.id}</span>
+                    <div className="truncate text-xs">
+                      <span className="font-medium text-gray-400">ID:</span>
+                      <span className="ml-2">{currentEnvelope.id}</span>
                     </div>
                     {currentEnvelope.from && (
                       <div className="line-clamp-1 text-xs space-x-2">

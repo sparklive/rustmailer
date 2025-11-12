@@ -26,29 +26,29 @@ pub async fn rebuild_cache(
     let use_proxy = account.use_proxy;
     OutlookFolder::batch_insert(remote_folders).await?;
     for folder in remote_folders {
-        if folder.exists == 0 {
-            info!(
-                "Account {}: folder '{}' on the remote server has no emails. Skipping fetch for this folder.",
-                account.id, &folder.name
-            );
-            continue;
-        }
-        match fetch_and_save_full_folder(account, folder, folder.exists, true).await {
-            Ok(inserted) => {
-                total_inserted += inserted;
-            }
-            Err(e) => {
-                warn!(
+        if folder.exists > 0 {
+            match fetch_and_save_full_folder(account, folder, folder.exists, true).await {
+                Ok(inserted) => {
+                    total_inserted += inserted;
+                }
+                Err(e) => {
+                    warn!(
                     "Account {}: Failed to sync label '{}'. Error: {:#?}. Removing label entry.",
                     account.id, &folder.name, e
                 );
-                if let Err(del_err) = OutlookFolder::delete(folder.id).await {
-                    error!(
-                        "Account {}: Failed to delete label '{}' after sync error: {}",
-                        account.id, &folder.name, del_err
-                    );
+                    if let Err(del_err) = OutlookFolder::delete(folder.id).await {
+                        error!(
+                            "Account {}: Failed to delete label '{}' after sync error: {}",
+                            account.id, &folder.name, del_err
+                        );
+                    }
                 }
             }
+        } else {
+            warn!(
+                "Account {}: folder '{}' on the remote server has no emails. Skipping fetch for this folder.",
+                account.id, &folder.name
+            );
         }
 
         let delta_link =
@@ -78,30 +78,29 @@ pub async fn rebuild_cache_since_date(
 
     OutlookFolder::batch_insert(remote_folders).await?;
     for folder in remote_folders {
-        if folder.exists == 0 {
-            info!(
-                "Account {}: Mailbox '{}' on the remote server has no emails. Skipping fetch for this mailbox.",
-                account.id, &folder.name
-            );
-            continue;
-        }
-
-        match fetch_and_save_since_date(account, date.as_str(), folder, true).await {
-            Ok(inserted) => {
-                total_inserted += inserted;
-            }
-            Err(e) => {
-                warn!(
+        if folder.exists > 0 {
+            match fetch_and_save_since_date(account, date.as_str(), folder, true).await {
+                Ok(inserted) => {
+                    total_inserted += inserted;
+                }
+                Err(e) => {
+                    warn!(
                     "Account {}: Failed to sync mailbox '{}'. Error: {}. Removing mailbox entry.",
                     account.id, &folder.name, e
                 );
-                if let Err(del_err) = OutlookFolder::delete(folder.id).await {
-                    error!(
-                        "Account {}: Failed to delete mailbox '{}' after sync error: {}",
-                        account.id, &folder.name, del_err
-                    );
+                    if let Err(del_err) = OutlookFolder::delete(folder.id).await {
+                        error!(
+                            "Account {}: Failed to delete mailbox '{}' after sync error: {}",
+                            account.id, &folder.name, del_err
+                        );
+                    }
                 }
             }
+        } else {
+            warn!(
+                "Account {}: Mailbox '{}' on the remote server has no emails. Skipping fetch for this mailbox.",
+                account.id, &folder.name
+            );
         }
         let delta_link =
             OutlookClient::get_delta_link(account_id, use_proxy, &folder.folder_id).await?;

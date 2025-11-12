@@ -67,7 +67,7 @@ export function MailList({
                     <div
                         key={item.id}
                         className={cn(
-                            "group flex items-center gap-2 p-1.5 pr-2 rounded-md border transition-all cursor-pointer text-xs",
+                            "group flex items-center gap-2 p-1.5 pr-2 rounded-md border transition-all cursor-pointer text-sm",
                             "hover:bg-accent/70",
                             isActive && "bg-accent",
                             isSelected && "bg-primary/10 ring-1 ring-primary/20"
