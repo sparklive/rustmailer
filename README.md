@@ -10,7 +10,9 @@
 </h3>
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rustmailer/rustmailer)
+[![Docker](https://img.shields.io/docker/v/rustmailer/rustmailer?label=docker)](https://hub.docker.com/r/rustmailer/rustmailer)
 [![](https://github.com/rustmailer/rustmailer/actions/workflows/release.yml/badge.svg)](https://github.com/rustmailer/rustmailer/actions/workflows/release.yml)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white)](https://discord.gg/3R4scWCsxK)
 
 ## 🎯 Use Cases
 
