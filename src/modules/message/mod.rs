@@ -9,15 +9,16 @@ use crate::{encode_mailbox_name, raise_error};
 
 use crate::modules::{envelope::MinimalEnvelopeMeta, error::RustMailerResult};
 
+pub mod append;
 pub mod attachment;
 pub mod content;
-pub mod transfer;
 pub mod delete;
 pub mod flag;
 pub mod full;
 pub mod list;
 pub mod search;
-pub mod append;
+pub mod tags;
+pub mod transfer;
 
 pub async fn get_minimal_meta(
     account_id: u64,

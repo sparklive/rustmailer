@@ -5,7 +5,7 @@
 use crate::modules::cache::imap::mailbox::EnvelopeFlag;
 use crate::modules::error::code::ErrorCode;
 use crate::modules::{error::RustMailerResult, imap::manager::ImapConnectionManager};
-use crate::raise_error;
+use crate::{encode_mailbox_name, raise_error};
 use async_imap::types::{Fetch, Mailbox, Name};
 use bb8::Pool;
 use futures::{StreamExt, TryStreamExt};
@@ -587,6 +587,8 @@ impl ImapExecutor {
                 ErrorCode::InternalError
             ));
         }
+
+        let mailbox_name = &encode_mailbox_name!(mailbox_name);
 
         let mut result = Vec::new();
         // Helper to convert flags to IMAP string

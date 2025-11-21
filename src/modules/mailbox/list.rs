@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::account::entity::MailerType;
 use crate::modules::account::migration::AccountModel;
 use crate::modules::cache::imap::mailbox::{Attribute, AttributeEnum, MailBox};
-use crate::modules::cache::vendor::gmail::model::labels::{Label, LabelDetail};
+use crate::modules::cache::vendor::gmail::model::labels::LabelDetail;
 use crate::modules::cache::vendor::gmail::sync::client::GmailClient;
 use crate::modules::cache::vendor::gmail::sync::labels::GmailLabels;
 use crate::modules::cache::vendor::outlook::sync::client::OutlookClient;
@@ -75,12 +75,11 @@ pub async fn request_imap_all_mailbox_list(account_id: u64) -> RustMailerResult<
 
 pub async fn request_gmail_label_list(account: &AccountModel) -> RustMailerResult<Vec<MailBox>> {
     let all_labels = GmailClient::list_labels(account.id, account.use_proxy).await?;
-    let visible_labels: Vec<Label> = all_labels.labels;
 
     let mut tasks = Vec::new();
 
     let account = Arc::new(account.clone());
-    for label in visible_labels.into_iter() {
+    for label in all_labels.into_iter() {
         let label_id = label.id.clone();
         let account = account.clone();
         let task: tokio::task::JoinHandle<Result<LabelDetail, RustMailerError>> =

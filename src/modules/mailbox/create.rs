@@ -95,7 +95,8 @@ pub async fn create_mailbox(
                 .await
         }
         MailerType::GmailApi => {
-            GmailClient::create_label(account_id, account.use_proxy, request).await
+            GmailClient::create_label(account_id, account.use_proxy, request).await?;
+            Ok(())
         }
         MailerType::GraphApi => {
             OutlookClient::create_folder(

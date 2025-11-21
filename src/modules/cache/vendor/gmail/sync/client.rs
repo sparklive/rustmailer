@@ -43,7 +43,7 @@ impl GmailClient {
     pub async fn list_labels(
         account_id: u64,
         use_proxy: Option<u64>,
-    ) -> RustMailerResult<LabelList> {
+    ) -> RustMailerResult<Vec<Label>> {
         let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
         let client = HttpClient::new(use_proxy).await?;
         let access_token = Self::get_access_token(account_id).await?;
@@ -53,16 +53,7 @@ impl GmailClient {
                 "Failed to deserialize Gmail API response into LabelList: {:#?}. Possible model mismatch or API change.",
                 e
             ), ErrorCode::InternalError))?;
-        Ok(list)
-    }
-
-    pub async fn list_visible_labels(
-        account_id: u64,
-        use_proxy: Option<u64>,
-    ) -> RustMailerResult<Vec<Label>> {
-        let all_labels = Self::list_labels(account_id, use_proxy).await?;
-        let visible_labels: Vec<Label> = all_labels.labels;
-        Ok(visible_labels)
+        Ok(list.labels)
     }
 
     pub async fn label_map(
@@ -72,7 +63,7 @@ impl GmailClient {
         if let Some(v) = GMAIL_LABELS_CACHE.get(&account_id).await {
             return Ok(v.clone());
         }
-        let visible_labels = Self::list_visible_labels(account_id, use_proxy).await?;
+        let visible_labels = Self::list_labels(account_id, use_proxy).await?;
         let map: Arc<AHashMap<String, String>> = Arc::new(
             visible_labels
                 .into_iter()
@@ -95,7 +86,7 @@ impl GmailClient {
                 return Ok(map);
             }
         }
-        let visible_labels = Self::list_visible_labels(account_id, use_proxy).await?;
+        let visible_labels = Self::list_labels(account_id, use_proxy).await?;
         let map: Arc<AHashMap<String, String>> = Arc::new(
             visible_labels
                 .into_iter()
@@ -132,7 +123,7 @@ impl GmailClient {
         account_id: u64,
         use_proxy: Option<u64>,
         request: &CreateMailboxRequest,
-    ) -> RustMailerResult<()> {
+    ) -> RustMailerResult<LabelDetail> {
         let url = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
         let client = HttpClient::new(use_proxy).await?;
 
@@ -149,8 +140,13 @@ impl GmailClient {
             });
         }
         let access_token = Self::get_access_token(account_id).await?;
-        client.post(url, &access_token, Some(&body), true).await?;
-        Ok(())
+        let value = client.post(url, &access_token, Some(&body), true).await?;
+        let detail = serde_json::from_value::<LabelDetail>(value)
+            .map_err(|e| raise_error!(format!(
+                "Failed to deserialize Gmail API response into LabelDetail: {:#?}. Possible model mismatch or API change.",
+                e
+            ), ErrorCode::InternalError))?;
+        Ok(detail)
     }
 
     pub async fn delete_label(

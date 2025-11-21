@@ -19,10 +19,13 @@ use crate::{
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize, Object)]
 pub struct Envelope {
-    /// The unique ID of the message, either IMAP UID or Gmail API MID.
+    /// The unique identifier of the email message across different systems.
     ///
-    /// - For IMAP accounts, this is the UID converted to a string.
-    /// - For Gmail API accounts, this is the message ID returned by the API.
+    /// This field maps to the primary message ID used by the respective API or protocol:
+    ///
+    /// - **For IMAP accounts:** This is the **UID** (Unique Identifier) converted to a string.
+    /// - **For Gmail API accounts:** This is the **Message ID (MID)** returned by the Gmail API.
+    /// - **For Microsoft Graph API accounts:** This is the **ID** property (e.g., the base64-encoded EWS ID) of the message object.
     pub id: String,
     /// The ID of the account owning the email.
     pub account_id: u64,

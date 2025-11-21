@@ -14,7 +14,7 @@ use crate::{
     },
     raise_error,
 };
-use std::{future::Future, pin::Pin};
+use std::{collections::HashMap, future::Future, pin::Pin};
 
 pub struct OutlookClient;
 
@@ -347,6 +347,152 @@ impl OutlookClient {
         })
     }
 
+    pub async fn batch_get_categories(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        mids: &[String],
+    ) -> RustMailerResult<HashMap<String, Vec<String>>> {
+        let url = "https://graph.microsoft.com/v1.0/$batch";
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+
+        let mut requests = Vec::new();
+        for (_, mid) in mids.iter().enumerate() {
+            let request = json!({
+                "id": mid,
+                "method": "GET",
+                "url": format!("/me/messages/{}?$select=categories", mid),
+                "headers": {}
+            });
+            requests.push(request);
+        }
+
+        let batch_body = json!({
+            "requests": requests
+        });
+
+        let response_value = client
+            .post(url, &access_token, Some(&batch_body), true)
+            .await?;
+
+        let responses = response_value
+            .get("responses")
+            .ok_or_else(|| raise_error!("Missing 'responses' array in $batch response.".into(), ErrorCode::InternalError))?
+            .as_array()
+            .ok_or_else(|| raise_error!("'responses' field is not an array.".into(), ErrorCode::InternalError))?;
+
+        let mut categories_map = HashMap::new();
+
+        for res in responses {
+            let batch_id = res.get("id").and_then(|v| v.as_str()).unwrap_or("Unknown ID");
+            let status = res.get("status").and_then(|s| s.as_i64()).unwrap_or(500);
+
+            if status >= 400 {
+                eprintln!(
+                    "Graph $batch GET sub-request failed for MID {} with status {}. Error body: {:?}",
+                    batch_id,
+                    status,
+                    res.get("body")
+                );
+                return Err(raise_error!(
+                    format!(
+                        "Failed to get categories for one or more messages (MID: {}, Status: {}). Please try again.",
+                        batch_id,
+                        status
+                    ),
+                    ErrorCode::ApiCallFailed 
+                ));
+            }
+
+            if status == 200 || status == 203 {
+                if let Some(body) = res.get("body") {
+                    let categories = body
+                        .get("categories")
+                        .and_then(|c| c.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect::<Vec<String>>()
+                        })
+                        .unwrap_or_default();
+                    
+                    categories_map.insert(batch_id.to_string(), categories);
+                }
+            }
+        }
+
+        Ok(categories_map)
+    }
+
+    pub async fn batch_modify_categories(
+        account_id: u64,
+        use_proxy: Option<u64>,
+        updates: &[MessageCategoryUpdate],
+    ) -> RustMailerResult<()> {
+        let url = "https://graph.microsoft.com/v1.0/$batch";
+        let client = HttpClient::new(use_proxy).await?;
+        let access_token = Self::get_access_token(account_id).await?;
+
+        let mut requests = Vec::new();
+        for (index, update) in updates.iter().enumerate() {
+            let request = json!({
+                "id": (index + 1).to_string(),
+                "method": "PATCH",
+                "url": format!("/me/messages/{}", update.mid),
+                "body": {
+                    "categories": &update.categories,
+                },
+                "headers": {
+                    "Content-Type": "application/json"
+                }
+            });
+            requests.push(request);
+        }
+
+        let batch_body = json!({
+            "requests": requests
+        });
+
+        let response_value = client
+            .post(url, &access_token, Some(&batch_body), true)
+            .await?;
+        let responses = response_value
+            .get("responses")
+            .ok_or_else(|| {
+                raise_error!(
+                    "Missing 'responses' array in $batch response.".into(),
+                    ErrorCode::InternalError
+                )
+            })?
+            .as_array()
+            .ok_or_else(|| {
+                raise_error!(
+                    "'responses' field is not an array.".into(),
+                    ErrorCode::InternalError
+                )
+            })?;
+
+        for res in responses {
+            if let Some(status) = res.get("status").and_then(|s| s.as_i64()) {
+                if status >= 400 {
+                    return Err(raise_error!(
+                        format!(
+                            "Graph $batch sub-request failed for id {} with status {}.",
+                            res.get("id")
+                                .unwrap_or(&json!("Unknown"))
+                                .as_str()
+                                .unwrap_or("Unknown"),
+                            status
+                        ),
+                        ErrorCode::ApiCallFailed
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn copy_message(
         account_id: u64,
         use_proxy: Option<u64>,
@@ -457,4 +603,9 @@ impl OutlookClient {
         client.patch(url.as_str(), &access_token, &data).await?;
         Ok(())
     }
+}
+
+pub struct MessageCategoryUpdate {
+    pub mid: String,
+    pub categories: Vec<String>,
 }

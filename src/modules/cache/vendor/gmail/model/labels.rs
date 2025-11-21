@@ -2,8 +2,8 @@
 // Licensed under RustMailer License Agreement v1.0
 // Unauthorized copying, modification, or distribution is prohibited.
 
-use serde::{Deserialize, Serialize};
 use crate::modules::cache::vendor::gmail::sync::labels::GmailLabels;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LabelList {
@@ -39,10 +39,10 @@ pub struct LabelDetail {
     pub message_list_visibility: Option<String>,
     /// Total number of messages with this label
     #[serde(rename = "messagesTotal")]
-    pub messages_total: u32,
+    pub messages_total: Option<u32>,
     /// Number of unread messages with this label
     #[serde(rename = "messagesUnread")]
-    pub messages_unread: u32,
+    pub messages_unread: Option<u32>,
     /// Display name of the label
     pub name: String,
     /// Total number of threads with this label
@@ -65,8 +65,8 @@ impl From<LabelDetail> for GmailLabels {
             id: 0,
             account_id: 0,
             name: label.name,
-            exists: label.messages_total,
-            unseen: label.messages_unread,
+            exists: label.messages_total.unwrap_or_default(),
+            unseen: label.messages_unread.unwrap_or_default(),
             label_id: label.id,
         }
     }

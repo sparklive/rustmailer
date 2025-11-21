@@ -19,24 +19,24 @@ use crate::{
 };
 
 pub async fn get_sync_labels(account: &AccountModel) -> RustMailerResult<Vec<LabelDetail>> {
-    let visible_labels = GmailClient::list_visible_labels(account.id, account.use_proxy).await?;
+    let all_labels = GmailClient::list_labels(account.id, account.use_proxy).await?;
     debug!(
-        "Account {}: Retrieved {} visible labels from Gmail API: {:?}",
+        "Account {}: Retrieved {} labels from Gmail API: {:?}",
         account.id,
-        visible_labels.len(),
-        visible_labels.iter().map(|l| &l.name).collect::<Vec<_>>()
+        all_labels.len(),
+        all_labels.iter().map(|l| &l.name).collect::<Vec<_>>()
     );
     // Exclude all labels that cannot retrieve messages via the message list,
     // since we use the message API to fetch message details.
-    if visible_labels.is_empty() {
+    if all_labels.is_empty() {
         warn!(
-            "Account {}: No visible labels returned from Gmail API.",
+            "Account {}: No labels returned from Gmail API.",
             account.id
         );
         return Err(
             raise_error!(
                 format!(
-                    "No visible labels returned from Gmail API for account {}. This is unexpected and may indicate an issue with the Gmail API or data.",
+                    "No labels returned from Gmail API for account {}. This is unexpected and may indicate an issue with the Gmail API or data.",
                     account.id
                 ),
                 ErrorCode::InternalError
@@ -46,7 +46,7 @@ pub async fn get_sync_labels(account: &AccountModel) -> RustMailerResult<Vec<Lab
     // Detect label changes through this method and send notifications.
     detect_mailbox_changes(
         account,
-        visible_labels
+        all_labels
             .iter()
             .map(|label| label.name.clone())
             .collect(),
@@ -61,7 +61,7 @@ pub async fn get_sync_labels(account: &AccountModel) -> RustMailerResult<Vec<Lab
     );
     // Filter labels according to the subscription list; matched_labels will not include any labels outside of it.
     let mut matched_labels: Vec<&Label> = if !subscribed.is_empty() {
-        visible_labels
+        all_labels
             .iter()
             .filter(|label| subscribed.contains(&label.id))
             .collect()
@@ -75,7 +75,7 @@ pub async fn get_sync_labels(account: &AccountModel) -> RustMailerResult<Vec<Lab
     );
     // If there are no subscriptions, default to the two special labels: INBOX and SENT
     if matched_labels.is_empty() {
-        matched_labels = visible_labels
+        matched_labels = all_labels
             .iter()
             .filter(|label| label.id == "INBOX" || label.id == "SENT")
             .collect();

@@ -17,6 +17,8 @@ use crate::modules::message::list::{
     get_thread_messages, list_messages_in_mailbox, list_threads_in_mailbox,
 };
 use crate::modules::message::search::payload::{MessageSearchRequest, UnifiedSearchRequest};
+use crate::modules::message::tags::tag_messages_impl;
+use crate::modules::message::tags::BatchTagRequest;
 use crate::modules::message::transfer::{
     transfer_messages, MailboxTransferRequest, MessageTransfer,
 };
@@ -107,6 +109,33 @@ impl MessageApi {
         let account_id = account_id.0;
         context.require_account_access(account_id)?;
         Ok(modify_flags(account_id, payload.0).await?)
+    }
+
+    /// Batch modifies the custom tags, categories, or keywords on messages.
+    ///
+    /// This interface is dedicated to operating on **user-defined labels** and is separate
+    /// from standard system status flags (like Read/Unread).
+    /// It unifies tagging across different email services:
+    /// - **Gmail/Graph API:** Operates on user-defined Label IDs or Category Names.
+    /// - **IMAP/SMTP:** Operates on custom IMAP Keywords (Custom Flags).
+    ///
+    /// **Note:** This is a high-level operation designed for user tag management.
+    #[oai(
+        path = "/tag-messages/:account_id",
+        method = "post",
+        operation_id = "tag_messages"
+    )]
+    async fn tag_messages(
+        &self,
+        /// The ID of the account owning the mailbox.
+        account_id: Path<u64>,
+        /// specifying the mailbox, messages, and flags to modify.
+        payload: Json<BatchTagRequest>,
+        context: ClientContext,
+    ) -> ApiResult<()> {
+        let account_id = account_id.0;
+        context.require_account_access(account_id)?;
+        Ok(tag_messages_impl(account_id, payload.0).await?)
     }
 
     /// Lists messages in a specified mailbox for the given account.
