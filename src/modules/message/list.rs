@@ -11,7 +11,9 @@ use crate::{
             model::Envelope,
             vendor::{
                 gmail::sync::{client::GmailClient, envelope::GmailEnvelope, labels::GmailLabels},
-                outlook::sync::{envelope::OutlookEnvelope, folders::OutlookFolder},
+                outlook::sync::{
+                    client::OutlookClient, envelope::OutlookEnvelope, folders::OutlookFolder,
+                },
             },
         },
         common::{decode_page_token, parallel::run_with_limit},
@@ -19,6 +21,7 @@ use crate::{
         envelope::extractor::extract_envelope,
         error::{code::ErrorCode, RustMailerResult},
         rest::response::{CursorDataPage, DataPage},
+        utils::mailbox_id,
     },
     raise_error,
 };
@@ -189,7 +192,64 @@ async fn fetch_remote_messages(
                 total_pages: Some(total_pages),
             })
         }
-        MailerType::GraphApi => todo!(),
+        MailerType::GraphApi => {
+            let folders = OutlookClient::list_mailfolders(account.id, account.use_proxy).await?;
+            let folder = folders
+                .into_iter()
+                .find(|f| f.display_name == mailbox_name)
+                .ok_or_else(|| raise_error!("".into(), ErrorCode::InvalidParameter))?;
+            let total_items = folder
+                .total_item_count
+                .ok_or_else(|| raise_error!("".into(), ErrorCode::InvalidParameter))?;
+
+            if total_items == 0 {
+                return Ok(CursorDataPage::new(
+                    None,
+                    Some(page_size),
+                    0,
+                    Some(0),
+                    vec![],
+                ));
+            }
+
+            let total_pages = (total_items as f64 / page_size as f64).ceil() as u64;
+            let page = decode_page_token(next_page_token)?;
+            let resp = OutlookClient::list_messages(
+                account.id,
+                account.use_proxy,
+                &folder.id,
+                page,
+                page_size,
+                None,
+            )
+            .await?;
+
+            let envelopes: Vec<OutlookEnvelope> = resp
+                .value
+                .into_iter()
+                .map(|m| {
+                    let mut envelope: OutlookEnvelope = m.try_into()?;
+                    envelope.account_id = account.id;
+                    envelope.folder_id = mailbox_id(account.id, &folder.id);
+                    envelope.folder_name = mailbox_name.to_string();
+                    Ok(envelope)
+                })
+                .collect::<RustMailerResult<Vec<OutlookEnvelope>>>()?;
+
+            let next_page_token = if page == total_pages {
+                None
+            } else {
+                Some(base64_encode_url_safe!((page + 1).to_string()))
+            };
+
+            Ok(CursorDataPage::new(
+                next_page_token,
+                Some(page_size),
+                total_items as u64,
+                Some(total_pages),
+                envelopes.into_iter().map(Into::into).collect(),
+            ))
+        }
     }
 }
 

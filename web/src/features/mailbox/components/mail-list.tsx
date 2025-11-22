@@ -44,7 +44,7 @@ export function MailList({
     if (isLoading) {
         return (
             <div className="space-y-1 p-1">
-                {Array.from({ length: 8 }).map((_, i) => (
+                {Array.from({ length: 20 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-2 p-1.5 rounded border">
                         <Skeleton className="h-3 w-3 rounded" />
                         <Skeleton className="h-3 flex-1" />

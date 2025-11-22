@@ -22,7 +22,7 @@ pub async fn fetch_and_save_since_date(
     let account_id = account.id;
     let use_proxy = account.use_proxy;
     let folder_limit = account.folder_limit.unwrap_or(u32::max_value());
-    let mut page = 1;
+    let mut page = 1u32;
     let page_size = ENVELOPE_BATCH_SIZE;
 
     loop {
@@ -34,8 +34,8 @@ pub async fn fetch_and_save_since_date(
             account_id,
             use_proxy,
             &folder.folder_id,
-            page,
-            page_size,
+            page as u64,
+            page_size as u64,
             Some(date),
         )
         .await?;
@@ -100,7 +100,7 @@ pub async fn fetch_and_save_full_folder(
         )
         .await?;
     }
-    let mut page = 1;
+    let mut page = 1u32;
     loop {
         // Stop if we have already fetched enough messages
         if inserted_count as u32 >= total_to_fetch {
@@ -110,8 +110,8 @@ pub async fn fetch_and_save_full_folder(
             account_id,
             use_proxy,
             &folder.folder_id,
-            page,
-            page_size,
+            page as u64,
+            page_size as u64,
             None,
         )
         .await?;

@@ -139,8 +139,8 @@ impl OutlookClient {
         account_id: u64,
         use_proxy: Option<u64>,
         folder_id: &str,
-        page: u32,
-        page_size: u32,
+        page: u64,
+        page_size: u64,
         after: Option<&str>,
     ) -> RustMailerResult<MessageListResponse> {
         assert!(page > 0, "page must be greater than 0");
