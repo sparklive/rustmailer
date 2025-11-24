@@ -327,7 +327,6 @@ impl OutlookClient {
                 "contentType": content_type,
                 "content": content,
             },
-            "importance": "high",
             "isReadReceiptRequested": true,
             "isRead": false
         });
